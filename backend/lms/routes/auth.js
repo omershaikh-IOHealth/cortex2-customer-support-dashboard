@@ -9,11 +9,14 @@ export default function authRoutes(pool) {
   // POST /api/auth/login
   router.post('/login', async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (!email || !password) return res.status(400).json({ error: 'Username/email and password required' });
     try {
-      const result = await pool.query(
-        'SELECT * FROM auth_users WHERE email = $1 AND is_active = true',
-        [email.toLowerCase().trim()]
+      const identifier = email.toLowerCase().trim();
+      const result = await pool.query(`SELECT *
+           FROM auth_users
+          WHERE is_active = true
+            AND (lower(email) = $1 OR split_part(lower(email), '@', 1) = $1)`,
+        [identifier]
       );
       const user = result.rows[0];
       if (!user) return res.status(401).json({ error: 'Invalid credentials' });

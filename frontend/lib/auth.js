@@ -3,7 +3,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Prefer same-origin API routes so tunneled frontend URLs can still reach backend via Next.js rewrites.
+const API = process.env.NEXT_PUBLIC_API_URL || '';
 
 const AuthContext = createContext(null);
 
@@ -27,11 +28,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { fetchMe(); }, [fetchMe]);
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     const res = await fetch(`${API}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email: identifier, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
@@ -77,7 +78,8 @@ export async function apiFetch(path, options = {}) {
 // Multipart form upload (for video)
 export async function apiUpload(path, formData) {
   const token = localStorage.getItem('lms_token');
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${path}`, {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+  const res = await fetch(`${apiBase}${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData

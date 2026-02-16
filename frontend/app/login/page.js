@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 export default function LoginPage() {
   const { user, login, loading } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +23,7 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      const u = await login(email, password);
+      const u = await login(identifier, password);
       redirectByRole(u.role, router);
     } catch (err) {
       setError(err.message);
@@ -49,14 +49,14 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Email</label>
+            <label className="block text-sm text-gray-400 mb-1">Username or Email</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
                 required
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition"
-                placeholder="you@example.com"
+                placeholder="ann or ann@support.com"
               />
             </div>
 
