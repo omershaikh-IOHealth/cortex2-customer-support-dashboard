@@ -4,6 +4,14 @@ import pg from 'pg';
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
 
+import cookieParser from 'cookie-parser';
+import authRoutes from './lms/routes/auth.js';
+import learnerTypeRoutes from './lms/routes/learnerTypes.js';
+import learnerRoutes from './lms/routes/learners.js';
+import contentRoutes from './lms/routes/content.js';
+import adminApiRoutes from './lms/routes/adminApi.js';
+import learnerApiRoutes from './lms/routes/learnerApi.js';
+
 dotenv.config();
 
 const app = express();
@@ -11,7 +19,15 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
+  import { fileURLToPath } from 'url';
+  import { dirname } from 'path';
+  const __lms_dir = dirname(fileURLToPath(import.meta.url));
+  app.use('/uploads/videos', express.static(`${__lms_dir}/uploads/videos`, {
+    dotfiles: 'deny',
+    setHeaders: (res) => { res.setHeader('Accept-Ranges', 'bytes'); }
+  }));
 // PostgreSQL connection pool
 const pool = new pg.Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -993,6 +1009,13 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ status: 'unhealthy', error: err.message });
   }
 });
+
+app.use('/api/auth', authRoutes(pool));
+app.use('/api/lms/admin/learner-types', learnerTypeRoutes(pool));
+app.use('/api/lms/admin/learners', learnerRoutes(pool));
+app.use('/api/lms/admin/content', contentRoutes(pool));
+app.use('/api/lms/admin', adminApiRoutes(pool));
+app.use('/api/lms/me', learnerApiRoutes(pool));
 
 // Start server
 const server = app.listen(PORT, () => {
