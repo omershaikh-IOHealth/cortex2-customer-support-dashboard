@@ -3,8 +3,10 @@ import cors from 'cors';
 import pg from 'pg';
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
-
 import cookieParser from 'cookie-parser';
+import { fileURLToPath } from 'url';   // ← moved here
+import { dirname } from 'path';         // ← moved here
+
 import authRoutes from './lms/routes/auth.js';
 import learnerTypeRoutes from './lms/routes/learnerTypes.js';
 import learnerRoutes from './lms/routes/learners.js';
@@ -21,13 +23,13 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-  import { fileURLToPath } from 'url';
-  import { dirname } from 'path';
-  const __lms_dir = dirname(fileURLToPath(import.meta.url));
-  app.use('/uploads/videos', express.static(`${__lms_dir}/uploads/videos`, {
-    dotfiles: 'deny',
-    setHeaders: (res) => { res.setHeader('Accept-Ranges', 'bytes'); }
-  }));
+const __lms_dir = dirname(fileURLToPath(import.meta.url));
+app.use('/uploads/videos', express.static(`${__lms_dir}/uploads/videos`, {
+  dotfiles: 'deny',
+  setHeaders: (res) => { res.setHeader('Accept-Ranges', 'bytes'); }
+}));
+
+
 // PostgreSQL connection pool
 const pool = new pg.Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -38,7 +40,8 @@ const pool = new pg.Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 30000,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  options: '--search_path=test'   // ← ADD THIS
 });
 
 // Test DB connection
