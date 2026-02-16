@@ -1,0 +1,131 @@
+CORTEX 2.0 DASHBOARD - PROJECT STRUCTURE
+=========================================
+
+cortex-dashboard/
+│
+├── README.md                    # Complete setup guide
+├── QUICK_START.md              # Fast setup instructions
+│
+├── backend/                     # Express.js API Server
+│   ├── package.json            # Backend dependencies
+│   ├── server.js               # Main API server (all endpoints)
+│   ├── .env.example            # Database config template
+│   └── .env                    # Your DB credentials (create this)
+│
+└── frontend/                    # Next.js Dashboard
+    ├── package.json            # Frontend dependencies
+    ├── next.config.js          # Next.js configuration
+    ├── tailwind.config.js      # Custom theme colors
+    ├── postcss.config.js       # CSS processing
+    ├── .env.local.example      # API URL template
+    ├── .env.local              # Your API config (create this)
+    │
+    ├── app/                    # Pages & Routes
+    │   ├── layout.js           # Root layout
+    │   ├── providers.js        # React Query setup
+    │   ├── globals.css         # Global styles
+    │   ├── page.js             # Root redirect
+    │   │
+    │   ├── dashboard/          # Main Dashboard
+    │   │   ├── layout.js       # Dashboard layout
+    │   │   └── page.js         # Dashboard view
+    │   │
+    │   ├── tickets/            # Ticket Management
+    │   │   ├── layout.js       # Tickets layout
+    │   │   ├── page.js         # Tickets list
+    │   │   └── [id]/           # Ticket details
+    │   │       └── page.js     # Single ticket view
+    │   │
+    │   ├── sla/                # SLA Monitoring
+    │   │   ├── layout.js
+    │   │   └── page.js
+    │   │
+    │   ├── escalations/        # Escalation Alerts
+    │   │   ├── layout.js
+    │   │   └── page.js
+    │   │
+    │   ├── analytics/          # Charts & Trends
+    │   │   ├── layout.js
+    │   │   └── page.js
+    │   │
+    │   ├── logs/               # System Logs
+    │   │   ├── layout.js
+    │   │   └── page.js
+    │   │
+    │   └── config/             # Configuration
+    │       ├── layout.js
+    │       └── page.js
+    │
+    ├── components/             # Reusable Components
+    │   └── ui/
+    │       ├── Sidebar.js      # Navigation sidebar
+    │       └── MetricCard.js   # Dashboard metric cards
+    │
+    └── lib/                    # Utilities
+        ├── api.js              # API client functions
+        └── utils.js            # Helper functions
+
+
+API ENDPOINTS (Backend)
+=======================
+
+/api/health                           # Health check
+/api/metrics/overview                 # Dashboard metrics
+/api/tickets                          # All tickets (with filters)
+/api/tickets/:id                      # Single ticket + threads
+/api/sla/critical                     # Critical SLA tickets
+/api/escalations                      # All escalations
+/api/logs                             # System logs
+/api/analytics/trends                 # 30-day trends
+/api/analytics/priority-distribution  # Priority stats
+/api/config/sla                       # SLA configuration
+/api/config/escalation                # Escalation rules
+
+
+PAGES & ROUTES (Frontend)
+==========================
+
+/                      → Redirects to /dashboard
+/dashboard            → Main overview with metrics
+/tickets              → Ticket list with filters
+/tickets/:id          → Full ticket details
+/sla                  → SLA monitoring dashboard
+/escalations          → Escalation alerts
+/analytics            → Charts and trends
+/logs                 → System execution logs
+/config               → System configuration
+
+
+KEY TECHNOLOGIES
+================
+
+Backend:
+- Express.js          → API server
+- PostgreSQL (pg)     → Database client
+- WebSockets (ws)     → Real-time updates
+- CORS                → Cross-origin requests
+
+Frontend:
+- Next.js 14          → React framework
+- React Query         → Data fetching/caching
+- Tailwind CSS        → Styling
+- Recharts            → Data visualization
+- Lucide Icons        → Icon library
+- date-fns            → Date formatting
+
+
+DEVELOPMENT WORKFLOW
+====================
+
+1. Start Backend:     cd backend && npm run dev
+2. Start Frontend:    cd frontend && npm run dev
+3. Access:            http://localhost:3000
+4. API Docs:          http://localhost:5000/api/health
+
+
+FILE SIZES (Approximate)
+========================
+
+Backend:    ~150 KB (1 main file)
+Frontend:   ~50+ files, organized by feature
+Total:      Production-ready, scalable architecture
