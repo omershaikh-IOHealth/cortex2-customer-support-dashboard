@@ -3,6 +3,7 @@ import cors from 'cors';
 import pg from 'pg';
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
+import companionRoutes from './companion.js';
 
 dotenv.config();
 
@@ -993,6 +994,8 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ status: 'unhealthy', error: err.message });
   }
 });
+
+app.use('/api/companion', companionRoutes(pool));
 
 // Start server
 const server = app.listen(PORT, () => {

@@ -1,4 +1,5 @@
 import Sidebar from '@/components/ui/Sidebar'
+import AICompanion from '@/components/ui/AICompanion';
 
 export default function DashboardLayout({ children }) {
   return (
@@ -7,6 +8,7 @@ export default function DashboardLayout({ children }) {
       <main className="flex-1 ml-64 p-8">
         {children}
       </main>
+      <AICompanion />
     </div>
   )
 }
