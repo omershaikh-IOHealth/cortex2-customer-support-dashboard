@@ -21,7 +21,6 @@ const navigation = [
   { name: 'Escalations', href: '/escalations', icon: AlertTriangle },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
   { name: 'System Logs', href: '/logs', icon: Activity },
-  { name: 'Configuration', href: '/config', icon: Settings },
   { name: 'Admin', href: '/admin', icon: Settings },
 ]
 

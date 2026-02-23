@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getAdminCompanies,
@@ -80,6 +80,13 @@ export default function AdminPage() {
     kpi: { isOpen: false, data: null, solution_id: null }
   })
 
+  // Toast notification
+  const [toast, setToast] = useState(null)
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
   // Fetch companies
   const { data: companies, isLoading } = useQuery({
     queryKey: ['admin-companies'],
@@ -126,8 +133,10 @@ export default function AdminPage() {
       await mutation(data)
       queryClient.invalidateQueries()
       closeModal(type)
+      const label = type.replace(/([A-Z])/g, ' $1').trim()
+      showToast(`${label.charAt(0).toUpperCase() + label.slice(1)} saved successfully`)
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      showToast(`Error: ${err.message}`, 'error')
     }
   }
 
@@ -262,13 +271,22 @@ export default function AdminPage() {
         onSave={(data) => handleSave('caseType', data, data.id ? (d) => updateCaseType(d.id, d) : createCaseType)}
       />
 
-      <KPIModal
+<KPIModal
         isOpen={modals.kpi.isOpen}
         onClose={() => closeModal('kpi')}
         data={modals.kpi.data}
         solution_id={modals.kpi.solution_id}
         onSave={(data) => handleSave('kpi', data, data.id ? (d) => updateKPI(d.id, d) : createKPI)}
       />
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 ${
+          toast.type === 'error' ? 'bg-red-500/90 text-white' : 'bg-green-500/90 text-white'
+        }`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   )
 }
@@ -311,6 +329,11 @@ function CompanyCard({ company, isExpanded, onToggle, onEdit, onDelete, onAddPOC
                 <span className="badge bg-cortex-success/10 text-cortex-success text-sm">Active</span>
               ) : (
                 <span className="badge bg-cortex-muted/10 text-cortex-muted text-sm">Inactive</span>
+              )}
+              {company.domain && (
+                <span className="text-sm text-cortex-muted font-mono bg-cortex-bg px-2 py-0.5 rounded">
+                  @{company.domain}
+                </span>
               )}
             </div>
             
@@ -433,37 +456,37 @@ function SolutionCard({ solution, companyId, isExpanded, onToggle, expandedReque
   const { data: slaConfigs } = useQuery({
     queryKey: ['sla-configs', solution.id],
     queryFn: () => getSLAConfigs(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   const { data: escalationConfigs } = useQuery({
     queryKey: ['escalation-configs', solution.id],
     queryFn: () => getEscalationConfigs(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   const { data: assignees } = useQuery({
     queryKey: ['assignees', solution.id],
     queryFn: () => getAssignees(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   const { data: modules } = useQuery({
     queryKey: ['modules', solution.id],
     queryFn: () => getModules(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   const { data: requestTypes } = useQuery({
     queryKey: ['request-types', solution.id],
     queryFn: () => getRequestTypes(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   const { data: kpis } = useQuery({
     queryKey: ['kpis', solution.id],
     queryFn: () => getKPIs(solution.id),
-    enabled: isExpanded
+    enabled: true
   })
 
   return (
@@ -488,6 +511,28 @@ function SolutionCard({ solution, companyId, isExpanded, onToggle, expandedReque
               <span>Hours: {solution.business_hours_start} - {solution.business_hours_end}</span>
               <span>• {solution.timezone}</span>
             </div>
+            {!isExpanded && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {slaConfigs?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{slaConfigs.length} SLA</span>
+                )}
+                {escalationConfigs?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-orange-500/10 text-orange-400">{escalationConfigs.length} Escalation</span>
+                )}
+                {assignees?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-400">{assignees.length} Assignees</span>
+                )}
+                {modules?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-400">{modules.length} Modules</span>
+                )}
+                {requestTypes?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{requestTypes.length} Req Types</span>
+                )}
+                {kpis?.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-pink-500/10 text-pink-400">{kpis.length} KPIs</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -826,8 +871,9 @@ function CompanyModal({ isOpen, onClose, data, onSave }) {
     is_active: true
   })
 
-  useState(() => {
+  useEffect(() => {
     if (data) setForm(data)
+    else setForm({ company_code: '', company_name: '', description: '', domain: '', is_active: true })
   }, [data])
 
   return (
@@ -906,6 +952,11 @@ function POCModal({ isOpen, onClose, data, company_id, onSave }) {
     is_primary: false
   })
 
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ company_id, email: '', name: '', phone: '', role: '', status: 'active', is_primary: false })
+  }, [data, company_id])
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit POC' : 'Add POC'}>
       <form onSubmit={(e) => {
@@ -940,7 +991,7 @@ function POCModal({ isOpen, onClose, data, company_id, onSave }) {
 }
 
 function SolutionModal({ isOpen, onClose, data, company_id, onSave }) {
-  const [form, setForm] = useState(data || {
+  const defaults = {
     company_id: company_id,
     solution_code: '',
     solution_name: '',
@@ -951,7 +1002,13 @@ function SolutionModal({ isOpen, onClose, data, company_id, onSave }) {
     business_hours_end: '20:00',
     timezone: 'Asia/Dubai',
     is_active: true
-  })
+  }
+  const [form, setForm] = useState(data || defaults)
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ ...defaults, company_id })
+  }, [data, company_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Solution' : 'Add Solution'}>
@@ -993,7 +1050,7 @@ function SolutionModal({ isOpen, onClose, data, company_id, onSave }) {
 }
 
 function SLAConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
-  const [form, setForm] = useState(data || {
+  const defaults = {
     solution_id,
     priority: '',
     priority_name: '',
@@ -1001,7 +1058,13 @@ function SLAConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
     response_hours: '',
     resolution_hours: '',
     resolution_type: 'hours'
-  })
+  }
+  const [form, setForm] = useState(data || defaults)
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ ...defaults, solution_id })
+  }, [data, solution_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit SLA Config' : 'Add SLA Config'}>
@@ -1046,14 +1109,20 @@ function SLAConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
 }
 
 function EscalationConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
-  const [form, setForm] = useState(data || {
+  const defaults = {
     solution_id,
     level: '',
     threshold_percent: '',
     level_name: '',
     notify_roles: [],
     action_description: ''
-  })
+  }
+  const [form, setForm] = useState(data || defaults)
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ ...defaults, solution_id })
+  }, [data, solution_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Escalation' : 'Add Escalation'}>
@@ -1063,18 +1132,12 @@ function EscalationConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
       }} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Level *</label>
-            <select value={form.level} onChange={(e) => setForm({ ...form, level: parseInt(e.target.value) })} className="input w-full" required>
-              <option value="">Select</option>
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
-              <option value="3">Level 3</option>
-              <option value="4">Level 4</option>
-            </select>
+          <label className="block text-sm font-medium mb-2">Level *</label>
+          <input type="number" min="1" max="10" value={form.level} onChange={(e) => setForm({ ...form, level: parseInt(e.target.value) || '' })} className="input w-full" required />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Threshold % *</label>
-            <input type="number" value={form.threshold_percent} onChange={(e) => setForm({ ...form, threshold_percent: parseInt(e.target.value) })} className="input w-full" required />
+          <label className="block text-sm font-medium mb-2">Threshold % *</label>
+          <input type="number" min="0" max="100" step="1" value={form.threshold_percent} onChange={(e) => setForm({ ...form, threshold_percent: parseFloat(e.target.value) || '' })} className="input w-full" required />
           </div>
         </div>
         <div>
@@ -1100,6 +1163,11 @@ function AssigneeModal({ isOpen, onClose, data, solution_id, onSave }) {
     clickup_user_id: '',
     is_active: true
   })
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ solution_id, role_code: '', role_name: '', person_name: '', email: '', clickup_user_id: '', is_active: true })
+  }, [data, solution_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Assignee' : 'Add Assignee'}>
@@ -1142,6 +1210,11 @@ function ModuleModal({ isOpen, onClose, data, solution_id, onSave }) {
     description: ''
   })
 
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ solution_id, module_code: '', module_name: '', description: '' })
+  }, [data, solution_id])
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Module' : 'Add Module'}>
       <form onSubmit={(e) => {
@@ -1178,6 +1251,11 @@ function RequestTypeModal({ isOpen, onClose, data, solution_id, onSave }) {
     description: '',
     sla_applicable: true
   })
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ solution_id, request_type: '', description: '', sla_applicable: true })
+  }, [data, solution_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Request Type' : 'Add Request Type'}>
@@ -1220,6 +1298,11 @@ function CaseTypeModal({ isOpen, onClose, data, solution_id, request_type_id, on
     default_priority: 'P3'
   })
 
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ solution_id, request_type_id, case_type: '', description: '', default_priority: 'P3' })
+  }, [data, solution_id, request_type_id])
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Case Type' : 'Add Case Type'}>
       <form onSubmit={(e) => {
@@ -1260,6 +1343,11 @@ function KPIModal({ isOpen, onClose, data, solution_id, onSave }) {
     unit: '',
     report_frequency: 'monthly'
   })
+
+  useEffect(() => {
+    if (data) setForm(data)
+    else setForm({ solution_id, kpi_code: '', kpi_name: '', description: '', calculation_method: '', target_value: '', unit: '', report_frequency: 'monthly' })
+  }, [data, solution_id])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit KPI' : 'Add KPI'}>
