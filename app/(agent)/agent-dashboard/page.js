@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { getCalls } from '@/lib/api'
+import EmptyState from '@/components/ui/EmptyState'
 
 function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent' }) {
   return (
@@ -96,7 +97,7 @@ export default function AgentDashboardPage() {
             {[1, 2, 3].map(i => <div key={i} className="h-10 rounded bg-cortex-border/30 animate-pulse" />)}
           </div>
         ) : calls.length === 0 ? (
-          <p className="text-cortex-muted text-sm text-center py-6">No calls logged yet.</p>
+          <EmptyState icon={Phone} title="No calls logged yet" message="Your recent call history will appear here." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

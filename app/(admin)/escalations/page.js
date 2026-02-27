@@ -5,6 +5,7 @@ import { getEscalations } from '@/lib/api'
 import Link from 'next/link'
 import { getEscalationLevelColor, formatDate, formatRelativeTime } from '@/lib/utils'
 import { AlertTriangle } from 'lucide-react'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function EscalationsPage() {
   const { data: escalations, isLoading } = useQuery({
@@ -118,7 +119,11 @@ export default function EscalationsPage() {
             ))}
           </div>
         ) : (
-          <p className="text-center py-12 text-cortex-muted">No escalations recorded</p>
+          <EmptyState
+            icon={AlertTriangle}
+            title="No escalations recorded"
+            message="All tickets are within SLA thresholds."
+          />
         )}
       </div>
     </div>

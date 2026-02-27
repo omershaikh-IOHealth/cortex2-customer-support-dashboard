@@ -14,6 +14,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Inline script runs synchronously before paint to prevent dark-mode FOUC */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('cortex-theme');if(!t||t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}` }} />
+      </head>
       <body className={inter.className}>
         <ThemeProvider>
           <Providers>

@@ -9,10 +9,8 @@ const ThemeContext = createContext({
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('dark')
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
     // Get theme from localStorage or default to dark
     const savedTheme = localStorage.getItem('cortex-theme') || 'dark'
     setTheme(savedTheme)
@@ -24,11 +22,6 @@ export function ThemeProvider({ children }) {
     setTheme(newTheme)
     localStorage.setItem('cortex-theme', newTheme)
     document.documentElement.classList.toggle('dark', newTheme === 'dark')
-  }
-
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return <div className="dark">{children}</div>
   }
 
   return (
