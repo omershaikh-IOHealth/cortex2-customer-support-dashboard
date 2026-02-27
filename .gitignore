@@ -21,3 +21,9 @@ yarn-error.log*
 
 # OS
 .DS_Store
+
+# credentials / secrets
+*.credentials.txt
+*.secrets.*
+*credentials*
+*tokens and credentials*

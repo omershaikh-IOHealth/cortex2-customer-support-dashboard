@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_circulars_is_active   ON test.circulars(is_active
 const SEED_USERS = [
   {
     email: 'ann.shruthy@iohealth.com',
-    password: 'W@c62288',
+    password: process.env.SEED_ADMIN_PASSWORD || 'ChangeMe!Admin2025',
     full_name: 'Ann Shruthy',
     role: 'admin',
     ziwo_email: 'ann.shruthy@iohealth.com',
@@ -108,11 +108,11 @@ const SEED_USERS = [
   },
   {
     email: 'asif.k@iohealth.com',
-    password: 'Agent@Cortex2025',
+    password: process.env.SEED_AGENT_PASSWORD || 'ChangeMe!Agent2025',
     full_name: 'Asif K',
     role: 'agent',
     ziwo_email: 'asif.k@iohealth.com',
-    ziwo_password: 'Aachi452282@',
+    ziwo_password: process.env.SEED_AGENT_ZIWO_PASSWORD || null,
   },
 ]
 
@@ -212,7 +212,6 @@ CREATE INDEX IF NOT EXISTS idx_shift_breaks_shift_id ON test.shift_breaks(shift_
     return NextResponse.json({
       success: true,
       log,
-      credentials: SEED_USERS.map(u => ({ email: u.email, password: u.password, role: u.role })),
       next: 'Visit /login and sign in. Change passwords via Admin → User Management.',
     })
   } catch (err) {

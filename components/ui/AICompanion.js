@@ -50,7 +50,7 @@ export default function AICompanion() {
     !['closed', 'resolved', 'complete', 'Closed', 'Resolved'].includes(t.status)
   );
 
-  const isVisible = !!(user && (user.role === 'admin' || user.role === 'support'));
+  const isVisible = !!(user && (user.role === 'admin' || user.role === 'agent'));
 
   // loadHistory must be defined before the useEffect that calls it
   const loadHistory = async () => {

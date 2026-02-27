@@ -6,7 +6,7 @@ import { AlertTriangle, X, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 function fetchCritical() {
-  return fetch('/api/sla/critical').then(r => r.ok ? r.json() : { tickets: [] })
+  return fetch('/api/sla/critical').then(r => r.ok ? r.json() : [])
 }
 
 export default function TopAlertBar() {
@@ -18,7 +18,7 @@ export default function TopAlertBar() {
     refetchInterval: 60000,
   })
 
-  const criticalTickets = (data?.tickets || []).filter(t => t.sla_status === 'critical' || t.sla_status === 'breached')
+  const criticalTickets = (Array.isArray(data) ? data : []).filter(t => ['critical', 'breached', 'at_risk'].includes(t.sla_status))
 
   if (dismissed || criticalTickets.length === 0) return null
 

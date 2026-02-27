@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { getSchemaContext } from '@/lib/schema-context'
-
-const MOCK_USER = {
-  id: '13',
-  email: 'omer.shaikh@iohealth.com',
-  role: 'admin',
-  display_name: 'Omer Shaikh',
-  company_id: null,
-}
+import { auth } from '@/auth'
 
 // ─── Shared LLM caller ────────────────────────────────────────────────────────
 async function callLLM(messages, temperature = 0.0, max_tokens = 600) {
@@ -128,12 +121,22 @@ Respond with ONLY "VALID" or "REVISE: <instruction>".`
 // ─── Main route handler ───────────────────────────────────────────────────────
 export async function POST(request) {
   try {
+    const session = await auth()
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { message } = await request.json()
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 })
     }
 
-    const { id: userId, role: userRole, company_id: userCompanyId, display_name: userName } = MOCK_USER
+    const user = {
+      id: String(session.user.id),
+      email: session.user.email,
+      role: session.user.role,
+      display_name: session.user.name,
+      company_id: session.user.company_id || null,
+    }
+    const { id: userId, role: userRole, company_id: userCompanyId } = user
     const schemaContext = getSchemaContext(userRole, userCompanyId)
 
     // Load session

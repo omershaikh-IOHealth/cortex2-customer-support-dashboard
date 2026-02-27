@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import pool from '@/lib/db'
-
-const MOCK_USER_ID = '13'
+import { auth } from '@/auth'
 
 export async function GET() {
   try {
+    const session = await auth()
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = String(session.user.id)
+
     const result = await pool.query(
       'SELECT messages, summary FROM test.ai_companion_sessions WHERE user_id = $1',
-      [MOCK_USER_ID]
+      [userId]
     )
     if (result.rows.length === 0) return NextResponse.json({ messages: [], summary: null })
     return NextResponse.json({
