@@ -4,97 +4,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Cortex 2.0** is a real-time support center operations dashboard for MedGulf. It monitors support tickets, SLA compliance, escalations, and workflows. The app is a monorepo with:
-
-- `backend/` — Express.js REST API (Node.js + PostgreSQL)
-- `frontend/` — Next.js 14 dashboard (React + React Query + Tailwind CSS)
+**Cortex 2.0** is a real-time support center operations dashboard for MedGulf. It monitors support tickets, SLA compliance, escalations, and AI-assisted workflows. The app is a **unified Next.js 14 application** — the backend API lives as Next.js App Router API routes, with no separate Express server.
 
 ## Commands
 
-### Backend
 ```bash
-cd backend
-npm install
-npm run dev    # node --watch server.js (dev with hot reload)
-npm start      # node server.js (production)
+npm install       # Install all dependencies
+npm run dev       # Next.js dev server on port 3000
+npm run build     # Production build
+npm run lint      # ESLint
 ```
 
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev    # Next.js dev server on port 3000
-npm run build  # Production build
-npm run lint   # ESLint
+Single `.env.local` at the repo root (copy from `.env.local.example`):
 ```
-
-### Running the full stack
-Start both terminals simultaneously. Frontend proxies `/api` calls to `http://localhost:5000` via `next.config.js` rewrites.
-
-Health check: `GET http://localhost:5000/api/health`
-
-### Environment setup
-```bash
-# Backend
-cp backend/.env.example backend/.env
-# Fill in: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, PORT, NODE_ENV
-
-# Frontend
-cp frontend/.env.local.example frontend/.env.local
-# NEXT_PUBLIC_API_URL=http://localhost:5000
+DB_HOST=
+DB_PORT=5432
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+CORE42_API_KEY=
+N8N_WEBHOOK_URL=   # optional — for Force Sync Now feature
 ```
 
 ## Architecture
 
 ### Data flow
 ```
-Browser → Next.js App Router → React Query → Axios (frontend/lib/api.js)
-    → Express REST API (backend/server.js) → PostgreSQL (test.* schema)
+Browser → Next.js App Router pages → React Query → Axios (lib/api.js, relative paths)
+       → Next.js API routes (app/api/**/route.js) → PostgreSQL (lib/db.js pool → test.* schema)
 ```
 
-### Backend
-All API logic is in a single file: **`backend/server.js`** (~1,000 lines). It exposes 40+ REST endpoints. Database uses a pg connection pool (max 20 connections). All queries filter by `company_code = 'medgulf'` and `is_deleted = false`.
+### Key library files
+- `lib/db.js` — Singleton `pg.Pool`. All API routes import this.
+- `lib/api.js` — All Axios API wrapper functions. Base path `/api`, 10s timeout.
+- `lib/auth.js` — `useAuth` hook and `apiFetch` (uses relative paths, not localhost).
+- `lib/utils.js` — Formatting helpers and `cortex-*` color mapping for priorities/SLA.
+- `lib/schema-context.js` — Full DB schema string injected into AI Companion system prompt.
 
-Key endpoint groups:
-- `/api/metrics/*` — Dashboard KPIs
-- `/api/tickets` — Ticket list/details with filters
-- `/api/sla/*` — SLA status
-- `/api/escalations` — Alert management
-- `/api/analytics/*` — Trend charts
-- `/api/logs` — Workflow execution logs
-- `/api/admin/*` — CRUD for all configuration entities (companies, POCs, solutions, SLA configs, escalation configs, assignees, modules, request types, case types, KPIs)
+### API routes (`app/api/`)
+All routes use `import pool from '@/lib/db'` and return `NextResponse.json(...)`. Always use parameterized queries (`$1, $2` placeholders). All queries filter `company_code = 'medgulf'` and `is_deleted = false`.
 
-### Frontend
-Uses the **Next.js App Router**. Key files:
+Key route groups:
+- `metrics/overview` — Dashboard KPIs
+- `tickets` + `tickets/[id]` — Ticket list/detail with filters; `last_status_change_at` computed via subquery on `test.threads`
+- `tickets/[id]/notes` — Internal notes (action_type='internal_note', thread_source='internal')
+- `tickets/[id]/hold` — SLA pause/resume (sets `sla_paused_at`, `sla_status`)
+- `tickets/[id]/similar` — Resolved tickets sharing module+request_type+case_type
+- `sla/critical` — Tickets at/above SLA warning threshold
+- `escalations`, `logs` — Alerts and processing logs
+- `analytics/trends` — Returns `{ current: [...30 days], previous: [...30 days] }` for WoW comparison
+- `analytics/priority-distribution` — Includes `avg_resolution_hours` per priority
+- `admin/*` — CRUD for all config entities (companies, POCs, solutions, SLA/escalation configs, assignees, modules, request types, case types, KPIs); `admin/sync` triggers N8N webhook
+- `qa/sample` — `ORDER BY RANDOM() LIMIT $N`, supports priority/status/date filters
+- `companion/chat`, `companion/clear`, `companion/history` — AI Companion using Core42 LLM
 
-- `frontend/lib/api.js` — All API functions (Axios wrapper with base `/api` path, 10s timeout)
-- `frontend/lib/utils.js` — Formatting helpers and color mapping for priorities/SLA status
-- `frontend/app/providers.js` — React Query setup (30s stale time, no refetch on window focus, 1 retry)
-- `frontend/app/layout.js` — Root layout with sidebar and AI companion
-- `frontend/components/ui/Sidebar.js` — Navigation (7 sections: Dashboard, Tickets, SLA Monitor, Escalations, Analytics, System Logs, Admin)
-- `frontend/components/ui/AICompanion.js` — Chat interface (role-based, admin/support only)
+### Frontend pages (`app/`)
+- `dashboard/page.js` — KPI metric cards, escalations feed
+- `tickets/page.js` — Table with filter presets (localStorage), SLA pause toggle, "Time in Status" column
+- `tickets/[id]/page.js` — Detail: live SLA countdown, internal notes, similar tickets, soft hold, "Ask AI" button
+- `analytics/page.js` — 30-day trends with WoW toggle, priority breakdown with avg resolution time
+- `qa/page.js` — Random ticket sampling with CSV export
+- `admin/page.js` — Full CRUD for all config entities + Force Sync Now button
+- `sla/page.js`, `escalations/page.js`, `logs/page.js`
 
-Page auto-refresh intervals:
-- SLA Monitor: 15 seconds
-- All other pages: 30 seconds
+### Layout & UI
+- `app/layout.js` — Root layout wrapping all pages with Sidebar + AICompanion
+- `components/ui/Sidebar.js` — Navigation (Dashboard, Tickets, SLA Monitor, Escalations, Analytics, QA Sampling, System Logs, Admin)
+- `components/ui/AICompanion.js` — Floating chat panel (admin/support only). Exports `openCompanionWith(message)` global event for cross-page trigger. Shows SLA alert chips with countdown timers when open.
+- `components/ui/Modal.js`, `MetricCard.js`, `ThemeToggle.js`
 
 ### Design System
-Custom Tailwind theme in `frontend/tailwind.config.js` with `cortex-*` color tokens (`cortex-bg`, `cortex-surface`, `cortex-text`, `cortex-accent`, `cortex-success`, `cortex-warning`, `cortex-danger`, `cortex-critical`). Global component classes (`.card`, `.badge`, `.btn-primary`, etc.) are defined in `frontend/app/globals.css`. Fonts: IBM Plex Sans (body), Inter Tight (display), JetBrains Mono (code).
+Custom Tailwind theme with `cortex-*` tokens: `cortex-bg`, `cortex-surface`, `cortex-text`, `cortex-accent`, `cortex-muted`, `cortex-border`, `cortex-success`, `cortex-warning`, `cortex-danger`, `cortex-critical`. Global component classes (`.card`, `.badge`, `.btn-primary`, `.btn-secondary`, `.input`, `.table-header`, `.table-cell`) defined in `app/globals.css`. Fonts: IBM Plex Sans (body), Inter Tight (display), JetBrains Mono (mono).
 
 ### Database schema
-All tables are in the `test` schema. Key tables: `test.tickets`, `test.threads`, `test.sla_alerts`, `test.companies`, `test.solutions`, `test.pocs`, `test.sla_configs`, `test.escalation_configs`, `test.assignee_configs`, `test.modules`, `test.request_types`, `test.case_types`, `test.kpi_configs`, `test.processing_logs`.
+All tables in the `test` schema: `test.tickets`, `test.threads`, `test.sla_alerts`, `test.companies`, `test.solutions`, `test.pocs`, `test.sla_configs`, `test.escalation_configs`, `test.assignee_configs`, `test.modules`, `test.request_types`, `test.case_types`, `test.kpi_configs`, `test.processing_logs`, `test.companion_sessions`.
 
 ## Adding New Features
 
-1. Add endpoint in `backend/server.js`
-2. Add API wrapper function in `frontend/lib/api.js`
-3. Create page at `frontend/app/<feature>/page.js`
-4. Use `useQuery` from React Query with a `refetchInterval` for auto-refresh
-5. Use `cortex-*` Tailwind classes and `.card` / `.badge` component classes for styling
-
-## Current Uncommitted Changes
-- `frontend/app/admin/page.js` — Toast notifications, domain display, query optimizations
-- `frontend/components/ui/Sidebar.js` — Navigation updates
-- `frontend/lib/api.js` — Switched from absolute to relative API paths
-- `frontend/next.config.js` — API proxy rewrites added
-- `frontend/app/config/page.js` — Deleted (config moved into admin panel)
+1. Add API route handler in `app/api/<feature>/route.js` using parameterized SQL via `pool`
+2. Add API wrapper in `lib/api.js`
+3. Create page at `app/<feature>/page.js` using `useQuery` with a `refetchInterval`
+4. Add nav link to `components/ui/Sidebar.js`
+5. Style with `cortex-*` Tailwind classes and `.card` / `.badge` component classes
