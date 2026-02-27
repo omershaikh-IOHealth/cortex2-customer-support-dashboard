@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee } from 'lucide-react'
 import Modal from './Modal'
+import { getUsers, getRotas, createRota, deleteRota } from '@/lib/api'
 
 function getWeekDates(base) {
   const d = new Date(base)
@@ -21,9 +22,6 @@ function fmt(date) {
   return date.toISOString().slice(0, 10)
 }
 
-function fetchAgents() {
-  return fetch('/api/users').then(r => r.ok ? r.json() : []).then(users => users.filter(u => u.role === 'agent' && u.is_active))
-}
 
 export default function RotaManagementSection() {
   const qc = useQueryClient()
@@ -39,13 +37,13 @@ export default function RotaManagementSection() {
 
   const { data: shifts = [], isLoading } = useQuery({
     queryKey: ['admin-rota', from, to],
-    queryFn: () => fetch(`/api/rota?from=${from}&to=${to}`).then(r => r.ok ? r.json() : []),
+    queryFn: () => getRotas({ from, to }),
     refetchInterval: 60000,
   })
 
   const { data: agents = [] } = useQuery({
     queryKey: ['agent-list'],
-    queryFn: fetchAgents,
+    queryFn: () => getUsers().then(users => users.filter(u => u.role === 'agent' && u.is_active)),
     staleTime: 300000,
   })
 
@@ -57,12 +55,7 @@ export default function RotaManagementSection() {
   async function handleSave(form) {
     setSaving(true)
     try {
-      const res = await fetch('/api/rota', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      await createRota(form)
       await qc.invalidateQueries({ queryKey: ['admin-rota'] })
       showToast('Shift created')
       setModalOpen(false)
@@ -76,8 +69,7 @@ export default function RotaManagementSection() {
   async function handleDelete(id) {
     if (!confirm('Remove this shift?')) return
     try {
-      const res = await fetch(`/api/rota/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed')
+      await deleteRota(id)
       await qc.invalidateQueries({ queryKey: ['admin-rota'] })
       showToast('Shift removed')
     } catch (err) {

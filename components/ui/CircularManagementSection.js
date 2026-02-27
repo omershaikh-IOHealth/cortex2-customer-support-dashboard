@@ -4,10 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, Plus, Edit, Trash2, History, X, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from './Modal'
-
-function fetchCirculars() {
-  return fetch('/api/circulars?all=true').then(r => r.ok ? r.json() : [])
-}
+import { getCirculars } from '@/lib/api'
 
 export default function CircularManagementSection() {
   const qc = useQueryClient()
@@ -19,7 +16,7 @@ export default function CircularManagementSection() {
 
   const { data: circulars = [], isLoading } = useQuery({
     queryKey: ['admin-circulars'],
-    queryFn: fetchCirculars,
+    queryFn: () => getCirculars({ all: 'true' }),
     refetchInterval: 60000,
   })
 

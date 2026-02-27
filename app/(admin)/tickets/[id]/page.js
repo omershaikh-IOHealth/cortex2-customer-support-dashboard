@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTicket, getSimilarTickets, addTicketNote, holdTicket } from '@/lib/api'
+import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } from '@/lib/api'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -700,7 +700,7 @@ export default function TicketDetailPage() {
 function AssignDropdown({ onAssign, onClose }) {
   const { data: agents = [] } = useQuery({
     queryKey: ['agent-list-assign'],
-    queryFn: () => fetch('/api/users').then(r => r.ok ? r.json() : []).then(u => u.filter(x => x.role === 'agent' && x.is_active)),
+    queryFn: () => getUsers().then(u => u.filter(x => x.role === 'agent' && x.is_active)),
     staleTime: 300000,
   })
 

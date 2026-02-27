@@ -5,9 +5,7 @@ import { useSession } from 'next-auth/react'
 import { BookOpen, Info, Calendar, Clock, Coffee, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { formatRelativeTime } from '@/lib/utils'
-
-const fetchCirculars = () =>
-  fetch('/api/circulars').then(r => r.ok ? r.json() : [])
+import { getCirculars } from '@/lib/api'
 
 function getWeekDates(base) {
   const d = new Date(base)
@@ -33,7 +31,7 @@ export default function BriefingPage() {
 
   const { data: circulars = [], isLoading: circLoading } = useQuery({
     queryKey: ['circulars'],
-    queryFn: fetchCirculars,
+    queryFn: getCirculars,
     refetchInterval: 300000,
   })
 

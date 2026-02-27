@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, UserX, UserCheck, Users, Phone, AlertTriangle } from 'lucide-react'
+import { getUsers } from '@/lib/api'
 
 function validatePassword(pw) {
   if (!pw) return null // blank = no change (edit mode)
@@ -14,9 +15,6 @@ function validatePassword(pw) {
 }
 import Modal from './Modal'
 
-function fetchUsers() {
-  return fetch('/api/users').then(r => r.ok ? r.json() : [])
-}
 
 export default function UserManagementSection() {
   const queryClient = useQueryClient()
@@ -27,7 +25,7 @@ export default function UserManagementSection() {
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin-users'],
-    queryFn: fetchUsers,
+    queryFn: getUsers,
     refetchInterval: 60000,
   })
 

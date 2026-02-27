@@ -4,17 +4,14 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, X, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-
-function fetchCritical() {
-  return fetch('/api/sla/critical').then(r => r.ok ? r.json() : [])
-}
+import { getCriticalSLA } from '@/lib/api'
 
 export default function TopAlertBar() {
   const [dismissed, setDismissed] = useState(false)
 
   const { data } = useQuery({
     queryKey: ['sla-critical-bar'],
-    queryFn: fetchCritical,
+    queryFn: getCriticalSLA,
     refetchInterval: 60000,
   })
 

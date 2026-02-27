@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTickets, holdTicket } from '@/lib/api'
+import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import {
@@ -64,14 +64,14 @@ export default function TicketsPage() {
   })
 
   // Config data for create form
-  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: () => fetch('/api/admin/companies').then(r => r.ok ? r.json() : []), staleTime: 300000 })
-  const { data: pocs = [] } = useQuery({ queryKey: ['pocs', createForm.company_id], queryFn: () => fetch(`/api/admin/pocs${createForm.company_id ? `?company_id=${createForm.company_id}` : ''}`).then(r => r.ok ? r.json() : []), enabled: showCreate, staleTime: 60000 })
-  const { data: modules = [] } = useQuery({ queryKey: ['modules'], queryFn: () => fetch('/api/admin/modules').then(r => r.ok ? r.json() : []), staleTime: 300000 })
-  const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: () => fetch('/api/admin/request-types').then(r => r.ok ? r.json() : []), staleTime: 300000 })
-  const { data: caseTypes = [] } = useQuery({ queryKey: ['case-types'], queryFn: () => fetch('/api/admin/case-types').then(r => r.ok ? r.json() : []), staleTime: 300000 })
+  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: getAdminCompanies, staleTime: 300000 })
+  const { data: pocs = [] } = useQuery({ queryKey: ['pocs', createForm.company_id], queryFn: () => getPOCs(createForm.company_id || undefined), enabled: showCreate, staleTime: 60000 })
+  const { data: modules = [] } = useQuery({ queryKey: ['modules'], queryFn: getModules, staleTime: 300000 })
+  const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: getRequestTypes, staleTime: 300000 })
+  const { data: caseTypes = [] } = useQuery({ queryKey: ['case-types'], queryFn: getCaseTypes, staleTime: 300000 })
 
   const createMutation = useMutation({
-    mutationFn: (data) => fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed'); return j }),
+    mutationFn: createTicket,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
       setShowCreate(false)

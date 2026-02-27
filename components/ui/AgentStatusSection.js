@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users, Phone, Coffee, Clock, AlertTriangle, Wifi, WifiOff } from 'lucide-react'
+import { getUsers } from '@/lib/api'
 
 const STATUS_CONFIG = {
   available:  { label: 'Available',  color: 'text-cortex-success', dot: 'bg-cortex-success',  icon: Wifi },
@@ -14,15 +15,10 @@ const STATUS_CONFIG = {
 
 const BREAK_LIMIT_MINS = 30 // warn if break exceeds this
 
-function fetchAllAgentStatus() {
-  return fetch('/api/users').then(r => r.ok ? r.json() : [])
-    .then(users => users.filter(u => u.role === 'agent'))
-}
-
 export default function AgentStatusSection() {
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ['admin-agent-status'],
-    queryFn: fetchAllAgentStatus,
+    queryFn: () => getUsers().then(users => users.filter(u => u.role === 'agent')),
     refetchInterval: 30000, // poll every 30s
   })
 

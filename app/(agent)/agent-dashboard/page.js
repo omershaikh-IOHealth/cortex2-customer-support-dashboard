@@ -4,10 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-
-function fetchMyCalls() {
-  return fetch('/api/calls?limit=50').then(r => r.ok ? r.json() : [])
-}
+import { getCalls } from '@/lib/api'
 
 function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent' }) {
   return (
@@ -27,7 +24,7 @@ export default function AgentDashboardPage() {
 
   const { data: calls = [], isLoading } = useQuery({
     queryKey: ['my-calls'],
-    queryFn: fetchMyCalls,
+    queryFn: () => getCalls({ limit: 50 }),
     refetchInterval: 30000,
   })
 

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bot, Send, X, Trash2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { useAuth, apiFetch } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
-import { getCriticalSLA } from '@/lib/api';
+import { getCriticalSLA, sendCompanionMessage, getCompanionHistory, clearCompanionHistory } from '@/lib/api';
 
 // Global event bus so ticket detail page can open companion with a prefilled message
 const listeners = new Set();
@@ -55,7 +55,7 @@ export default function AICompanion() {
   // loadHistory must be defined before the useEffect that calls it
   const loadHistory = async () => {
     try {
-      const data = await apiFetch('/api/companion/history');
+      const data = await getCompanionHistory();
       if (data.messages?.length > 0) {
         setMessages(data.messages.map(m => ({ ...m, timestamp: Date.now() })));
       }
@@ -108,10 +108,7 @@ export default function AICompanion() {
     setLoading(true);
 
     try {
-      const data = await apiFetch('/api/companion/chat', {
-        method: 'POST',
-        body: JSON.stringify({ message: userMessage.content }),
-      });
+      const data = await sendCompanionMessage(userMessage.content);
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply, timestamp: Date.now() }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', timestamp: Date.now() }]);
@@ -123,7 +120,7 @@ export default function AICompanion() {
   const handleClear = async () => {
     if (!confirm('Clear conversation history?')) return;
     try {
-      await apiFetch('/api/companion/clear', { method: 'POST' });
+      await clearCompanionHistory();
       setMessages([]);
     } catch {}
   };

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Script from 'next/script'
 import { useSession } from 'next-auth/react'
+import { getMe, logCall } from '@/lib/api'
 import {
   Phone,
   PhoneOff,
@@ -72,8 +73,7 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   useEffect(() => {
     if (!session?.user) return
     setLoadingPhase('credentials')
-    fetch('/api/users/me')
-      .then(r => r.ok ? r.json() : null)
+    getMe()
       .then(data => {
         if (data?.ziwo_email && data?.ziwo_password) {
           setCredentials({ email: data.ziwo_email, password: data.ziwo_password })
@@ -245,21 +245,15 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   // Log call to DB after hangup
   useEffect(() => {
     if (status !== S.ENDED || !endedInfo?.primaryCallId) return
-    fetch('/api/calls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        primary_call_id: endedInfo.primaryCallId,
-        agent_call_id: endedInfo.callId,
-        direction: endedInfo.direction,
-        customer_number: endedInfo.number,
-        duration_secs: endedInfo.duration,
-        hangup_cause: endedInfo.cause,
-        status: 'ended',
-        started_at: endedInfo.startedAt
-          ? new Date(endedInfo.startedAt).toISOString()
-          : null,
-      }),
+    logCall({
+      primary_call_id: endedInfo.primaryCallId,
+      agent_call_id: endedInfo.callId,
+      direction: endedInfo.direction,
+      customer_number: endedInfo.number,
+      duration_secs: endedInfo.duration,
+      hangup_cause: endedInfo.cause,
+      status: 'ended',
+      started_at: endedInfo.startedAt ? new Date(endedInfo.startedAt).toISOString() : null,
     }).catch(err => console.warn('[ZiwoWidget] call log failed:', err))
   }, [status, endedInfo])
 

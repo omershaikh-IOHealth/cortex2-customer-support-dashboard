@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, X, Check, CheckCheck, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info } from 'lucide-react'
 import Link from 'next/link'
 import { formatRelativeTime } from '@/lib/utils'
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/api'
 
 const TYPE_CONFIG = {
   sla_alert:       { icon: AlertTriangle, color: 'text-cortex-danger' },
@@ -14,10 +15,6 @@ const TYPE_CONFIG = {
   system:          { icon: Info,          color: 'text-cortex-muted' },
 }
 
-function fetchNotifications() {
-  return fetch('/api/notifications').then(r => r.ok ? r.json() : { notifications: [], unread_count: 0 })
-}
-
 export default function NotificationBell() {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -25,7 +22,7 @@ export default function NotificationBell() {
 
   const { data = { notifications: [], unread_count: 0 } } = useQuery({
     queryKey: ['notifications'],
-    queryFn: fetchNotifications,
+    queryFn: getNotifications,
     refetchInterval: 30000,
   })
 
@@ -42,16 +39,12 @@ export default function NotificationBell() {
   }, [open])
 
   async function markRead(id) {
-    await fetch(`/api/notifications/${id}`, { method: 'PUT' })
+    await markNotificationRead(id)
     qc.invalidateQueries({ queryKey: ['notifications'] })
   }
 
   async function markAllRead() {
-    await fetch('/api/notifications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_all_read' }),
-    })
+    await markAllNotificationsRead()
     qc.invalidateQueries({ queryKey: ['notifications'] })
   }
 
