@@ -140,7 +140,7 @@ export default function AICompanion() {
         {!isOpen ? (
           <button
             onClick={() => setIsOpen(true)}
-            className="relative w-14 h-14 bg-cortex-accent hover:bg-cortex-accent/90 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+            className="relative w-14 h-14 bg-cortex-accent hover:bg-cortex-accent/90 rounded-2xl shadow-accent flex items-center justify-center transition-all hover:scale-105 active:scale-95"
           >
             <Bot className="w-6 h-6 text-white" />
             {criticalAlerts.length > 0 && (
@@ -154,7 +154,7 @@ export default function AICompanion() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-cortex-border shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-cortex-accent/20 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-cortex-accent/20 rounded-xl flex items-center justify-center">
                   <Bot className="w-5 h-5 text-cortex-accent" />
                 </div>
                 <div>
@@ -163,10 +163,10 @@ export default function AICompanion() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={handleClear} className="p-2 hover:bg-cortex-bg rounded-lg transition-colors" title="Clear history">
+                <button onClick={handleClear} className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors" title="Clear history">
                   <Trash2 className="w-4 h-4 text-cortex-muted" />
                 </button>
-                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-cortex-bg rounded-lg transition-colors">
+                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors">
                   <X className="w-4 h-4 text-cortex-muted" />
                 </button>
               </div>

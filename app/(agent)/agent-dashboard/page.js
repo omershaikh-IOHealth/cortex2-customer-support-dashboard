@@ -7,15 +7,17 @@ import { formatDate } from '@/lib/utils'
 import { getCalls } from '@/lib/api'
 import EmptyState from '@/components/ui/EmptyState'
 
-function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent' }) {
+function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent', bg = 'bg-cortex-accent/10' }) {
   return (
-    <div className="card flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Icon className={`w-4 h-4 ${color}`} />
-        <span className="text-xs font-mono text-cortex-muted uppercase tracking-wide">{label}</span>
+    <div className="card flex flex-col gap-3">
+      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
+        <Icon className={`w-5 h-5 ${color}`} />
       </div>
-      <p className={`text-3xl font-display font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-cortex-muted">{sub}</p>}
+      <div>
+        <p className={`text-3xl font-display font-bold ${color} leading-none`}>{value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-cortex-muted mt-1">{label}</p>
+        {sub && <p className="text-xs text-cortex-muted mt-0.5">{sub}</p>}
+      </div>
     </div>
   )
 }
@@ -29,28 +31,27 @@ export default function AgentDashboardPage() {
     refetchInterval: 30000,
   })
 
-  // Compute metrics from call log
-  const total = calls.length
-  const inbound = calls.filter(c => c.direction === 'inbound').length
-  const outbound = calls.filter(c => c.direction === 'outbound').length
-  const answered = calls.filter(c => c.hangup_cause !== 'missed' && c.duration_secs > 0).length
+  const total     = calls.length
+  const inbound   = calls.filter(c => c.direction === 'inbound').length
+  const outbound  = calls.filter(c => c.direction === 'outbound').length
+  const answered  = calls.filter(c => c.hangup_cause !== 'missed' && c.duration_secs > 0).length
   const avgDuration = total > 0
     ? Math.round(calls.reduce((s, c) => s + (c.duration_secs || 0), 0) / total)
     : 0
 
-  // Today's calls
   const today = new Date().toDateString()
   const todayCalls = calls.filter(c => new Date(c.started_at).toDateString() === today)
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-display font-bold text-cortex-text">My Dashboard</h1>
-        <p className="text-cortex-muted text-sm mt-0.5">
-          {session?.user?.name} · Last 50 calls
-        </p>
+        <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">Overview</p>
+        <h1 className="text-3xl font-display font-bold text-cortex-text">My Dashboard</h1>
+        {session?.user?.name && (
+          <p className="text-sm text-cortex-muted mt-0.5">{session.user.name} · last 50 calls</p>
+        )}
       </div>
 
       {/* KPI tiles */}
@@ -61,6 +62,7 @@ export default function AgentDashboardPage() {
           sub={`${todayCalls.length} today`}
           icon={Phone}
           color="text-cortex-accent"
+          bg="bg-cortex-accent/10"
         />
         <MetricTile
           label="Inbound"
@@ -68,6 +70,7 @@ export default function AgentDashboardPage() {
           sub={`${total ? Math.round((inbound / total) * 100) : 0}% of total`}
           icon={PhoneIncoming}
           color="text-cortex-success"
+          bg="bg-cortex-success/10"
         />
         <MetricTile
           label="Outbound"
@@ -75,6 +78,7 @@ export default function AgentDashboardPage() {
           sub={`${total ? Math.round((outbound / total) * 100) : 0}% of total`}
           icon={PhoneOutgoing}
           color="text-cortex-warning"
+          bg="bg-cortex-warning/10"
         />
         <MetricTile
           label="Avg Handle Time"
@@ -82,27 +86,30 @@ export default function AgentDashboardPage() {
           sub={`${answered} answered`}
           icon={Clock}
           color="text-cortex-text"
+          bg="bg-cortex-surface-raised"
         />
       </div>
 
       {/* Recent call log */}
       <div className="card">
-        <h2 className="font-semibold text-cortex-text mb-4 flex items-center gap-2">
+        <h2 className="font-semibold text-cortex-text mb-5 flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-cortex-accent" />
           Recent Calls
         </h2>
 
         {isLoading ? (
           <div className="space-y-2">
-            {[1, 2, 3].map(i => <div key={i} className="h-10 rounded bg-cortex-border/30 animate-pulse" />)}
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-10 rounded-xl bg-cortex-bg animate-pulse" />
+            ))}
           </div>
         ) : calls.length === 0 ? (
           <EmptyState icon={Phone} title="No calls logged yet" message="Your recent call history will appear here." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-5">
+            <table className="w-full">
               <thead>
-                <tr>
+                <tr className="border-b border-cortex-border">
                   <th className="table-header">Direction</th>
                   <th className="table-header">Number</th>
                   <th className="table-header">Duration</th>
@@ -110,9 +117,9 @@ export default function AgentDashboardPage() {
                   <th className="table-header">When</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-cortex-border">
                 {calls.slice(0, 20).map(c => (
-                  <tr key={c.id} className="border-b border-cortex-border hover:bg-cortex-bg/50">
+                  <tr key={c.id} className="hover:bg-cortex-surface-raised transition-colors">
                     <td className="table-cell">
                       <span className={`badge text-xs ${
                         c.direction === 'inbound'
@@ -122,10 +129,10 @@ export default function AgentDashboardPage() {
                         {c.direction === 'inbound' ? '↓' : '↑'} {c.direction}
                       </span>
                     </td>
-                    <td className="table-cell font-mono text-cortex-muted">{c.customer_number || '—'}</td>
-                    <td className="table-cell font-mono">{fmtSecs(c.duration_secs)}</td>
-                    <td className="table-cell text-cortex-muted capitalize">{c.hangup_cause || 'normal'}</td>
-                    <td className="table-cell text-cortex-muted">{formatDate(c.started_at)}</td>
+                    <td className="table-cell font-mono text-xs text-cortex-muted">{c.customer_number || '—'}</td>
+                    <td className="table-cell font-mono text-sm">{fmtSecs(c.duration_secs)}</td>
+                    <td className="table-cell text-sm text-cortex-muted capitalize">{c.hangup_cause || 'normal'}</td>
+                    <td className="table-cell text-xs text-cortex-muted">{formatDate(c.started_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -133,7 +140,6 @@ export default function AgentDashboardPage() {
           </div>
         )}
       </div>
-
     </div>
   )
 }

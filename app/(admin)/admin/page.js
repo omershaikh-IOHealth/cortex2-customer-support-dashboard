@@ -178,8 +178,9 @@ export default function AdminPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-display font-bold mb-2">Admin Configuration</h1>
-          <p className="text-cortex-muted">Manage companies, solutions, and system configurations</p>
+          <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">System</p>
+          <h1 className="text-3xl font-display font-bold text-cortex-text">Admin Configuration</h1>
+          <p className="text-cortex-muted text-sm mt-0.5">Manage companies, solutions, and system configurations</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -212,7 +213,7 @@ export default function AdminPage() {
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-32 bg-cortex-surface animate-pulse rounded-lg"></div>
+            <div key={i} className="h-32 bg-cortex-surface animate-pulse rounded-xl"></div>
           ))}
         </div>
       ) : companies && companies.length > 0 ? (

@@ -193,11 +193,11 @@ export default function TicketDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="h-12 bg-cortex-surface animate-pulse rounded-lg" />
+        <div className="h-12 bg-cortex-surface animate-pulse rounded-xl" />
         <div className="grid grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => <div key={i} className="h-32 bg-cortex-surface animate-pulse rounded-lg" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-32 bg-cortex-surface animate-pulse rounded-xl" />)}
         </div>
-        <div className="h-96 bg-cortex-surface animate-pulse rounded-lg" />
+        <div className="h-96 bg-cortex-surface animate-pulse rounded-xl" />
       </div>
     )
   }
@@ -278,12 +278,12 @@ export default function TicketDetailPage() {
                     {ticket.status}
                   </button>
                   {showStatusDrop && (
-                    <div className="absolute top-full left-0 mt-1 bg-cortex-surface border border-cortex-border rounded-lg shadow-xl z-20 py-1 min-w-[130px]">
+                    <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-card-hover z-20 py-1 min-w-[140px] overflow-hidden">
                       {TICKET_STATUSES.map(s => (
                         <button
                           key={s}
                           onClick={() => handleStatusChange(s)}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-cortex-bg transition-colors ${s === ticket.status ? 'text-cortex-accent font-medium' : 'text-cortex-text'}`}
+                          className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-cortex-surface-raised transition-colors ${s === ticket.status ? 'text-cortex-accent' : 'text-cortex-text'}`}
                         >
                           {s}
                         </button>
@@ -455,7 +455,7 @@ export default function TicketDetailPage() {
           </div>
           <div className="space-y-3">
             {visibleAlerts.map(alert => (
-              <div key={alert.id} className="p-3 bg-cortex-bg rounded-lg">
+              <div key={alert.id} className="p-3 bg-cortex-bg rounded-xl border border-cortex-border">
                 <div className="flex items-center justify-between mb-2">
                   <span className={`badge ${getEscalationLevelColor(alert.alert_level)}`}>Level {alert.alert_level}</span>
                   <span className="text-xs text-cortex-muted font-mono">{formatRelativeTime(alert.created_at)}</span>
@@ -535,7 +535,7 @@ export default function TicketDetailPage() {
           <>
             <div className="space-y-3">
               {visibleNotes.map(note => (
-                <div key={note.id} className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                <div key={note.id} className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-medium text-amber-600 dark:text-amber-400">{note.actor_name}</span>
                     <span className="text-xs text-cortex-muted font-mono">{formatDate(note.created_at)}</span>
@@ -612,7 +612,7 @@ export default function TicketDetailPage() {
             </div>
           ) : (
             /* ── Minimized vertical timeline ── */
-            <div className="space-y-0 border border-cortex-border rounded-lg overflow-hidden">
+            <div className="space-y-0 border border-cortex-border rounded-xl overflow-hidden">
               {publicThreads.map((thread, idx) => (
                 <div
                   key={thread.id}
@@ -664,7 +664,7 @@ export default function TicketDetailPage() {
                 <Link
                   key={t.id}
                   href={`/tickets/${t.id}`}
-                  className="flex items-center justify-between p-3 bg-cortex-bg rounded-lg hover:bg-cortex-border/30 transition-colors"
+                  className="flex items-center justify-between p-3 bg-cortex-bg rounded-xl hover:bg-cortex-surface-raised transition-colors border border-cortex-border"
                 >
                   <div className="flex-1 min-w-0 mr-4">
                     <p className="text-sm font-medium text-cortex-text truncate">{t.title}</p>
@@ -705,7 +705,7 @@ function AssignDropdown({ onAssign, onClose }) {
   })
 
   return (
-    <div className="absolute top-full left-0 mt-1 bg-cortex-surface border border-cortex-border rounded-lg shadow-xl z-20 py-1 min-w-[180px] max-h-48 overflow-y-auto">
+    <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-card-hover z-20 py-1 min-w-[180px] max-h-48 overflow-y-auto">
       {agents.length === 0 ? (
         <p className="px-4 py-2 text-xs text-cortex-muted">No agents found</p>
       ) : (

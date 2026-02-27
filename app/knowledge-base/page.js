@@ -86,7 +86,8 @@ export default function KnowledgeBasePage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold text-cortex-text">Knowledge Base</h1>
+          <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">Reference</p>
+          <h1 className="text-3xl font-display font-bold text-cortex-text">Knowledge Base</h1>
           <p className="text-cortex-muted text-sm mt-0.5">
             {filtered.length} circular{filtered.length !== 1 ? 's' : ''}
             {search && ` matching "${search}"`}
@@ -123,15 +124,15 @@ export default function KnowledgeBasePage() {
       </div>
 
       {/* Category tabs */}
-      <div className="flex gap-1 flex-wrap border-b border-cortex-border">
+      <div className="flex gap-1.5 flex-wrap">
         {categories.map(cat => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${
               activeCategory === cat
-                ? 'border-cortex-accent text-cortex-accent'
-                : 'border-transparent text-cortex-muted hover:text-cortex-text'
+                ? 'bg-cortex-accent/15 text-cortex-accent'
+                : 'text-cortex-muted hover:bg-cortex-surface-raised hover:text-cortex-text'
             }`}
           >
             {cat}

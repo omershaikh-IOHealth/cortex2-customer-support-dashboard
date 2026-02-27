@@ -75,7 +75,8 @@ export default function MyTicketsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-cortex-text">My Tickets</h1>
+          <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">My Queue</p>
+          <h1 className="text-3xl font-display font-bold text-cortex-text">My Tickets</h1>
           <p className="text-cortex-muted text-sm mt-0.5">
             {sorted.length} ticket{sorted.length !== 1 ? 's' : ''} · sorted by SLA urgency
           </p>
@@ -109,16 +110,16 @@ export default function MyTicketsPage() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1 border-b border-cortex-border">
+      <div className="flex gap-1.5 flex-wrap">
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+              'px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors',
               activeTab === tab.key
-                ? 'border-cortex-accent text-cortex-accent'
-                : 'border-transparent text-cortex-muted hover:text-cortex-text'
+                ? 'bg-cortex-accent/15 text-cortex-accent'
+                : 'text-cortex-muted hover:bg-cortex-surface-raised hover:text-cortex-text'
             )}
           >
             {tab.label}
