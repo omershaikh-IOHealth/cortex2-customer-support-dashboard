@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTickets, holdTicket } from '@/lib/api'
+import toast from 'react-hot-toast'
 import Link from 'next/link'
 import {
   getSLAStatusColor,
@@ -30,6 +31,8 @@ export default function TicketsPage() {
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState({ status: '', priority: '', sla_status: '' })
   const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [presets, setPresets] = useState([])
   const [presetName, setPresetName] = useState('')
   const [showSaveForm, setShowSaveForm] = useState(false)
@@ -46,12 +49,14 @@ export default function TicketsPage() {
   }, [])
 
   const { data: ticketData, isLoading } = useQuery({
-    queryKey: ['tickets', filters],
-    queryFn: () => getTickets(filters),
+    queryKey: ['tickets', filters, page, pageSize],
+    queryFn: () => getTickets({ ...filters, limit: pageSize, offset: (page - 1) * pageSize }),
     refetchInterval: 30000,
   })
   // Handle both new { tickets, total } shape and legacy flat array
   const tickets = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])
+  const total = ticketData?.total ?? tickets.length
+  const totalPages = Math.ceil(total / pageSize)
 
   const holdMutation = useMutation({
     mutationFn: ({ id, action }) => holdTicket(id, action),
@@ -67,18 +72,23 @@ export default function TicketsPage() {
 
   const createMutation = useMutation({
     mutationFn: (data) => fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed'); return j }),
-    onSuccess: (ticket) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
       setShowCreate(false)
       setCreateForm(BLANK_TICKET)
       setCreateError('')
+      toast.success('Ticket created')
     },
-    onError: (e) => setCreateError(e.message),
+    onError: (e) => {
+      setCreateError(e.message)
+      toast.error(e.message || 'Failed to create ticket')
+    },
   })
 
   const applyFilter = (key, value) => {
     const next = { ...filters, [key]: value }
     setFilters(next)
+    setPage(1)
     localStorage.setItem(LAST_PRESET_KEY, JSON.stringify(next))
   }
 
@@ -323,11 +333,33 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {filteredTickets && (
-        <div className="text-sm text-cortex-muted text-center">
-          Showing {filteredTickets.length} ticket{filteredTickets.length !== 1 ? 's' : ''}
+      <div className="flex items-center justify-between px-1 py-2">
+        <div className="text-sm text-cortex-muted">
+          {total > 0
+            ? `Showing ${((page - 1) * pageSize) + 1}–${Math.min(page * pageSize, total)} of ${total} tickets`
+            : '0 tickets'}
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <select
+            value={pageSize}
+            onChange={e => { setPageSize(+e.target.value); setPage(1) }}
+            className="input text-sm py-1 px-2"
+          >
+            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}/page</option>)}
+          </select>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="btn-secondary text-sm px-2 py-1 disabled:opacity-40"
+          >Prev</button>
+          <span className="text-sm text-cortex-muted">Page {page} / {totalPages || 1}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="btn-secondary text-sm px-2 py-1 disabled:opacity-40"
+          >Next</button>
+        </div>
+      </div>
 
       {/* ── Create Ticket Modal ── */}
       {showCreate && (

@@ -38,6 +38,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { openCompanionWith } from '@/components/ui/AICompanion'
+import toast from 'react-hot-toast'
 
 const TICKET_STATUSES = ['Open', 'In Progress', 'Waiting', 'Resolved', 'Closed']
 
@@ -106,7 +107,11 @@ export default function TicketDetailPage() {
 
   const holdMutation = useMutation({
     mutationFn: ({ action }) => holdTicket(ticketId, action),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] }),
+    onSuccess: (_, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success(`SLA ${action === 'pause' ? 'paused' : 'resumed'}`)
+    },
+    onError: (err) => toast.error(err.message || 'Operation failed'),
   })
 
   const handleAskAI = () => {
@@ -123,8 +128,9 @@ export default function TicketDetailPage() {
       setNoteContent('')
       setShowNoteForm(false)
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Note added')
     } catch (e) {
-      console.error('Failed to add note:', e)
+      toast.error(e.message || 'Failed to add note')
     } finally {
       setAddingNote(false)
     }
@@ -140,6 +146,9 @@ export default function TicketDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success(`Status updated to ${newStatus}`)
+    } catch (err) {
+      toast.error(err.message || 'Failed to update status')
     } finally {
       setChangingStatus(false)
     }
@@ -155,6 +164,9 @@ export default function TicketDetailPage() {
         body: JSON.stringify({ reason: 'Manual escalation by admin' }),
       })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Ticket escalated')
+    } catch (err) {
+      toast.error(err.message || 'Failed to escalate')
     } finally {
       setEscalating(false)
     }
@@ -170,6 +182,9 @@ export default function TicketDetailPage() {
         body: JSON.stringify({ assigned_to_id: agentId, assigned_to_email: agentEmail }),
       })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success(agentEmail ? `Ticket assigned to ${agentEmail.split('@')[0]}` : 'Ticket unassigned')
+    } catch (err) {
+      toast.error(err.message || 'Failed to assign ticket')
     } finally {
       setAssigning(false)
     }

@@ -46,6 +46,12 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   })
 
+  const { data: healthData } = useQuery({
+    queryKey: ['health'],
+    queryFn: () => fetch('/api/health').then(r => r.json()),
+    refetchInterval: 120000,
+  })
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
@@ -114,34 +120,40 @@ export default function DashboardPage() {
         <div className="card col-span-2">
           <h3 className="text-lg font-semibold mb-4">System Status</h3>
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-cortex-success rounded-full animate-pulse"></div>
-              <div>
-                <p className="text-sm font-medium">ClickUp Sync</p>
-                <p className="text-xs text-cortex-muted font-mono">Operational</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-cortex-success rounded-full animate-pulse"></div>
-              <div>
-                <p className="text-sm font-medium">Database</p>
-                <p className="text-xs text-cortex-muted font-mono">Connected</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-cortex-success rounded-full animate-pulse"></div>
-              <div>
-                <p className="text-sm font-medium">AI Analysis</p>
-                <p className="text-xs text-cortex-muted font-mono">Active</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-cortex-success rounded-full animate-pulse"></div>
-              <div>
-                <p className="text-sm font-medium">Escalations</p>
-                <p className="text-xs text-cortex-muted font-mono">Monitoring</p>
-              </div>
-            </div>
+            {[
+              { key: 'database', label: 'Database' },
+              { key: 'clickup',  label: 'ClickUp Sync' },
+              { key: 'ai',       label: 'AI Analysis' },
+              { key: 'n8n',      label: 'n8n Workflows' },
+            ].map(({ key, label }) => {
+              const check = healthData?.checks?.[key]
+              const statusText = !check ? 'Checking…'
+                : check.status === 'operational' ? 'Operational'
+                : check.status === 'configured'  ? 'Configured'
+                : check.status === 'not_configured' ? 'Not Configured'
+                : check.status === 'degraded'    ? 'Degraded'
+                : check.status === 'down'        ? 'Down'
+                : check.status
+              const dotColor = !check ? 'bg-cortex-muted'
+                : ['operational', 'configured'].includes(check.status) ? 'bg-cortex-success animate-pulse'
+                : check.status === 'not_configured' ? 'bg-cortex-muted'
+                : check.status === 'degraded' ? 'bg-cortex-warning animate-pulse'
+                : 'bg-cortex-danger animate-pulse'
+              const textColor = !check ? 'text-cortex-muted'
+                : ['operational', 'configured'].includes(check.status) ? 'text-cortex-success'
+                : check.status === 'not_configured' ? 'text-cortex-muted'
+                : check.status === 'degraded' ? 'text-cortex-warning'
+                : 'text-cortex-danger'
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full shrink-0 ${dotColor}`} />
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className={`text-xs font-mono ${textColor}`}>{statusText}</p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -217,7 +229,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {recentTickets?.slice(0, 5).map((ticket) => (
+            {(recentTickets?.tickets ?? recentTickets ?? []).slice(0, 5).map((ticket) => (
               <Link
                 key={ticket.id}
                 href={`/tickets/${ticket.id}`}
