@@ -22,11 +22,12 @@ export default function AgentStatusSection() {
     refetchInterval: 30000, // poll every 30s
   })
 
+  // API returns 'agent_status' (aliased from agent_status table) and 'status_set_at'
   const statusGroups = Object.fromEntries(
-    Object.keys(STATUS_CONFIG).map(s => [s, agents.filter(a => (a.status || 'offline') === s)])
+    Object.keys(STATUS_CONFIG).map(s => [s, agents.filter(a => (a.agent_status || 'offline') === s)])
   )
 
-  const onlineCount = agents.filter(a => a.status && a.status !== 'offline').length
+  const onlineCount = agents.filter(a => a.agent_status && a.agent_status !== 'offline').length
 
   return (
     <div className="space-y-4">
@@ -84,7 +85,7 @@ export default function AgentStatusSection() {
 }
 
 function AgentStatusRow({ agent }) {
-  const status = agent.status || 'offline'
+  const status = agent.agent_status || 'offline'
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.offline
   const Icon = cfg.icon
 
@@ -92,9 +93,9 @@ function AgentStatusRow({ agent }) {
   const [breakExceeded, setBreakExceeded] = useState(false)
 
   useEffect(() => {
-    if (!agent.set_at) { setElapsed(null); return }
+    if (!agent.status_set_at) { setElapsed(null); return }
     function tick() {
-      const diff = Math.floor((Date.now() - new Date(agent.set_at)) / 1000)
+      const diff = Math.floor((Date.now() - new Date(agent.status_set_at)) / 1000)
       const m = Math.floor(diff / 60)
       const s = (diff % 60).toString().padStart(2, '0')
       setElapsed(`${m}:${s}`)
@@ -103,7 +104,7 @@ function AgentStatusRow({ agent }) {
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [agent.set_at, status])
+  }, [agent.status_set_at, status])
 
   return (
     <tr className={`border-b border-cortex-border hover:bg-cortex-bg/50 ${breakExceeded ? 'bg-cortex-warning/5' : ''}`}>
@@ -121,8 +122,8 @@ function AgentStatusRow({ agent }) {
         </div>
       </td>
       <td className="table-cell text-cortex-muted text-xs">
-        {agent.set_at
-          ? new Date(agent.set_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        {agent.status_set_at
+          ? new Date(agent.status_set_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
           : '—'}
       </td>
       <td className="table-cell">

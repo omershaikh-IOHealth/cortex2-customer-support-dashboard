@@ -69,6 +69,14 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   const currentCallRef = useRef(null)
   const initDoneRef = useRef(false)
 
+  // If the Script was already loaded by a previous mount (e.g. page navigation),
+  // Next.js won't fire onLoad again — detect it synchronously on mount.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ziwoCoreFront) {
+      setSdkLoaded(true)
+    }
+  }, [])
+
   // Fetch ZIWO credentials from /api/users/me
   useEffect(() => {
     if (!session?.user) return

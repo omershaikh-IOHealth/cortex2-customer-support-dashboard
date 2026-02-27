@@ -10,7 +10,7 @@ export async function PUT(request, { params }) {
 
   const { id } = params
   const body = await request.json()
-  const { start_time, end_time, shift_type, notes, breaks } = body
+  const { shift_date, start_time, end_time, shift_type, notes, breaks } = body
 
   const client = await pool.connect()
   try {
@@ -19,6 +19,7 @@ export async function PUT(request, { params }) {
     const fields = []
     const vals = []
     let idx = 1
+    if (shift_date)  { fields.push(`shift_date = $${idx++}`);  vals.push(shift_date) }
     if (start_time)  { fields.push(`start_time = $${idx++}`);  vals.push(start_time) }
     if (end_time)    { fields.push(`end_time = $${idx++}`);    vals.push(end_time) }
     if (shift_type)  { fields.push(`shift_type = $${idx++}`);  vals.push(shift_type) }

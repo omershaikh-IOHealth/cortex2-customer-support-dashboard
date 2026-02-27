@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee } from 'lucide-react'
 import Modal from './Modal'
-import { getUsers, getRotas, createRota, deleteRota } from '@/lib/api'
+import { getUsers, getRotas, createRota, updateRota, deleteRota } from '@/lib/api'
 
 function getWeekDates(base) {
   const d = new Date(base)
@@ -19,7 +19,12 @@ function getWeekDates(base) {
 }
 
 function fmt(date) {
-  return date.toISOString().slice(0, 10)
+  // Use local date parts — toISOString() would shift to UTC and produce wrong date
+  // in timezones ahead of UTC (e.g. UAE UTC+4 midnight = previous day in UTC)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 
@@ -30,6 +35,8 @@ export default function RotaManagementSection() {
   const [prefillDate, setPrefillDate] = useState(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
+  const [dragOverDate, setDragOverDate] = useState(null)
+  const dragShiftRef = useRef(null) // { id, shift_date }
 
   const weekDates = useMemo(() => getWeekDates(weekBase), [weekBase])
   const from = fmt(weekDates[0])
@@ -77,6 +84,17 @@ export default function RotaManagementSection() {
     }
   }
 
+  async function handleMoveShift(shiftId, newDate) {
+    if (!shiftId || !newDate) return
+    try {
+      await updateRota(shiftId, { shift_date: newDate })
+      await qc.invalidateQueries({ queryKey: ['admin-rota'] })
+      showToast('Shift moved')
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
   function prevWeek() {
     const d = new Date(weekBase)
     d.setDate(d.getDate() - 7)
@@ -115,6 +133,7 @@ export default function RotaManagementSection() {
               {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               {' — '}
               {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {' · drag shifts to move'}
             </p>
           </div>
         </div>
@@ -153,9 +172,19 @@ export default function RotaManagementSection() {
           return (
             <div
               key={key}
-              className={`rounded-lg border min-h-[160px] flex flex-col overflow-hidden
+              className={`rounded-lg border min-h-[160px] flex flex-col overflow-hidden transition-colors
                 ${isToday ? 'border-cortex-accent' : 'border-cortex-border'}
-                ${isPast ? 'opacity-70' : ''}`}
+                ${isPast ? 'opacity-70' : ''}
+                ${dragOverDate === key ? 'border-cortex-accent bg-cortex-accent/5' : ''}`}
+              onDragOver={e => { e.preventDefault(); setDragOverDate(key) }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverDate(null) }}
+              onDrop={e => {
+                e.preventDefault()
+                setDragOverDate(null)
+                const shift = dragShiftRef.current
+                if (shift && shift.shift_date !== key) handleMoveShift(shift.id, key)
+                dragShiftRef.current = null
+              }}
             >
               {/* Day header */}
               <div className={`px-2 py-1.5 text-center border-b border-cortex-border
@@ -172,7 +201,16 @@ export default function RotaManagementSection() {
                   <p className="text-xs text-cortex-muted text-center pt-4">—</p>
                 ) : (
                   dayShifts.map(s => (
-                    <div key={s.id} className="bg-cortex-bg border border-cortex-border rounded p-1.5 group relative">
+                    <div
+                      key={s.id}
+                      draggable
+                      onDragStart={e => {
+                        dragShiftRef.current = { id: s.id, shift_date: key }
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => setDragOverDate(null)}
+                      className="bg-cortex-bg border border-cortex-border rounded p-1.5 group relative cursor-grab active:cursor-grabbing"
+                    >
                       <div className="text-xs font-medium text-cortex-text truncate">{s.agent_name}</div>
                       <div className="flex items-center gap-1 text-xs text-cortex-muted mt-0.5">
                         <Clock className="w-2.5 h-2.5" />
