@@ -33,7 +33,7 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { status, status_note } = await request.json()
-  const allowed = ['available', 'break', 'not_ready', 'offline', 'busy']
+  const allowed = ['available', 'break', 'not_ready', 'meeting', 'offline', 'busy']
   if (!allowed.includes(status))
     return NextResponse.json({ error: `status must be one of: ${allowed.join(', ')}` }, { status: 400 })
 

@@ -1,85 +1,118 @@
-# CORTEX 2.0 - QUICK START
+# Cortex 2.0 — Quick Start
 
-## ⚡ Fast Setup (3 Steps)
+## Prerequisites
 
-### 1️⃣ Backend Setup
-```bash
-cd backend
-npm install
-cp .env.example .env
-# Edit .env with your database credentials
-npm run dev
-```
-
-### 2️⃣ Frontend Setup (New Terminal)
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local
-# Edit .env.local if backend isn't on port 5000
-npm run dev
-```
-
-### 3️⃣ Open Browser
-```
-http://localhost:3000
-```
-
-## ✅ Verify Everything Works
-
-1. Backend running → http://localhost:5000/api/health
-2. Frontend running → http://localhost:3000
-3. Dashboard loads with data
-
-## 🔧 Configuration Files
-
-**Backend (.env)**
-```
-DB_HOST=your_db_host
-DB_PORT=5432
-DB_NAME=your_database
-DB_USER=your_user
-DB_PASSWORD=your_password
-PORT=5000
-```
-
-**Frontend (.env.local)**
-```
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
-## 📱 Access Points
-
-- Dashboard: http://localhost:3000/dashboard
-- Tickets: http://localhost:3000/tickets
-- SLA Monitor: http://localhost:3000/sla
-- Analytics: http://localhost:3000/analytics
-- Logs: http://localhost:3000/logs
-
-## 🐛 Common Issues
-
-**Database connection failed**
-- Ensure VPN is connected
-- Check .env credentials
-
-**Port already in use**
-- Change PORT in backend/.env
-- Update NEXT_PUBLIC_API_URL in frontend/.env.local
-
-**No data showing**
-- Verify backend is running
-- Check browser console (F12)
-- Ensure company_code='medgulf' has data in database
-
-## 🎯 What You'll See
-
-✅ Real-time ticket dashboard
-✅ SLA consumption tracking
-✅ Escalation alerts
-✅ Complete ticket history
-✅ Analytics and trends
-✅ System logs
+- Node.js 18+
+- VPN access to the database server (`10.0.10.189`)
+- ClickUp Personal API Token (Settings → Apps → API Token)
+- Core42 API key
 
 ---
 
-**Need help?** See README.md for detailed documentation
+## 1. Install
+
+```bash
+npm install
+```
+
+## 2. Configure
+
+```bash
+cp .env.local.example .env.local
+```
+
+Fill in `.env.local`:
+
+```env
+DB_HOST=10.0.10.189
+DB_PORT=5432
+DB_NAME=<your_db_name>
+DB_USER=<your_db_user>
+DB_PASSWORD=<your_db_password>
+
+AUTH_SECRET=<run: openssl rand -base64 32>
+
+CORE42_API_KEY=<your_core42_key>
+
+CLICKUP_API_TOKEN=pk_<your_personal_token>
+CLICKUP_LIST_ID=901215777514
+
+# Optional
+N8N_WEBHOOK_URL=
+```
+
+## 3. Run migrations
+
+Start the app first:
+
+```bash
+npm run dev
+```
+
+Then in your browser (one time only):
+
+```
+http://localhost:3000/api/setup?key=<your AUTH_SECRET value>
+```
+
+You should see `{"ok":true,"migrations":[...]}`.
+
+## 4. Log in
+
+Open **http://localhost:3000** — you'll be redirected to `/login`.
+
+| Email | Password | Role |
+|---|---|---|
+| ann.shruthy@iohealth.com | W@c62288 | Admin |
+| asif.k@iohealth.com | Agent@Cortex2025 | Agent |
+
+---
+
+## What you'll see
+
+### Admin
+- `/dashboard` — KPI overview + live SLA feed
+- `/tickets` — full ticket list with filters
+- `/sla` — SLA monitor (15s refresh)
+- `/escalations` — escalation alerts
+- `/analytics` — 30-day trends, WoW comparison
+- `/qa` — random ticket sampling + CSV export
+- `/logs` — workflow execution logs
+- `/rota` — weekly shift calendar (drag & drop)
+- `/agent-status` — live agent availability grid
+- `/admin` — full configuration + user management
+
+### Agent
+- `/briefing` — today's shift + weekly rota
+- `/my-tickets` — own ticket queue
+- `/agent-dashboard` — personal KPIs
+- `/knowledge-base` — searchable circulars
+
+---
+
+## Common Issues
+
+**Database connection refused**
+→ Check VPN is connected and credentials in `.env.local` are correct
+
+**`AUTH_SECRET` error on startup**
+→ Make sure `AUTH_SECRET` is set — run `openssl rand -base64 32` to generate one
+
+**ClickUp token error (OAUTH_025)**
+→ You're using the wrong token type. Use the **Personal API Token** (`pk_...`) from ClickUp Settings → Apps, not an OAuth token
+
+**Login works but page shows empty data**
+→ Verify the DB has `company_code = 'medgulf'` data and VPN is active
+
+**ZIWO widget doesn't connect**
+→ The logged-in user needs `ziwo_email` and `ziwo_password` set in Admin → Users
+
+---
+
+## Useful commands
+
+```bash
+npm run dev      # development server (port 3000)
+npm run build    # production build
+npm run lint     # ESLint check
+```

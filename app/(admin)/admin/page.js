@@ -14,6 +14,7 @@ import {
   getCaseTypes,
   getKPIs,
   triggerSync,
+  syncAssignments,
   createCompany,
   updateCompany,
   deleteCompany,
@@ -105,6 +106,20 @@ export default function AdminPage() {
     }
   }
 
+  // Sync assignments from ClickUp
+  const [assignSyncLoading, setAssignSyncLoading] = useState(false)
+  const handleSyncAssignments = async () => {
+    setAssignSyncLoading(true)
+    try {
+      const result = await syncAssignments()
+      showToast(`Assignments synced: ${result.updated} updated, ${result.skipped_no_assignee} skipped`)
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message || 'Assignment sync failed', 'error')
+    } finally {
+      setAssignSyncLoading(false)
+    }
+  }
+
   // Fetch companies
   const { data: companies, isLoading } = useQuery({
     queryKey: ['admin-companies'],
@@ -174,6 +189,14 @@ export default function AdminPage() {
           >
             <RefreshCw className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} />
             {syncLoading ? 'Syncing...' : 'Force Sync Now'}
+          </button>
+          <button
+            onClick={handleSyncAssignments}
+            disabled={assignSyncLoading}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${assignSyncLoading ? 'animate-spin' : ''}`} />
+            {assignSyncLoading ? 'Syncing...' : 'Sync Assignments'}
           </button>
           <button
             onClick={() => openModal('company')}

@@ -1,146 +1,151 @@
-# CORTEX 2.0 - Production Deployment Guide
+# Cortex 2.0 — Deployment Guide
 
-## 🎯 Deployment Checklist
-
-### Pre-Deployment
-- [ ] Backend tests passed
-- [ ] Frontend builds successfully
-- [ ] Database migrations applied
-- [ ] Environment variables configured
-- [ ] SSL certificates ready (for HTTPS)
-- [ ] Domain names configured
-- [ ] Monitoring tools set up
+Cortex 2.0 is a **unified Next.js 14 application** — there is no separate backend server. The API routes live inside the Next.js app at `app/api/**`. You deploy one process.
 
 ---
 
-## 🖥️ Backend Deployment
+## Pre-deployment checklist
 
-### Option 1: Traditional Server (PM2)
+- [ ] All required environment variables configured (see below)
+- [ ] Database is reachable from the deployment host
+- [ ] `npm run build` completes without errors
+- [ ] `/api/setup` migration has been run once against the target database
+- [ ] `AUTH_SECRET` is a strong random value (not the default)
+- [ ] `.env.local` is **never committed to git** (it is in `.gitignore`)
+
+---
+
+## Environment variables
+
+All configuration lives in a single `.env.local` file at the repo root (or in your deployment platform's secret manager).
+
+```env
+# ── Database ──────────────────────────────────────────────
+DB_HOST=                  # PostgreSQL host
+DB_PORT=5432
+DB_NAME=                  # Database name
+DB_USER=                  # DB user
+DB_PASSWORD=              # DB password
+
+# ── Auth ──────────────────────────────────────────────────
+AUTH_SECRET=              # Long random string — generate: openssl rand -base64 32
+# Optional: override the detected base URL (needed behind reverse proxies)
+# NEXTAUTH_URL=https://your-domain.com
+
+# ── AI Companion ──────────────────────────────────────────
+CORE42_API_KEY=
+
+# ── ClickUp ───────────────────────────────────────────────
+CLICKUP_API_TOKEN=        # Personal API token (pk_...) from ClickUp Settings → Apps
+CLICKUP_LIST_ID=          # The ClickUp list ID to sync tickets into
+
+# ── Optional ──────────────────────────────────────────────
+N8N_WEBHOOK_URL=          # Enables "Force Sync Now" button in Admin
+```
+
+---
+
+## Option 1: PM2 on a Linux server (recommended for on-prem)
 
 ```bash
 # Install PM2 globally
 npm install -g pm2
 
-# Navigate to backend directory
-cd backend
+# Clone and install
+git clone <repo-url> cortex-dashboard
+cd cortex-dashboard
+npm install
 
-# Install production dependencies
-npm install --production
+# Create .env.local with production values
+nano .env.local
+
+# Build
+npm run build
 
 # Start with PM2
-pm2 start server.js --name cortex-backend
+pm2 start npm --name "cortex" -- start
 
-# Save PM2 configuration
+# Persist across reboots
 pm2 save
-
-# Setup auto-restart on reboot
 pm2 startup
 ```
 
-**PM2 Commands:**
+**Useful PM2 commands:**
+
 ```bash
-pm2 status              # Check status
-pm2 logs cortex-backend # View logs
-pm2 restart cortex-backend
-pm2 stop cortex-backend
-pm2 delete cortex-backend
+pm2 status               # Check running processes
+pm2 logs cortex          # Tail application logs
+pm2 restart cortex       # Restart
+pm2 stop cortex          # Stop
 ```
-
-### Option 2: Docker
-
-**Create `backend/Dockerfile`:**
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production
-COPY . .
-EXPOSE 5000
-CMD ["node", "server.js"]
-```
-
-**Build & Run:**
-```bash
-cd backend
-docker build -t cortex-backend .
-docker run -d \
-  --name cortex-backend \
-  -p 5000:5000 \
-  --env-file .env \
-  --restart unless-stopped \
-  cortex-backend
-```
-
-### Option 3: Cloud Platform
-
-**Heroku:**
-```bash
-heroku create cortex-backend
-heroku addons:create heroku-postgresql
-git push heroku main
-```
-
-**DigitalOcean App Platform:**
-- Connect GitHub repo
-- Auto-deploy on push
-- Managed database included
 
 ---
 
-## 🌐 Frontend Deployment
+## Option 2: Docker
 
-### Option 1: Vercel (Recommended for Next.js)
+```dockerfile
+# Dockerfile
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
 
-```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Navigate to frontend
-cd frontend
-
-# Deploy
-vercel
-
-# Production deployment
-vercel --prod
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+EXPOSE 3000
+CMD ["npm", "start"]
 ```
 
-**Environment Variables in Vercel:**
-- Go to Project Settings
-- Add `NEXT_PUBLIC_API_URL`
-- Set to your backend URL
-
-### Option 2: Netlify
-
 ```bash
-# Install Netlify CLI
-npm install -g netlify-cli
+# Build
+docker build -t cortex-dashboard .
 
-# Build production
-npm run build
-
-# Deploy
-netlify deploy --prod
+# Run (pass env vars from file)
+docker run -d \
+  --name cortex \
+  -p 3000:3000 \
+  --env-file .env.local \
+  --restart unless-stopped \
+  cortex-dashboard
 ```
 
-### Option 3: Traditional Server (Nginx)
+---
 
-```bash
-# Build production bundle
-cd frontend
-npm run build
+## Option 3: Vercel
 
-# Start production server
-npm start
-# Or use PM2
-pm2 start npm --name "cortex-frontend" -- start
-```
+1. Connect the GitHub repo to a new Vercel project
+2. In Vercel project settings → **Environment Variables**, add all keys from the env section above
+3. Vercel auto-detects Next.js and runs `npm run build` on every push to `main`
+4. Set `NEXTAUTH_URL` to your Vercel deployment URL
 
-**Nginx Configuration:**
+> Note: Vercel serverless functions have a 10-second timeout by default. The app uses `connectionTimeoutMillis: 30000` on the DB pool — on Vercel you may need to reduce this or use a connection pooler (e.g. PgBouncer / Supabase).
+
+---
+
+## Nginx reverse proxy (if self-hosting)
+
 ```nginx
 server {
     listen 80;
     server_name your-domain.com;
+
+    # Redirect to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -148,345 +153,108 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
 }
 ```
 
----
-
-## 🔐 SSL/HTTPS Setup
-
-### Using Let's Encrypt (Certbot)
+SSL with Let's Encrypt:
 
 ```bash
-# Install certbot
-sudo apt-get install certbot python3-certbot-nginx
-
-# Get certificate
+sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
-
-# Auto-renewal
-sudo certbot renew --dry-run
 ```
 
 ---
 
-## 🗄️ Database Setup
+## Database
 
-### Production PostgreSQL
+The app connects to an existing PostgreSQL instance. No migration framework is used — schema is applied once via the setup endpoint.
 
-**Option 1: Managed Service**
-- AWS RDS
-- DigitalOcean Managed Database
-- Google Cloud SQL
-- Azure Database for PostgreSQL
+**Run migrations (once per new database):**
 
-**Option 2: Self-Hosted**
-```bash
-# Install PostgreSQL
-sudo apt-get install postgresql postgresql-contrib
+```
+GET https://your-domain.com/api/setup?key=<AUTH_SECRET>
+```
 
-# Secure configuration
-sudo -u postgres psql
-ALTER USER postgres PASSWORD 'your_secure_password';
-CREATE DATABASE cortex_production;
+Expected response: `{"ok":true,"migrations":[...]}`
 
-# Create read-only user for safety
-CREATE USER cortex_reader WITH PASSWORD 'reader_password';
-GRANT CONNECT ON DATABASE cortex_production TO cortex_reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA test TO cortex_reader;
+**Database indexes (recommended for production):**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_tickets_company_deleted
+  ON test.tickets(company_id, is_deleted);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_sla_status
+  ON test.tickets(sla_status);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_priority
+  ON test.tickets(priority);
+
+CREATE INDEX IF NOT EXISTS idx_threads_ticket_id
+  ON test.threads(ticket_id);
+
+CREATE INDEX IF NOT EXISTS idx_sla_alerts_ticket_id
+  ON test.sla_alerts(ticket_id);
 ```
 
 ---
 
-## 🔒 Security Best Practices
+## Health check
 
-### Environment Variables
-**Never commit these files:**
-- `.env`
-- `.env.local`
-- `.env.production`
+The app exposes a lightweight health endpoint:
 
-**Use secrets management:**
-- AWS Secrets Manager
-- HashiCorp Vault
-- Vercel Environment Variables
-- Heroku Config Vars
-
-### Database Security
-```bash
-# Use connection string with SSL
-DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
-
-# Whitelist IPs only
-# Set in database firewall rules
+```
+GET /api/health
 ```
 
-### API Security
-```javascript
-// Add rate limiting (in server.js)
-import rateLimit from 'express-rate-limit';
+Response:
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-
-app.use('/api/', limiter);
-```
-
----
-
-## 📊 Monitoring & Logging
-
-### Backend Monitoring
-
-**PM2 Monitoring:**
-```bash
-pm2 install pm2-logrotate
-pm2 set pm2-logrotate:max_size 10M
-pm2 set pm2-logrotate:retain 7
-```
-
-**External Services:**
-- New Relic
-- Datadog
-- Sentry (for error tracking)
-
-### Frontend Monitoring
-```bash
-# Vercel Analytics (built-in)
-# Or add Google Analytics
-```
-
-### Database Monitoring
-- PgHero
-- pgAdmin
-- Cloud provider dashboards
-
----
-
-## 🔄 CI/CD Pipeline
-
-### GitHub Actions Example
-
-**`.github/workflows/deploy.yml`:**
-```yaml
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-      - run: cd backend && npm ci
-      - run: cd backend && npm test
-      - name: Deploy to server
-        run: |
-          # Your deployment script
-
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-      - run: cd frontend && npm ci
-      - run: cd frontend && npm run build
-      - uses: amondnet/vercel-action@v20
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-```
-
----
-
-## 🧪 Health Checks
-
-### Backend Health Endpoint
-Already included: `GET /api/health`
-
-**Expected Response:**
 ```json
 {
   "status": "healthy",
-  "timestamp": "2024-02-12T10:30:00.000Z"
+  "db": "connected",
+  "timestamp": "2026-02-27T10:00:00.000Z"
 }
 ```
 
-### Monitoring Script
+Use this for uptime monitoring and load-balancer health probes.
+
+---
+
+## Updating / redeploying
+
 ```bash
-#!/bin/bash
-# health-check.sh
-
-BACKEND_URL="https://api.yourdomain.com/api/health"
-FRONTEND_URL="https://yourdomain.com"
-
-# Check backend
-if curl -f $BACKEND_URL; then
-  echo "Backend: OK"
-else
-  echo "Backend: FAILED"
-  # Send alert
-fi
-
-# Check frontend
-if curl -f $FRONTEND_URL; then
-  echo "Frontend: OK"
-else
-  echo "Frontend: FAILED"
-  # Send alert
-fi
-```
-
-**Run with cron:**
-```bash
-# Every 5 minutes
-*/5 * * * * /path/to/health-check.sh
+git pull origin main
+npm install          # in case dependencies changed
+npm run build
+pm2 restart cortex
 ```
 
 ---
 
-## 📦 Backup Strategy
-
-### Database Backups
+## Backup
 
 ```bash
-# Daily backup script
-#!/bin/bash
-pg_dump -h localhost -U cortex_user cortex_production > \
-  backup_$(date +%Y%m%d).sql
+# Daily DB backup (add to cron)
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME | gzip > backup_$(date +%Y%m%d).sql.gz
 
-# Compress
-gzip backup_$(date +%Y%m%d).sql
-
-# Upload to S3
-aws s3 cp backup_$(date +%Y%m%d).sql.gz \
-  s3://your-backup-bucket/
-
-# Keep only last 30 days locally
-find . -name "backup_*.sql.gz" -mtime +30 -delete
-```
-
-**Automated with cron:**
-```bash
-# Every day at 2 AM
+# Cron example — 2 AM daily
 0 2 * * * /path/to/backup.sh
 ```
 
 ---
 
-## 🚀 Performance Optimization
+## Troubleshooting
 
-### Backend
-```javascript
-// Enable compression
-import compression from 'compression';
-app.use(compression());
-
-// Add caching headers
-app.use((req, res, next) => {
-  res.set('Cache-Control', 'public, max-age=300');
-  next();
-});
-```
-
-### Frontend
-```javascript
-// Already optimized with Next.js:
-// - Automatic code splitting
-// - Image optimization
-// - Static generation where possible
-```
-
-### Database
-```sql
--- Add indexes for frequently queried fields
-CREATE INDEX idx_tickets_sla_status ON test.tickets(sla_status);
-CREATE INDEX idx_tickets_priority ON test.tickets(priority);
-CREATE INDEX idx_tickets_created_at ON test.tickets(created_at);
-
--- Vacuum regularly
-VACUUM ANALYZE test.tickets;
-```
-
----
-
-## 📝 Environment Variables
-
-### Backend Production (.env)
-```bash
-NODE_ENV=production
-PORT=5000
-
-# Database (use connection string)
-DATABASE_URL=postgres://user:password@host:5432/dbname?sslmode=require
-
-# Or individual values
-DB_HOST=your-db-host.com
-DB_PORT=5432
-DB_NAME=cortex_production
-DB_USER=cortex_user
-DB_PASSWORD=your_secure_password
-
-# SSL enabled
-DB_SSL=true
-```
-
-### Frontend Production (.env.local)
-```bash
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-```
-
----
-
-## 🔧 Troubleshooting Production
-
-### Backend Issues
-```bash
-# Check logs
-pm2 logs cortex-backend
-
-# Check process status
-pm2 status
-
-# Restart
-pm2 restart cortex-backend
-```
-
-### Database Connection Issues
-```bash
-# Test connection
-psql -h your-db-host -U cortex_user -d cortex_production
-
-# Check active connections
-SELECT count(*) FROM pg_stat_activity;
-
-# Kill stuck connections
-SELECT pg_terminate_backend(pid) 
-FROM pg_stat_activity 
-WHERE datname = 'cortex_production';
-```
-
----
-
-## 📊 Scaling Strategy
-
-### Vertical Scaling
-- Increase server resources (CPU, RAM)
-- Upgrade database tier
-- Add read replicas
-
-### Horizontal Scaling
-- Load balancer (Nginx, AWS ALB)
-- Multiple backend instances
-- Database connection pooling
-- Redis for caching
-
----
-
-**Ready for production deployment! 🚀**
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Application error` on first load | Missing env var | Check all required vars are set |
+| DB connection timeout | VPN / firewall | Confirm host is reachable from deployment server |
+| Auth loop (redirecting to /login) | Wrong `NEXTAUTH_URL` | Set `NEXTAUTH_URL=https://your-domain.com` |
+| ClickUp push fails with 401 | Wrong token type | Use Personal API Token (`pk_...`), not OAuth token |
+| ZIWO widget stuck connecting | No ZIWO credentials on user | Set `ziwo_email` + `ziwo_password` in Admin → Users |
+| Build fails | Type/lint error | Run `npm run lint` locally first |

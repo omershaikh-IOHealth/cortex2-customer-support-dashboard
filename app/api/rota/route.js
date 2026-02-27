@@ -23,7 +23,9 @@ export async function GET(request) {
     if (userId) params.push(userId)
 
     const result = await pool.query(
-      `SELECT sr.id, sr.user_id, sr.shift_date, sr.start_time, sr.end_time,
+      `SELECT sr.id, sr.user_id,
+              TO_CHAR(sr.shift_date, 'YYYY-MM-DD') AS shift_date,
+              sr.start_time, sr.end_time,
               sr.shift_type, sr.notes,
               u.full_name AS agent_name, u.email AS agent_email,
               COALESCE(

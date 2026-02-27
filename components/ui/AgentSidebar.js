@@ -16,6 +16,7 @@ import {
   Wifi,
   AlertCircle,
   ChevronDown,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,9 +28,10 @@ const navigation = [
 ]
 
 const STATUS_OPTIONS = [
-  { value: 'available', label: 'Available', icon: Wifi, color: 'text-cortex-success', dot: 'bg-cortex-success' },
-  { value: 'break', label: 'On Break', icon: Coffee, color: 'text-blue-400', dot: 'bg-blue-400' },
-  { value: 'not_ready', label: 'Not Ready', icon: AlertCircle, color: 'text-cortex-danger', dot: 'bg-cortex-danger' },
+  { value: 'available', label: 'Available',  icon: Wifi,        color: 'text-cortex-success', dot: 'bg-cortex-success' },
+  { value: 'break',     label: 'On Break',   icon: Coffee,      color: 'text-blue-400',        dot: 'bg-blue-400' },
+  { value: 'meeting',   label: 'Meeting',    icon: Users,       color: 'text-purple-400',      dot: 'bg-purple-400' },
+  { value: 'not_ready', label: 'Not Ready',  icon: AlertCircle, color: 'text-cortex-danger',   dot: 'bg-cortex-danger' },
 ]
 
 function fmtDuration(secs) {
@@ -102,6 +104,7 @@ export default function AgentSidebar() {
     if (newStatus === status) return
     setUpdatingStatus(true)
     try {
+      // 1. Update Cortex DB
       await fetch(`/api/users/${session?.user?.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +113,15 @@ export default function AgentSidebar() {
       setStatus(newStatus)
       setStatusSince(new Date().toISOString())
       setElapsed(0)
-      // Notify ZiwoWidget to sync status
+
+      // 2. Push to ZIWO (fire-and-forget — don't block UI on ZIWO latency)
+      fetch('/api/ziwo/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      }).catch(() => {})
+
+      // 3. Notify ZiwoWidget (kept for any future SDK-level hooks)
       window.dispatchEvent(new CustomEvent('cortex-status-change', { detail: { status: newStatus } }))
     } finally {
       setUpdatingStatus(false)

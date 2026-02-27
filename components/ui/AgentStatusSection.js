@@ -8,7 +8,8 @@ import { getUsers } from '@/lib/api'
 const STATUS_CONFIG = {
   available:  { label: 'Available',  color: 'text-cortex-success', dot: 'bg-cortex-success',  icon: Wifi },
   busy:       { label: 'On Call',    color: 'text-cortex-warning', dot: 'bg-cortex-warning',  icon: Phone },
-  break:      { label: 'On Break',   color: 'text-blue-400',       dot: 'bg-blue-400',         icon: Coffee },
+  break:      { label: 'On Break',   color: 'text-blue-400',       dot: 'bg-blue-400',        icon: Coffee },
+  meeting:    { label: 'Meeting',    color: 'text-purple-400',     dot: 'bg-purple-400',      icon: Users },
   not_ready:  { label: 'Not Ready',  color: 'text-cortex-danger',  dot: 'bg-cortex-danger',   icon: AlertTriangle },
   offline:    { label: 'Offline',    color: 'text-cortex-muted',   dot: 'bg-cortex-muted',    icon: WifiOff },
 }

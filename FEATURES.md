@@ -1,374 +1,231 @@
-# CORTEX 2.0 - Features & Capabilities
+# Cortex 2.0 — Feature Reference
 
-## 🎯 Overview
-
-A production-ready dashboard for real-time monitoring and management of support center automation. Built with modern tech stack and enterprise-grade design.
+Complete feature inventory for the MedGulf support operations dashboard.
 
 ---
 
-## 📊 Dashboard Features
+## Authentication & Security
 
-### Mission Control View
-**What it does:** Single-pane overview of your entire support operation
-
-**Key Metrics:**
-- 🎫 Active Tickets - Total open tickets across all priorities
-- ⚠️ Critical SLA - Tickets requiring immediate attention
-- 📈 High Escalations - Level 3+ escalations count
-- ⏱️ Avg SLA Consumption - System-wide SLA health
-
-**Real-time Monitoring:**
-- Last 24 hours ticket volume
-- SLA breach count
-- System status indicators (ClickUp sync, Database, AI, Escalations)
-
-**Activity Feeds:**
-- Critical SLA tickets (top 5)
-- Recent tickets (latest 5)
-- Recent escalations (latest 5)
-
-**Auto-refresh:** Every 30 seconds
+- **Role-based access** — `admin` and `agent` roles enforced in middleware; agents cannot access admin routes
+- **Account lockout** — 5 consecutive failed logins trigger a 15-minute lock
+- **Audit trail** — every login attempt (success or failure) logged to `test.auth_logs` with IP and user agent
+- **JWT sessions** — NextAuth v5 with short-lived tokens; `current_session_tok` stored per user for single-session enforcement
+- **Login error messages** — lockout countdown shown in UI
 
 ---
 
-## 🎫 Ticket Management
+## Admin Portal
 
-### Tickets List View
-**Powerful Filtering:**
-- 🔍 Search by title, ID, or reporter name
-- 📊 Filter by priority (P1-P5)
-- ⚡ Filter by SLA status (critical, at_risk, warning, healthy)
-- 📋 Filter by ticket status (open, in progress, on hold, resolved, closed)
+### Dashboard (`/dashboard`)
+- KPI cards: Active Tickets, Critical SLA, High Escalations, Avg SLA Consumption
+- Critical SLA feed (top 5 tickets, live countdown)
+- Recent tickets and escalations feed
+- System status indicators (ClickUp sync, DB, AI, Escalations)
+- Auto-refreshes every 30 seconds
 
-**Rich Data Display:**
-- Sentiment indicators (😊😐😟😤😡)
-- Priority badges with color coding
-- SLA consumption percentage
-- Escalation level badges
-- Reporter information
-- Relative timestamps
-- Thread count
-- Direct ClickUp links
+### Ticket Management (`/tickets`)
+- Paginated ticket list with server-side filtering
+- Filter presets saved to localStorage
+- Filters: status, priority, SLA status, escalation level, assignee, free-text search
+- Smart sort: critical SLA → at-risk → escalated → newest
+- "Time in Status" column (derived from thread history)
+- SLA pause/resume toggle per ticket
+- Auto-refreshes every 30 seconds
 
-**Smart Sorting:**
-Automatically prioritizes:
-1. Critical SLA tickets
-2. At-risk SLA tickets
-3. Level 3+ escalations
-4. Then by creation date
+### Ticket Detail (`/tickets/[id]`)
+- Live SLA countdown timer (response + resolution deadlines)
+- Full activity thread with comments, status changes, field changes
+- Internal notes (admin-only, not synced to ClickUp)
+- Similar tickets panel (same module + request type + case type, resolved)
+- Soft hold (pause SLA) with confirmation
+- Status change dropdown, Escalate button, Re-assign dropdown
+- "Ask AI" button — opens AI Companion pre-populated with ticket context
+- ClickUp task link
 
-### Ticket Detail View
-**Complete Ticket Profile:**
-- Full ticket metadata
-- Reporter contact details (name, email, phone)
-- Priority and status badges
-- SLA status with visual progress bar
-- Escalation level indicators
-- AI sentiment analysis
-- Request type classification
+### SLA Monitor (`/sla`)
+- All tickets at or above the warning threshold
+- Status breakdown: Critical / At Risk / Warning / total
+- Large SLA % display per ticket, visual progress bar
+- Auto-refreshes every 15 seconds (fastest refresh rate)
 
-**SLA Tracking:**
-- Real-time consumption percentage
-- Visual progress indicator
-- Resolution due date
-- Color-coded status (green→yellow→orange→red)
+### Escalations (`/escalations`)
+- All active escalation alerts grouped by level (1–3)
+- Notification recipients list
+- Acknowledgment status and timestamp
 
-**Activity Thread:**
-- Complete chronological history
-- All comments and responses
-- Field change tracking
-- System events
-- AI-generated summaries
-- Attachment indicators
-- Actor attribution
+### Analytics (`/analytics`)
+- 30-day ticket trend (area chart, daily volume)
+- Week-over-week toggle (current vs previous 30 days overlay)
+- Priority distribution (pie chart)
+- Average resolution hours per priority (bar chart)
+- Priority breakdown cards with counts + avg SLA consumption
 
-**Escalation History:**
-- All escalation alerts for this ticket
-- Notification recipients
-- Timestamp of each escalation
-- Acknowledgment status
+### QA Sampling (`/qa`)
+- Random ticket sampling (`ORDER BY RANDOM()`)
+- Filters: priority, status, date range, sample size
+- CSV export of results
 
-**AI Analysis:**
-- Automated ticket summary
-- Sentiment detection
-- Module/category classification
-- Priority recommendations
+### System Logs (`/logs`)
+- Last 100 workflow execution logs
+- Success / error / warning status with colour coding
+- Full metadata JSON, error messages, timestamps
 
----
+### ROTA Management (`/rota`)
+- Weekly calendar grid (Mon–Sun)
+- Create shifts with agent, date, start/end times, shift type, notes
+- Scheduled breaks per shift (type: scheduled / lunch)
+- Drag-and-drop to move shifts between days
+- Delete shifts with confirmation
+- Week navigation (prev / next / today)
+- Timezone-safe date handling (`TO_CHAR` prevents UTC offset bugs)
 
-## ⏱️ SLA Monitor
+### Agent Status Viewer (`/agent-status`)
+- Live grid of all agents with current status, duration, and status note
+- Status badges: Available (green), On Call (amber), On Break (blue), Meeting (purple), Not Ready (red), Offline (grey)
+- Break overtime warning (highlights agents on break > 30 min)
+- Auto-refreshes every 30 seconds
 
-### Real-time SLA Dashboard
-**Status Breakdown:**
-- 🔴 Critical (90%+ consumption)
-- 🟠 At Risk (78-89%)
-- 🟡 Warning (65-77%)
-- ✅ Total monitored tickets
-
-**Ticket Display:**
-Each ticket shows:
-- Priority level
-- Current SLA status
-- Escalation level (if any)
-- Reporter information
-- Creation time
-- Due date
-- Large consumption percentage (5xl font)
-- Visual progress bar
-
-**Features:**
-- Auto-refresh every 15 seconds (fastest refresh rate)
-- Sorted by urgency (highest consumption first)
-- Direct links to ticket details
-- Color-coded indicators
+### Admin Configuration (`/admin`)
+- Full CRUD for: Companies, POCs, Solutions, SLA Configs, Escalation Configs, Assignees, Modules, Request Types, Case Types, KPIs
+- Circular (Knowledge Base) management with version history and archive
+- User management (create, edit, deactivate agents/admins; set ZIWO credentials)
+- **Force Sync Now** — triggers n8n webhook for a manual ClickUp sync
+- **Sync Assignments** — backfills `assigned_to_email` / `assigned_to_id` on all tickets from ClickUp assignees
 
 ---
 
-## 🚨 Escalations
+## Agent Portal
 
-### Escalation Alert Management
-**Level Breakdown:**
-- Level 1 (65% threshold)
-- Level 2 (78% threshold)
-- Level 3 (85% threshold)
-- Level 4 (90% threshold - critical)
+### Briefing (`/briefing`)
+- Today's shift details (start/end time, type, notes)
+- Scheduled breaks for the shift
+- Full weekly rota view
 
-**Alert Information:**
-- Escalation level badge
-- SLA consumption at time of alert
-- Related ticket title (clickable)
-- Priority level
-- Notification channel
-- Time since escalation
-- Notified recipients list
-- Acknowledgment status
+### My Tickets (`/my-tickets`)
+- Tickets assigned to the logged-in agent
+- Org/Client filter dropdown
+- Status and priority filters
+- Same smart-sort as admin ticket list
 
-**Acknowledgment Tracking:**
-- Who acknowledged the alert
-- When it was acknowledged
-- Visual badge for acknowledged alerts
+### Agent Dashboard (`/agent-dashboard`)
+- Personal KPIs: tickets handled, avg resolution, SLA compliance rate
+- Call log summary for today
+- Status history
 
----
-
-## 📈 Analytics
-
-### 30-Day Trends
-**Visual Charts:**
-- Area chart showing total tickets over time
-- Overlay of high-priority tickets
-- Interactive tooltips
-- Date-based x-axis
-
-### Priority Distribution
-**Pie Chart:**
-- Visual breakdown by priority
-- Count per priority level
-- Color-coded (matches priority badges)
-
-**Bar Chart - SLA by Priority:**
-- Average SLA consumption per priority
-- Color-matched bars
-- Percentage values
-
-**Priority Breakdown Cards:**
-- Individual cards for P1-P5
-- Ticket count
-- Average SLA consumption
-- Color-coded indicators
+### Knowledge Base (`/knowledge-base`)
+- Search circulars by title or content
+- Filter by category
+- Full article view
+- Admin users see create / edit / archive controls inline
 
 ---
 
-## 📋 System Logs
+## AI Companion
 
-### Execution Monitoring
-**Log Details:**
-- Workflow name
-- Entity type (ticket, workflow_run, etc.)
-- Action performed
-- Status (success/error/warning)
-- Detailed metadata (JSON)
-- Error messages (if applicable)
-- Timestamp
-
-**Visual Indicators:**
-- ✅ Success (green)
-- ❌ Error (red)
-- ⚠️ Warning (yellow)
-
-**Features:**
-- Shows last 100 entries
-- Real-time updates
-- Detailed error tracking
-- Complete audit trail
+- Floating chat panel available on all admin pages (bottom-right)
+- Powered by Core42 LLM
+- Full DB schema injected into system prompt — can answer questions about any ticket, SLA, agent, or trend
+- Session-based history per user (`test.companion_sessions`)
+- `openCompanionWith(message)` global event — any page can open the companion pre-filled (e.g. "Ask AI" on ticket detail)
+- SLA alert chips with live countdown shown when companion is open
+- Clear session button
+- Role-aware: agents get company-filtered context
 
 ---
 
-## ⚙️ Configuration
+## ZIWO Phone Integration
 
-### SLA Configuration
-**Displays:**
-- Priority level (P1-P5)
-- Priority name
-- Response time hours
-- Resolution time hours
-- Resolution type
-- Description
+- WebRTC softphone widget (bottom-right of agent pages)
+- Powered by `ziwo-core-front` SDK (CDN loaded)
+- Agent ZIWO credentials fetched from DB via `/api/users/me`
+- Call features: answer, reject, hang up, hold/unhold, mute/unmute, DTMF dial pad
+- Outbound dialling with numeric keypad
+- Call duration timer (live)
+- Post-call summary (duration, direction, number, cause)
+- All calls logged to `test.call_logs` automatically after hangup
+- **Live status sync** — changing status in the dashboard pushes to ZIWO via `/api/ziwo/status`:
 
-**Use Case:**
-- Verify SLA rules
-- Reference time limits
-- Understand escalation triggers
-
-### Escalation Configuration
-**Shows:**
-- Escalation level (1-4)
-- Level name
-- Threshold percentage
-- Required actions
-- Notification recipients (roles)
-
-**Use Case:**
-- Understand when escalations trigger
-- Know who gets notified
-- Plan escalation responses
+| Cortex status | ZIWO number |
+|---|---|
+| Available | 1 |
+| On Break | 2 |
+| Meeting | 3 |
+| Not Ready | 5 |
 
 ---
 
-## 🎨 Design Features
+## Agent Status System
 
-### Professional Aesthetics
-- **Dark mode** mission-control theme
-- **Color-coded** everything (priorities, SLA, status)
-- **Monospace fonts** for data/IDs
-- **Display fonts** for headings
-- **Smooth animations** on page load
-- **Hover effects** for interactivity
-- **Responsive** grid layouts
-
-### Color Palette
-- 🔵 Blue - Info/Primary
-- 🟢 Green - Success/Healthy
-- 🟡 Yellow - Warning
-- 🟠 Orange - At Risk
-- 🔴 Red - Danger/Critical
-- ⚫ Dark - Background
-
-### Typography
-- **IBM Plex Sans** - Body text
-- **Inter Tight** - Headings
-- **JetBrains Mono** - Code/Data
+- Status selector in AgentSidebar: **Available**, **On Break**, **Meeting**, **Not Ready**
+- Status stored in `test.agent_status` (upsert per user)
+- Duration timer counts elapsed time in current status
+- ZIWO status pushed on every change (fire-and-forget, non-blocking)
+- Admin Agent Status Viewer reflects all changes in real time
 
 ---
 
-## 🔄 Real-time Updates
+## ClickUp Integration
 
-### Auto-refresh Intervals
-- **Dashboard:** 30 seconds
-- **SLA Monitor:** 15 seconds
-- **Tickets:** 30 seconds
-- **Escalations:** 30 seconds
-- **Analytics:** On-demand
-- **Logs:** 30 seconds
-
-### React Query Caching
-- Smart cache invalidation
-- Background refetching
-- Optimistic updates
-- Error retry logic
+- New tickets created in Cortex are pushed to ClickUp (`POST /list/{id}/task`)
+- Task name format: `ticketNo-{id} | {summary}`
+- Custom fields synced: Request Type, Case Type (dropdown option UUIDs verified)
+- Status and priority updates pushed on ticket changes
+- Default assignee: Asif K (ClickUp user 87796566)
+- **Sync Assignments** admin button backfills all ticket assignees from ClickUp in bulk
 
 ---
 
-## 🚀 Performance
+## Notifications
 
-### Optimizations
-- **Lazy loading** - Pages load on demand
-- **Code splitting** - Smaller bundles
-- **Image optimization** - Next.js automatic
-- **Database indexing** - Fast queries
-- **Connection pooling** - Efficient DB access
-
-### Query Optimization
-- Filtered queries (only what's needed)
-- Calculated fields in DB (not frontend)
-- Indexed columns for fast lookups
-- Pagination support (LIMIT/OFFSET)
+- In-app notification bell (top of sidebar) with unread badge
+- Notification types: ticket assigned, escalation triggered, SLA breach, circular published
+- Mark as read individually or all-at-once
+- Stored in `test.notifications`
 
 ---
 
-## 🔐 Security
+## Top Alert Bar
 
-### Backend
-- Environment variables for secrets
-- Database connection pooling
-- Error message sanitization
-- CORS configuration
-- Input validation
-
-### Frontend
-- No direct database access
-- API-only data fetching
-- Environment variable protection
-- XSS prevention (React default)
+- Shown at the top of all admin pages
+- Displays open critical SLA breaches with ticket IDs
+- Links directly to the relevant ticket detail page
 
 ---
 
-## 📱 Responsive Design
+## Design System
 
-### Breakpoints
-- **Mobile:** < 768px
-- **Tablet:** 768px - 1024px
-- **Desktop:** > 1024px
+Custom Tailwind theme with `cortex-*` tokens:
 
-### Adaptive Layouts
-- Grid columns adjust automatically
-- Sidebar collapses on mobile (could be added)
-- Tables scroll horizontally
-- Cards stack vertically
+| Token | Usage |
+|---|---|
+| `cortex-bg` | Page background |
+| `cortex-surface` | Card/panel background |
+| `cortex-text` | Primary text |
+| `cortex-accent` | Brand blue (interactive elements) |
+| `cortex-muted` | Secondary text |
+| `cortex-border` | Borders, dividers |
+| `cortex-success` | Green — healthy/available |
+| `cortex-warning` | Amber — at risk / on break |
+| `cortex-danger` | Red — critical / not ready |
+| `cortex-critical` | Highest severity |
 
----
+Global component classes: `.card`, `.badge`, `.btn-primary`, `.btn-secondary`, `.input`, `.table-header`, `.table-cell`
 
-## 🎯 Use Cases
+Fonts: **IBM Plex Sans** (body) · **Inter Tight** (display) · **JetBrains Mono** (mono/data)
 
-### For Support Managers
-- Monitor team performance
-- Track SLA compliance
-- Identify bottlenecks
-- Review escalation patterns
-
-### For Team Leads
-- Prioritize urgent tickets
-- Allocate resources
-- Monitor individual tickets
-- Track resolution times
-
-### For Executives
-- High-level metrics
-- Trend analysis
-- Performance KPIs
-- System health
-
-### For Operations
-- Audit trail (logs)
-- Configuration verification
-- System monitoring
-- Error tracking
+Dark mode and light mode supported with FOUC prevention via `next/headers` cookie check.
 
 ---
 
-## 🔮 Future Enhancements (Possible)
+## Auto-Refresh Intervals
 
-- User authentication
-- Role-based access
-- Email notifications
-- Export to Excel/PDF
-- Custom dashboards
-- Ticket assignment
-- Comment posting
-- Status updates
-- Advanced filtering
-- Saved views
-- Mobile app
-
----
-
-**Built for scalability, designed for usability, engineered for reliability.**
+| Page | Interval |
+|---|---|
+| SLA Monitor | 15 seconds |
+| Dashboard | 30 seconds |
+| Tickets | 30 seconds |
+| Escalations | 30 seconds |
+| Logs | 30 seconds |
+| Agent Status Viewer | 30 seconds |
+| Rota | 60 seconds |
+| Analytics | On demand |
