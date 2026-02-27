@@ -27,3 +27,11 @@ yarn-error.log*
 *.secrets.*
 *credentials*
 *tokens and credentials*
+
+# internal / dev-only files
+cortex2-claude-code-commands.md
+synthetic-tickets.js
+scripts/seed-users.js
+
+# local IDE / tooling
+.claude/settings.local.json
