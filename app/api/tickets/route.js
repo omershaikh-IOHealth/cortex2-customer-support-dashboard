@@ -55,6 +55,8 @@ export async function GET(request) {
     const priority = searchParams.get('priority')
     const sla_status = searchParams.get('sla_status')
     const escalation_level = searchParams.get('escalation_level')
+    const assigned_to = searchParams.get('assigned_to')
+    const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
@@ -80,6 +82,21 @@ export async function GET(request) {
       params.push(parseInt(escalation_level))
       conditions.push(`t.escalation_level >= $${params.length}`)
     }
+    if (assigned_to) {
+      params.push(assigned_to)
+      conditions.push(`(t.assigned_to_email = $${params.length} OR t.created_by_email = $${params.length})`)
+    }
+    if (search) {
+      params.push(`%${search}%`)
+      conditions.push(`(t.title ILIKE $${params.length} OR CAST(t.id AS TEXT) LIKE $${params.length})`)
+    }
+
+    const whereClause = conditions.join(' AND ')
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM test.tickets t WHERE ${whereClause}`,
+      params
+    )
+    const total = parseInt(countResult.rows[0].count)
 
     params.push(limit, offset)
 
@@ -89,6 +106,7 @@ export async function GET(request) {
         t.status, t.priority, t.request_type, t.case_type, t.module,
         t.sla_consumption_pct, t.sla_status, t.sla_response_due, t.sla_resolution_due,
         t.escalation_level, t.last_escalation_at, t.ai_sentiment,
+        t.assigned_to_id, t.assigned_to_email,
         t.created_at, t.updated_at, t.created_by_name, t.created_by_email,
         p.name as poc_name, p.email as poc_email,
         (SELECT COUNT(*) FROM test.threads WHERE ticket_id = t.id) as thread_count,
@@ -97,7 +115,7 @@ export async function GET(request) {
          ORDER BY created_at DESC LIMIT 1) as last_status_change_at
       FROM test.tickets t
       LEFT JOIN test.pocs p ON t.poc_id = p.id
-      WHERE ${conditions.join(' AND ')}
+      WHERE ${whereClause}
       ORDER BY
         CASE
           WHEN t.sla_status = 'critical' THEN 1
@@ -109,7 +127,7 @@ export async function GET(request) {
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params)
 
-    return NextResponse.json(result.rows)
+    return NextResponse.json({ tickets: result.rows, total })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

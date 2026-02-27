@@ -24,7 +24,7 @@ const STATUS_TABS = [
 
 function fetchMyTickets(params = {}) {
   const qs = new URLSearchParams({ limit: '100', ...params }).toString()
-  return fetch(`/api/tickets?${qs}`).then(r => r.ok ? r.json() : [])
+  return fetch(`/api/tickets?${qs}`).then(r => r.ok ? r.json() : { tickets: [], total: 0 })
 }
 
 export default function MyTicketsPage() {
@@ -34,24 +34,21 @@ export default function MyTicketsPage() {
   const [orgFilter, setOrgFilter] = useState('')
 
   const currentTab = STATUS_TABS.find(t => t.key === activeTab)
+  const agentEmail = session?.user?.email
 
-  const { data: tickets = [], isLoading } = useQuery({
-    queryKey: ['my-tickets', activeTab],
-    queryFn: () => fetchMyTickets(currentTab.filter),
+  const { data: ticketData, isLoading } = useQuery({
+    queryKey: ['my-tickets', activeTab, agentEmail],
+    queryFn: () => fetchMyTickets({ ...currentTab.filter, ...(agentEmail ? { assigned_to: agentEmail } : {}) }),
     refetchInterval: 30000,
+    enabled: !!agentEmail,
   })
 
-  // Filter by agent's assigned tickets (created_by_email or assigned)
-  // and local search
-  const agentEmail = session?.user?.email
+  const tickets = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])
+
   // Collect unique orgs/companies from tickets for filter dropdown
   const orgOptions = [...new Set(tickets.map(t => t.company_name || t.company_code).filter(Boolean))].sort()
 
   const filtered = tickets.filter(t => {
-    const matchAgent =
-      !agentEmail ||
-      t.created_by_email === agentEmail ||
-      t.assigned_to_email === agentEmail
     const matchSearch =
       !search ||
       t.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -60,7 +57,7 @@ export default function MyTicketsPage() {
       !orgFilter ||
       t.company_name === orgFilter ||
       t.company_code === orgFilter
-    return matchAgent && matchSearch && matchOrg
+    return matchSearch && matchOrg
   })
 
   // Sort by SLA consumption (highest first) — critical tickets to top

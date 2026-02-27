@@ -45,11 +45,13 @@ export default function TicketsPage() {
     } catch {}
   }, [])
 
-  const { data: tickets, isLoading } = useQuery({
+  const { data: ticketData, isLoading } = useQuery({
     queryKey: ['tickets', filters],
     queryFn: () => getTickets(filters),
     refetchInterval: 30000,
   })
+  // Handle both new { tickets, total } shape and legacy flat array
+  const tickets = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])
 
   const holdMutation = useMutation({
     mutationFn: ({ id, action }) => holdTicket(id, action),
