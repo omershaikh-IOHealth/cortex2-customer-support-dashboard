@@ -9,14 +9,14 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-2 rounded-lg bg-cortex-surface border border-cortex-border hover:bg-cortex-border transition-colors"
+      className="p-2 rounded-lg bg-cortex-surface-raised border border-cortex-border hover:border-cortex-border-strong transition-colors"
       aria-label="Toggle theme"
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
       {theme === 'dark' ? (
-        <Sun className="w-5 h-5 text-cortex-warning" />
+        <Sun className="w-4 h-4 text-cortex-warning" />
       ) : (
-        <Moon className="w-5 h-5 text-cortex-accent" />
+        <Moon className="w-4 h-4 text-cortex-accent" />
       )}
     </button>
   )

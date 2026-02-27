@@ -2,52 +2,85 @@
 
 import { cn } from '@/lib/utils'
 
-export default function MetricCard({ 
-  title, 
-  value, 
-  subtitle, 
-  icon: Icon, 
-  trend, 
+const VARIANT_CONFIG = {
+  critical: {
+    iconBg:   'bg-cortex-critical/10',
+    iconText: 'text-cortex-critical',
+    valueText: 'text-cortex-critical',
+  },
+  warning: {
+    iconBg:   'bg-cortex-warning/10',
+    iconText: 'text-cortex-warning',
+    valueText: '',
+  },
+  success: {
+    iconBg:   'bg-cortex-success/10',
+    iconText: 'text-cortex-success',
+    valueText: '',
+  },
+  info: {
+    iconBg:   'bg-cortex-accent/10',
+    iconText: 'text-cortex-accent',
+    valueText: '',
+  },
+}
+
+export default function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  trend,
   variant = 'info',
-  loading = false 
+  loading = false,
 }) {
+  const cfg = VARIANT_CONFIG[variant] || VARIANT_CONFIG.info
+
   return (
     <div className={cn('metric-card', variant)}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-cortex-muted mb-1">{title}</p>
+      <div className="flex items-start justify-between gap-4">
+
+        {/* Left: text content */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">
+            {title}
+          </p>
+
           {loading ? (
-            <div className="h-10 w-24 bg-cortex-border animate-pulse rounded"></div>
+            <div className="h-10 w-28 bg-cortex-border animate-pulse rounded-lg mb-1" />
           ) : (
-            <p className="text-4xl font-display font-bold mb-2">{value}</p>
-          )}
-          {subtitle && (
-            <p className="text-xs text-cortex-muted">{subtitle}</p>
-          )}
-          {trend && (
             <p className={cn(
-              'text-xs font-mono mt-2',
-              trend.direction === 'up' ? 'text-cortex-danger' : 'text-cortex-success'
+              'text-4xl font-display font-bold leading-none mb-1',
+              cfg.valueText || 'text-cortex-text'
             )}>
-              {trend.direction === 'up' ? '↑' : '↓'} {trend.value}
+              {value}
             </p>
           )}
+
+          {subtitle && (
+            <p className="text-xs text-cortex-muted mt-2 leading-relaxed">{subtitle}</p>
+          )}
+
+          {trend && (
+            <div className={cn(
+              'inline-flex items-center gap-1 text-xs font-mono mt-3 px-2 py-0.5 rounded-md',
+              trend.direction === 'up'
+                ? 'text-cortex-danger bg-cortex-danger/8'
+                : 'text-cortex-success bg-cortex-success/8'
+            )}>
+              <span>{trend.direction === 'up' ? '↑' : '↓'}</span>
+              <span>{trend.value}</span>
+            </div>
+          )}
         </div>
+
+        {/* Right: icon */}
         {Icon && (
           <div className={cn(
-            'p-3 rounded-lg',
-            variant === 'critical' && 'bg-cortex-critical/10',
-            variant === 'warning' && 'bg-cortex-warning/10',
-            variant === 'success' && 'bg-cortex-success/10',
-            variant === 'info' && 'bg-cortex-accent/10'
+            'flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0',
+            cfg.iconBg
           )}>
-            <Icon className={cn(
-              'w-6 h-6',
-              variant === 'critical' && 'text-cortex-critical',
-              variant === 'warning' && 'text-cortex-warning',
-              variant === 'success' && 'text-cortex-success',
-              variant === 'info' && 'text-cortex-accent'
-            )} />
+            <Icon className={cn('w-5 h-5', cfg.iconText)} />
           </div>
         )}
       </div>

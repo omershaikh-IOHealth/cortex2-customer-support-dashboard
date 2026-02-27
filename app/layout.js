@@ -1,13 +1,10 @@
 import './globals.css'
-import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { Toaster } from 'react-hot-toast'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata = {
-  title: 'Cortex 2.0 | Support Center Automation',
+  title: 'Cortex 2.0 | Support Center Operations',
   description: 'Real-time monitoring and intelligence for MedGulf support operations',
 }
 
@@ -15,10 +12,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Inline script runs synchronously before paint to prevent dark-mode FOUC */}
+        {/* Prevent dark-mode FOUC — runs synchronously before paint */}
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('cortex-theme');if(!t||t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}` }} />
       </head>
-      <body className={inter.className}>
+      <body>
         <ThemeProvider>
           <Providers>
             {children}
@@ -27,9 +24,13 @@ export default function RootLayout({ children }) {
               toastOptions={{
                 duration: 3000,
                 style: {
-                  background: 'var(--cortex-surface, #1e1e2e)',
-                  color: 'var(--cortex-text, #e0e0e0)',
-                  border: '1px solid var(--cortex-border, #333)',
+                  background: 'rgb(var(--cortex-surface))',
+                  color: 'rgb(var(--cortex-text))',
+                  border: '1px solid rgb(var(--cortex-border))',
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '14px',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
                 },
               }}
             />
