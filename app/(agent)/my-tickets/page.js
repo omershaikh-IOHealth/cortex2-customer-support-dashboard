@@ -19,7 +19,7 @@ const STATUS_TABS = [
   { key: 'open',        label: 'Open',        filter: { status: 'Open' } },
   { key: 'in_progress', label: 'In Progress', filter: { status: 'In Progress' } },
   { key: 'waiting',     label: 'Waiting',     filter: { status: 'Waiting' } },
-  { key: 'resolved',    label: 'Resolved',    filter: { status: 'Resolved' } },
+  { key: 'resolved',    label: 'Resolved',    filter: { status: 'complete' } },
 ]
 
 function fetchMyTickets(params = {}) {
@@ -29,7 +29,7 @@ function fetchMyTickets(params = {}) {
 
 export default function MyTicketsPage() {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState('open')
+  const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [orgFilter, setOrgFilter] = useState('')
 

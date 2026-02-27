@@ -63,8 +63,8 @@ Open **http://localhost:3000** — you'll be redirected to `/login`.
 
 | Email | Password | Role |
 |---|---|---|
-| ann.shruthy@iohealth.com | W@c62288 | Admin |
-| asif.k@iohealth.com | Agent@Cortex2025 | Agent |
+| ann.shruthy@iohealth.com | _(see team credentials store)_ | Admin |
+| asif.k@iohealth.com | _(see team credentials store)_ | Agent |
 
 ---
 
