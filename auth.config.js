@@ -4,6 +4,7 @@ import Credentials from 'next-auth/providers/credentials'
 // Edge-safe auth config — NO Node.js imports here.
 // Middleware imports from this file; auth.js extends it with the full authorize callback.
 export const authConfig = {
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {

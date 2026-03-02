@@ -9,6 +9,7 @@ const MAX_ATTEMPTS = 5
 const LOCK_MINUTES = 15
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
