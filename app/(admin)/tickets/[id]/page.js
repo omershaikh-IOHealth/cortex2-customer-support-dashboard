@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } from '@/lib/api'
+import { getTicket, getSimilarTickets, addTicketNote, holdTicket } from '@/lib/api'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -455,7 +455,7 @@ export default function TicketDetailPage() {
               <ChevronDown className="w-3 h-3" />
             </button>
             {showAssignDrop && (
-              <AssignDropdown onAssign={handleAssign} onClose={() => setShowAssignDrop(false)} agentsOnly />
+              <AssignDropdown onAssign={handleAssign} onClose={() => setShowAssignDrop(false)} />
             )}
           </div>
         </div>
@@ -800,21 +800,19 @@ export default function TicketDetailPage() {
 }
 
 /* ── Assign dropdown ────────────────────────────────────────────────── */
-function AssignDropdown({ onAssign, onClose, agentsOnly }) {
-  const { data: users = [] } = useQuery({
-    queryKey: ['assign-user-list', agentsOnly],
-    queryFn: () => getUsers().then(u =>
-      agentsOnly
-        ? u.filter(x => x.role === 'agent' && x.is_active)
-        : u.filter(x => x.is_active)
-    ),
+function AssignDropdown({ onAssign, onClose }) {
+  const { data: members = [], isLoading } = useQuery({
+    queryKey: ['clickup-members'],
+    queryFn: () => fetch('/api/clickup/users').then(r => r.json()),
     staleTime: 300000,
   })
 
   return (
-    <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-30 py-1 min-w-[200px] max-h-56 overflow-y-auto animate-slide-in">
-      {users.length === 0 ? (
-        <p className="px-4 py-3 text-xs text-cortex-muted">No users found</p>
+    <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-50 py-1 min-w-[200px] max-h-56 overflow-y-auto animate-slide-in">
+      {isLoading ? (
+        <p className="px-4 py-3 text-xs text-cortex-muted">Loading members…</p>
+      ) : members.length === 0 ? (
+        <p className="px-4 py-3 text-xs text-cortex-muted">No members found</p>
       ) : (
         <>
           <button
@@ -824,14 +822,14 @@ function AssignDropdown({ onAssign, onClose, agentsOnly }) {
             Unassign
           </button>
           <div className="border-t border-cortex-border/40 my-1" />
-          {users.map(u => (
+          {members.map(m => (
             <button
-              key={u.id}
-              onClick={() => { onAssign(u.id, u.email); onClose() }}
+              key={m.id}
+              onClick={() => { onAssign(null, m.email); onClose() }}
               className="w-full text-left px-4 py-2 hover:bg-cortex-surface-raised transition-colors"
             >
-              <div className="text-xs font-medium text-cortex-text">{u.full_name}</div>
-              <div className="text-[10px] text-cortex-muted">{u.email}</div>
+              <div className="text-xs font-medium text-cortex-text">{m.username}</div>
+              <div className="text-[10px] text-cortex-muted">{m.email}</div>
             </button>
           ))}
         </>

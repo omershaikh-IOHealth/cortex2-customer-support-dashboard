@@ -13,8 +13,8 @@ export default function Modal({ isOpen, onClose, title, children }) {
           onClick={onClose}
         />
 
-        <div className="relative bg-cortex-surface border border-cortex-border rounded-2xl max-w-2xl w-full p-6 animate-slide-in shadow-card-hover">
-          <div className="flex items-center justify-between mb-6">
+        <div className="relative bg-cortex-surface border border-cortex-border rounded-2xl max-w-2xl w-full animate-slide-in shadow-card-hover max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between px-6 pt-6 pb-0 flex-shrink-0">
             <h2 className="text-xl font-display font-bold text-cortex-text">{title}</h2>
             <button
               onClick={onClose}
@@ -24,7 +24,9 @@ export default function Modal({ isOpen, onClose, title, children }) {
             </button>
           </div>
 
-          {children}
+          <div className="px-6 pb-6 pt-6 overflow-y-auto flex-1">
+            {children}
+          </div>
         </div>
       </div>
     </div>

@@ -38,7 +38,7 @@ export async function POST(request, { params }) {
 
     // Log assignment in threads
     await pool.query(
-      `INSERT INTO main.threads (ticket_id, action_type, thread_source, notes, created_by_email)
+      `INSERT INTO main.threads (ticket_id, action_type, thread_source, raw_content, actor_email)
        VALUES ($1, 'assignment', 'internal', $2, $3)`,
       [id, `Assigned to ${email}`, session.user.email]
     )

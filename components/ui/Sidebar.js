@@ -45,7 +45,7 @@ export default function Sidebar() {
   const { data: session } = useSession()
 
   return (
-    <div className="flex flex-col w-64 h-screen bg-cortex-surface border-r border-cortex-border fixed left-0 top-0 overflow-hidden">
+    <div className="flex flex-col w-64 h-screen bg-cortex-surface border-r border-cortex-border fixed left-0 top-0">
 
       {/* Subtle top-accent gradient bleed */}
       <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-cortex-accent/5 to-transparent pointer-events-none" />
