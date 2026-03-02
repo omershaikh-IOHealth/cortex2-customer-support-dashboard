@@ -62,6 +62,11 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   const [minimized, setMinimized] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
 
+  // Drag state — default bottom-4 right-4 (16px each)
+  const [pos, setPos] = useState({ bottom: 16, right: 16 })
+  const dragState = useRef({ dragging: false, startX: 0, startY: 0, origRight: 16, origBottom: 16 })
+  const [isDragging, setIsDragging] = useState(false)
+
   const mediaRef = useRef(null)
   const clientRef = useRef(null)
   const timerRef = useRef(null)
@@ -76,6 +81,43 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
       setSdkLoaded(true)
     }
   }, [])
+
+  // Drag — status bar acts as drag handle
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragState.current.dragging) return
+      const dx = e.clientX - dragState.current.startX
+      const dy = e.clientY - dragState.current.startY
+      setPos({
+        right: Math.max(0, dragState.current.origRight - dx),
+        bottom: Math.max(0, dragState.current.origBottom - dy),
+      })
+    }
+    function onUp() {
+      if (dragState.current.dragging) {
+        dragState.current.dragging = false
+        setIsDragging(false)
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
+  function startDrag(e) {
+    e.preventDefault()
+    dragState.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origRight: pos.right,
+      origBottom: pos.bottom,
+    }
+    setIsDragging(true)
+  }
 
   // Fetch ZIWO credentials from /api/users/me
   useEffect(() => {
@@ -338,14 +380,22 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
       <div ref={mediaRef} style={{ display: 'none' }} aria-hidden="true" />
 
       {/* ── Widget ── */}
-      <div className="fixed bottom-4 right-4 z-50 w-72 bg-cortex-surface border border-cortex-border rounded-xl shadow-2xl overflow-hidden">
+      <div
+        className={`fixed z-50 w-72 bg-cortex-surface border border-cortex-border rounded-xl shadow-2xl overflow-hidden${isDragging ? ' select-none' : ''}`}
+        style={{ bottom: `${pos.bottom}px`, right: `${pos.right}px` }}
+      >
 
-        {/* Status bar */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-cortex-border bg-cortex-bg/50">
+        {/* Status bar — drag handle */}
+        <div
+          className="flex items-center gap-2 px-4 py-3 border-b border-cortex-border bg-cortex-bg/50 cursor-grab active:cursor-grabbing"
+          onMouseDown={startDrag}
+          title="Drag to reposition"
+        >
           <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
           <span className="text-xs font-mono text-cortex-text flex-1 truncate">{statusLabel}</span>
           <button
             onClick={() => setMinimized(m => !m)}
+            onMouseDown={e => e.stopPropagation()}
             className="text-cortex-muted hover:text-cortex-text transition-colors"
           >
             {minimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { Bot, Send, X, Trash2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +29,7 @@ function formatCountdown(dueDate) {
 
 export default function AICompanion() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -37,6 +39,15 @@ export default function AICompanion() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // Drag state
+  const [pos, setPos] = useState({ bottom: 24, right: 24 });
+  const posInitialized = useRef(false);
+  const dragState = useRef({ dragging: false, startX: 0, startY: 0, origRight: 24, origBottom: 24 });
+  const [isDragging, setIsDragging] = useState(false);
+  const wasDragged = useRef(false);
+
+  const isAgent = user?.role === 'agent';
+
   // SLA alerts for companion panel
   const { data: slaAlerts = [] } = useQuery({
     queryKey: ['sla-alerts-companion'],
@@ -45,12 +56,64 @@ export default function AICompanion() {
     enabled: isOpen,
   });
 
+  // Agents only see their own assigned tickets; admins see all
   const criticalAlerts = slaAlerts.filter(t =>
     t.sla_consumption_pct >= 75 &&
-    !['closed', 'resolved', 'complete', 'Closed', 'Resolved'].includes(t.status)
+    !['closed', 'resolved', 'complete', 'Closed', 'Resolved'].includes(t.status) &&
+    (!isAgent || t.assigned_to_email === user?.email)
   );
 
   const isVisible = !!(user && (user.role === 'admin' || user.role === 'agent'));
+
+  // Set default position based on role once user is known
+  // Agents: sit left of ZIWO widget (ZIWO is 288px wide at right:16 → companion at right:312)
+  // Admins: standard bottom-right corner (right:24)
+  useEffect(() => {
+    if (user && !posInitialized.current) {
+      posInitialized.current = true;
+      if (user.role === 'agent') {
+        setPos({ bottom: 24, right: 312 });
+      }
+    }
+  }, [user]);
+
+  // Global drag listeners
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragState.current.dragging) return;
+      const dx = e.clientX - dragState.current.startX;
+      const dy = e.clientY - dragState.current.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) wasDragged.current = true;
+      const newRight = Math.max(0, dragState.current.origRight - dx);
+      const newBottom = Math.max(0, dragState.current.origBottom - dy);
+      setPos({ right: newRight, bottom: newBottom });
+    }
+    function onUp() {
+      if (dragState.current.dragging) {
+        dragState.current.dragging = false;
+        setIsDragging(false);
+      }
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  function startDrag(e) {
+    e.preventDefault(); // prevent text selection while dragging
+    wasDragged.current = false;
+    dragState.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origRight: pos.right,
+      origBottom: pos.bottom,
+    };
+    setIsDragging(true);
+  }
 
   // loadHistory must be defined before the useEffect that calls it
   const loadHistory = async () => {
@@ -65,7 +128,6 @@ export default function AICompanion() {
     }
   };
 
-  // All hooks must be called unconditionally (before any early return)
   // Register global open handler
   useEffect(() => {
     if (!isVisible) return;
@@ -97,7 +159,7 @@ export default function AICompanion() {
     }
   }, [input]);
 
-  // Now safe to conditionally return — all hooks have been called above
+  // All hooks called — safe to return early now
   if (!isVisible) return null;
 
   const handleSend = async () => {
@@ -108,7 +170,7 @@ export default function AICompanion() {
     setLoading(true);
 
     try {
-      const data = await sendCompanionMessage(userMessage.content);
+      const data = await sendCompanionMessage(userMessage.content, pathname);
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply, timestamp: Date.now() }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', timestamp: Date.now() }]);
@@ -134,13 +196,25 @@ export default function AICompanion() {
     return 'text-cortex-warning bg-cortex-warning/10 border border-cortex-warning/20';
   };
 
+  // Role-aware ticket link: agents link to /my-tickets/*, admins to /tickets/*
+  const alertLink = (t) => isAgent ? `/my-tickets/${t.id}` : `/tickets/${t.id}`;
+
+  const placeholderText = isAgent
+    ? 'Ask about your tickets or SLA status…'
+    : 'Ask about tickets, SLAs, or escalations…';
+
   return (
-    <div className="fixed bottom-6 right-6 z-50 pointer-events-none hidden md:block">
-      <div className="pointer-events-auto">
+    <div
+      className="fixed z-50 pointer-events-none hidden md:block"
+      style={{ bottom: `${pos.bottom}px`, right: `${pos.right}px` }}
+    >
+      <div className={`pointer-events-auto${isDragging ? ' select-none' : ''}`}>
         {!isOpen ? (
           <button
-            onClick={() => setIsOpen(true)}
-            className="relative w-14 h-14 bg-cortex-accent hover:bg-cortex-accent/90 rounded-2xl shadow-accent flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+            onMouseDown={startDrag}
+            onClick={() => { if (!wasDragged.current) setIsOpen(true); }}
+            className="relative w-14 h-14 bg-cortex-accent hover:bg-cortex-accent/90 rounded-2xl shadow-accent flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-grab active:cursor-grabbing"
+            title="Cortex AI — drag to reposition"
           >
             <Bot className="w-6 h-6 text-white" />
             {criticalAlerts.length > 0 && (
@@ -150,23 +224,40 @@ export default function AICompanion() {
             )}
           </button>
         ) : (
-          <div className="w-96 bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl flex flex-col" style={{ maxHeight: '90vh', minHeight: '400px' }}>
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-cortex-border shrink-0">
+          <div
+            className="w-96 bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl flex flex-col"
+            style={{ maxHeight: '90vh', minHeight: '400px' }}
+          >
+            {/* Header — doubles as drag handle */}
+            <div
+              className="flex items-center justify-between p-4 border-b border-cortex-border shrink-0 cursor-grab active:cursor-grabbing"
+              onMouseDown={startDrag}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-cortex-accent/20 rounded-xl flex items-center justify-center">
                   <Bot className="w-5 h-5 text-cortex-accent" />
                 </div>
                 <div>
                   <div className="font-semibold text-cortex-text">Cortex AI</div>
-                  <div className="text-xs text-cortex-muted">Support Operations</div>
+                  <div className="text-xs text-cortex-muted">
+                    {isAgent ? 'Agent Assistant' : 'Support Operations'}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={handleClear} className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors" title="Clear history">
+                <button
+                  onClick={handleClear}
+                  onMouseDown={e => e.stopPropagation()}
+                  className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors"
+                  title="Clear history"
+                >
                   <Trash2 className="w-4 h-4 text-cortex-muted" />
                 </button>
-                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors">
+                <button
+                  onClick={() => setIsOpen(false)}
+                  onMouseDown={e => e.stopPropagation()}
+                  className="p-2 hover:bg-cortex-surface-raised rounded-lg transition-colors"
+                >
                   <X className="w-4 h-4 text-cortex-muted" />
                 </button>
               </div>
@@ -182,6 +273,7 @@ export default function AICompanion() {
                   <span className="flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     {criticalAlerts.length} SLA Alert{criticalAlerts.length !== 1 ? 's' : ''}
+                    {isAgent && <span className="font-normal opacity-60 ml-0.5">(your tickets)</span>}
                   </span>
                   {alertsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
@@ -192,7 +284,7 @@ export default function AICompanion() {
                       return (
                         <a
                           key={t.id}
-                          href={`/tickets/${t.id}`}
+                          href={alertLink(t)}
                           className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-opacity hover:opacity-80 ${alertBadgeClass(t.sla_consumption_pct)}`}
                         >
                           <span className="font-mono truncate mr-2">
@@ -216,7 +308,7 @@ export default function AICompanion() {
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <p className="text-cortex-muted text-sm text-center px-8">
-                    Ask me about tickets, SLAs, or escalations
+                    {placeholderText}
                   </p>
                 </div>
               ) : (
@@ -256,7 +348,7 @@ export default function AICompanion() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask a question..."
+                  placeholder={placeholderText}
                   disabled={loading}
                   className="flex-1 resize-none bg-cortex-bg border border-cortex-border rounded-xl px-3 py-2 text-sm focus:border-cortex-accent focus:outline-none disabled:opacity-50 max-h-32"
                   rows={1}

@@ -3,6 +3,45 @@ import pool from '@/lib/db'
 import { getSchemaContext } from '@/lib/schema-context'
 import { auth } from '@/auth'
 
+// ─── Page context builder ─────────────────────────────────────────────────────
+function buildPageContext(pathname, userRole, userEmail) {
+  if (!pathname) return ''
+  const descriptions = {
+    '/dashboard':      'Dashboard — org-wide KPI overview, recent escalations, SLA summary',
+    '/tickets':        'Tickets list — browsing and filtering all company tickets',
+    '/sla':            'SLA Monitor — tickets ranked by SLA consumption and breach risk',
+    '/escalations':    'Escalations — tickets that have been escalated across all levels',
+    '/analytics':      'Analytics — 30-day ticket trends, priority breakdown, resolution times',
+    '/qa':             'QA Sampling — randomly sampled tickets for quality assurance review',
+    '/logs':           'System Logs — ticket processing and sync logs',
+    '/admin':          'Admin — system configuration (SLA rules, users, companies, modules)',
+    '/briefing':       'Shift Briefing — this agent\'s scheduled shifts and daily handover info',
+    '/my-tickets':     'My Tickets — this agent\'s assigned ticket queue',
+    '/agent-dashboard':'Agent Dashboard — agent-facing overview of their workload',
+    '/knowledge-base': 'Knowledge Base — support articles and circulars',
+  }
+
+  let pageDesc = descriptions[pathname] || null
+  // Handle dynamic routes like /tickets/123 or /my-tickets/123
+  if (!pageDesc) {
+    const adminTicketMatch = pathname.match(/^\/tickets\/(\d+)$/)
+    const agentTicketMatch = pathname.match(/^\/my-tickets\/(\d+)$/)
+    if (adminTicketMatch) pageDesc = `Ticket detail page — viewing ticket #${adminTicketMatch[1]}`
+    else if (agentTicketMatch) pageDesc = `My ticket detail page — agent viewing their ticket #${agentTicketMatch[1]}`
+  }
+
+  const scopeNote = userRole === 'agent'
+    ? `Agent scope: answer only about tickets assigned to ${userEmail} (or org-wide aggregates). Do NOT reveal other agents' individual tickets or admin config data.`
+    : `Admin scope: full read access to all data.`
+
+  return [
+    `USER CONTEXT:`,
+    `- Role: ${userRole}`,
+    pageDesc ? `- Current page: ${pageDesc}` : null,
+    `- ${scopeNote}`,
+  ].filter(Boolean).join('\n')
+}
+
 // ─── Shared LLM caller ────────────────────────────────────────────────────────
 async function callLLM(messages, temperature = 0.0, max_tokens = 600) {
   const response = await fetch('https://api.core42.ai/v1/chat/completions', {
@@ -20,10 +59,10 @@ async function callLLM(messages, temperature = 0.0, max_tokens = 600) {
 
 // ─── Agent 1: Orchestrator ────────────────────────────────────────────────────
 // Decides if a DB query is needed and frames the task for the SQL Agent
-async function orchestratorAgent(userMessage, conversationHistory, schemaContext) {
+async function orchestratorAgent(userMessage, conversationHistory, schemaContext, pageContext) {
   const prompt = `You are the Cortex AI Orchestrator. You coordinate a team of agents to answer support operations questions.
 
-DATABASE SCHEMA:
+${pageContext ? `${pageContext}\n` : ''}DATABASE SCHEMA:
 ${schemaContext}
 
 CONVERSATION HISTORY (last ${conversationHistory.length} messages):
@@ -35,6 +74,7 @@ RULES:
 - If the question is about tickets, SLAs, escalations, counts, statuses, or any data — respond with: QUERY_NEEDED: <a clear 1-sentence description of what data to fetch>
 - If the question is a greeting, thanks, or completely off-topic (not support ops) — respond with: NO_QUERY: <a short natural reply>
 - If the question can be answered from conversation history alone — respond with: FROM_HISTORY: <answer directly>
+- If an agent asks about data outside their scope (other agents' tickets, user configs, admin tables) — respond with: NO_QUERY: I can only answer questions about your assigned tickets and general support stats.
 
 Respond with ONLY one of the three formats above. Nothing else.`
 
@@ -124,7 +164,7 @@ export async function POST(request) {
     const session = await auth()
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { message } = await request.json()
+    const { message, currentPage } = await request.json()
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 })
     }
@@ -136,8 +176,11 @@ export async function POST(request) {
       display_name: session.user.name,
       company_id: session.user.company_id || null,
     }
-    const { id: userId, role: userRole, company_id: userCompanyId } = user
-    const schemaContext = getSchemaContext(userRole, userCompanyId)
+    const { id: userId, role: userRole, email: userEmail, company_id: userCompanyId } = user
+    const schemaContext = getSchemaContext(userRole, userCompanyId, userEmail)
+
+    // Build page context string injected into every agent prompt
+    const pageContext = buildPageContext(currentPage, userRole, userEmail)
 
     // Load session
     const sessionResult = await pool.query(
@@ -153,7 +196,7 @@ export async function POST(request) {
       : messages.slice(-8)
 
     // ── Stage 1: Orchestrator decides what to do ──────────────────────────────
-    const orchestratorDecision = await orchestratorAgent(message, historyWithSummary, schemaContext)
+    const orchestratorDecision = await orchestratorAgent(message, historyWithSummary, schemaContext, pageContext)
 
     let finalReply
 
