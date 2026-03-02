@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import pool from '@/lib/db'
-import { addClickUpComment } from '@/lib/clickup'
 
 export async function POST(request, { params }) {
   const session = await auth()
@@ -26,15 +25,7 @@ export async function POST(request, { params }) {
       RETURNING *
     `, [id, actorEmail, actorName, content.trim()])
 
-    // Sync to ClickUp (best-effort, non-blocking)
-    const ticketRow = await pool.query(
-      'SELECT clickup_task_id FROM main.tickets WHERE id = $1',
-      [id]
-    )
-    const clickupTaskId = ticketRow.rows[0]?.clickup_task_id
-    if (clickupTaskId) {
-      addClickUpComment(clickupTaskId, `[${actorName}]: ${content.trim()}`).catch(() => {})
-    }
+    // Internal notes are NOT synced to ClickUp — they stay on the dashboard only.
 
     return NextResponse.json(result.rows[0])
   } catch (e) {
