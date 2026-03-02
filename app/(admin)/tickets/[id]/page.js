@@ -1,10 +1,10 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTicket, getSimilarTickets, addTicketNote, holdTicket } from '@/lib/api'
+import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } from '@/lib/api'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   getSLAStatusColor,
@@ -37,6 +37,9 @@ import {
   Sparkles,
   Tag,
   BarChart2,
+  Pencil,
+  Trash2,
+  AtSign,
 } from 'lucide-react'
 import { openCompanionWith } from '@/components/ui/AICompanion'
 import toast from 'react-hot-toast'
@@ -122,6 +125,13 @@ export default function TicketDetailPage() {
   const [addingCuComment, setAddingCuComment] = useState(false)
   const [showCuCommentForm, setShowCuCommentForm] = useState(false)
   const [showAllNotes, setShowAllNotes] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editContent, setEditContent] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showMentionDrop, setShowMentionDrop] = useState(false)
+  const [mentionCursorAt, setMentionCursorAt] = useState(0)
+  const noteTextareaRef = useRef(null)
   const [showAllAlerts, setShowAllAlerts] = useState(false)
   const [threadExpanded, setThreadExpanded] = useState(false)
   const [showStatusDrop, setShowStatusDrop] = useState(false)
@@ -142,6 +152,12 @@ export default function TicketDetailPage() {
     queryKey: ['similar', ticketId],
     queryFn: () => getSimilarTickets(ticketId),
     enabled: !!ticketId,
+  })
+
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users-mention'],
+    queryFn: () => getUsers().then(u => u.filter(x => x.is_active)),
+    staleTime: 300000,
   })
 
   const holdMutation = useMutation({
@@ -172,6 +188,61 @@ export default function TicketDetailPage() {
       toast.error(e.message || 'Failed to add note')
     } finally {
       setAddingNote(false)
+    }
+  }
+
+  const handleNoteChange = (e) => {
+    const val = e.target.value
+    setNoteContent(val)
+    const cursor = e.target.selectionStart
+    const before = val.slice(0, cursor)
+    const atIdx = before.lastIndexOf('@')
+    if (atIdx !== -1 && !before.slice(atIdx + 1).includes(' ')) {
+      setMentionQuery(before.slice(atIdx + 1))
+      setMentionCursorAt(atIdx)
+      setShowMentionDrop(true)
+    } else {
+      setShowMentionDrop(false)
+    }
+  }
+
+  const insertMention = (user) => {
+    const before = noteContent.slice(0, mentionCursorAt)
+    const after = noteContent.slice(mentionCursorAt + 1 + mentionQuery.length)
+    setNoteContent(`${before}@${user.full_name}${after} `)
+    setShowMentionDrop(false)
+    setTimeout(() => noteTextareaRef.current?.focus(), 0)
+  }
+
+  const handleEditNote = async (noteId) => {
+    if (!editContent.trim()) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/notes/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      setEditingNoteId(null)
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Note updated')
+    } catch (e) {
+      toast.error(e.message || 'Failed to update note')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!confirm('Delete this note?')) return
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/notes/${noteId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Note deleted')
+    } catch (e) {
+      toast.error(e.message || 'Failed to delete note')
     }
   }
 
@@ -531,14 +602,38 @@ export default function TicketDetailPage() {
             }
           >
             {showNoteForm && (
-              <div className="mb-4 space-y-2">
-                <textarea
-                  value={noteContent}
-                  onChange={e => setNoteContent(e.target.value)}
-                  placeholder="Write an internal note visible only to the support team…"
-                  className="input w-full min-h-[80px] resize-y text-sm"
-                  autoFocus
-                />
+              <div className="mb-4 space-y-2 relative">
+                <div className="relative">
+                  <textarea
+                    ref={noteTextareaRef}
+                    value={noteContent}
+                    onChange={handleNoteChange}
+                    placeholder="Write an internal note… use @ to mention a team member"
+                    className="input w-full min-h-[80px] resize-y text-sm pr-8"
+                    autoFocus
+                  />
+                  <AtSign className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-cortex-muted/40 pointer-events-none" />
+                  {showMentionDrop && (
+                    <div className="absolute left-0 top-full mt-1 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-50 py-1 min-w-[180px] max-h-44 overflow-y-auto animate-slide-in">
+                      {allUsers
+                        .filter(u => u.full_name?.toLowerCase().includes(mentionQuery.toLowerCase()))
+                        .slice(0, 8)
+                        .map(u => (
+                          <button
+                            key={u.id}
+                            onMouseDown={e => { e.preventDefault(); insertMention(u) }}
+                            className="w-full text-left px-3 py-2 hover:bg-cortex-surface-raised transition-colors"
+                          >
+                            <div className="text-xs font-medium text-cortex-text">{u.full_name}</div>
+                            <div className="text-[10px] text-cortex-muted">{u.email}</div>
+                          </button>
+                        ))}
+                      {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery.toLowerCase())).length === 0 && (
+                        <p className="px-3 py-2 text-xs text-cortex-muted">No match</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handleAddNote}
@@ -547,7 +642,7 @@ export default function TicketDetailPage() {
                   >
                     {addingNote ? 'Saving…' : 'Save Note'}
                   </button>
-                  <button onClick={() => setShowNoteForm(false)} className="btn-secondary text-xs py-1.5 px-3">
+                  <button onClick={() => { setShowNoteForm(false); setShowMentionDrop(false) }} className="btn-secondary text-xs py-1.5 px-3">
                     Cancel
                   </button>
                 </div>
@@ -562,9 +657,52 @@ export default function TicketDetailPage() {
                   <div key={note.id} className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
                     <div className="flex justify-between items-center mb-1.5">
                       <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">{note.actor_name}</span>
-                      <span className="text-[10px] text-cortex-muted font-mono">{formatDate(note.created_at)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-cortex-muted font-mono">{formatDate(note.created_at)}</span>
+                        {(note.actor_email === session?.user?.email || isAdmin) && editingNoteId !== note.id && (
+                          <>
+                            <button
+                              onClick={() => { setEditingNoteId(note.id); setEditContent(note.raw_content) }}
+                              className="text-cortex-muted hover:text-amber-500 transition-colors"
+                              title="Edit note"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="text-cortex-muted hover:text-cortex-danger transition-colors"
+                              title="Delete note"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm text-cortex-text leading-relaxed">{note.raw_content}</p>
+                    {editingNoteId === note.id ? (
+                      <div className="space-y-2 mt-1">
+                        <textarea
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          className="input w-full min-h-[70px] resize-y text-sm"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditNote(note.id)}
+                            disabled={savingEdit || !editContent.trim()}
+                            className="btn-primary text-xs py-1 px-2.5"
+                          >
+                            {savingEdit ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditingNoteId(null)} className="btn-secondary text-xs py-1 px-2.5">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-cortex-text leading-relaxed whitespace-pre-wrap">{note.raw_content}</p>
+                    )}
                   </div>
                 ))}
                 {hiddenNotes > 0 && (
@@ -580,22 +718,21 @@ export default function TicketDetailPage() {
           </Section>
 
           {/* ClickUp Comment */}
-          {data?.ticket?.clickup_task_id && (
-            <Section
-              title="ClickUp Comment"
-              icon={MessageSquare}
-              iconClass="text-blue-400"
-              className="border-blue-400/20 bg-blue-400/[0.03]"
-              defaultOpen={false}
-              headerRight={
-                <button
-                  onClick={() => setShowCuCommentForm(v => !v)}
-                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
-                >
-                  <Plus className="w-3 h-3" /> Add comment
-                </button>
-              }
-            >
+          <Section
+            title="ClickUp Comment"
+            icon={MessageSquare}
+            iconClass="text-blue-400"
+            className="border-blue-400/20 bg-blue-400/[0.03]"
+            defaultOpen={false}
+            headerRight={
+              <button
+                onClick={() => setShowCuCommentForm(v => !v)}
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+              >
+                <Plus className="w-3 h-3" /> Add comment
+              </button>
+            }
+          >
               {showCuCommentForm ? (
                 <div className="space-y-2">
                   <textarea
@@ -624,7 +761,6 @@ export default function TicketDetailPage() {
                 </p>
               )}
             </Section>
-          )}
 
           {/* Activity Thread */}
           <Section
