@@ -31,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async function logAuth(userId, success, reason = null) {
           try {
             await pool.query(
-              `INSERT INTO test.auth_logs (user_id, email, success, ip_address, user_agent, failure_reason)
+              `INSERT INTO main.auth_logs (user_id, email, success, ip_address, user_agent, failure_reason)
                VALUES ($1, $2, $3, $4, $5, $6)`,
               [userId, credentials.email, success, ip, userAgent, reason]
             )
@@ -42,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const result = await pool.query(
             `SELECT id, email, password_hash, full_name, role, ziwo_email, ziwo_password,
                     is_active, login_attempts, locked_until
-             FROM test.users
+             FROM main.users
              WHERE email = $1
              LIMIT 1`,
             [credentials.email]
@@ -72,7 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             const newAttempts = (user.login_attempts || 0) + 1
             const locked = newAttempts >= MAX_ATTEMPTS
             await pool.query(
-              `UPDATE test.users SET
+              `UPDATE main.users SET
                  login_attempts = $1,
                  locked_until   = $2,
                  updated_at     = NOW()
@@ -92,7 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Success — reset attempts, set session token, record login
           const sessionToken = crypto.randomBytes(32).toString('hex')
           await pool.query(
-            `UPDATE test.users SET
+            `UPDATE main.users SET
                login_attempts       = 0,
                locked_until         = NULL,
                last_login_at        = NOW(),
@@ -106,7 +106,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Set agent status to 'available' on login (upsert)
           if (user.role === 'agent') {
             pool.query(
-              `INSERT INTO test.agent_status (user_id, status, set_at)
+              `INSERT INTO main.agent_status (user_id, status, set_at)
                VALUES ($1, 'available', NOW())
                ON CONFLICT (user_id) DO UPDATE SET status = 'available', set_at = NOW()`,
               [user.id]
