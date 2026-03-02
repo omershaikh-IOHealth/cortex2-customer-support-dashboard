@@ -134,6 +134,7 @@ export default function TicketDetailPage() {
   const noteTextareaRef = useRef(null)
   const [showAllAlerts, setShowAllAlerts] = useState(false)
   const [threadExpanded, setThreadExpanded] = useState(false)
+  const [threadOrder, setThreadOrder] = useState('asc')
   const [showStatusDrop, setShowStatusDrop] = useState(false)
   const [showPriorityDrop, setShowPriorityDrop] = useState(false)
   const [showAssignDrop, setShowAssignDrop] = useState(false)
@@ -375,7 +376,11 @@ export default function TicketDetailPage() {
   const isPaused = !!ticket.sla_paused_at
   const isActive = !['closed', 'resolved', 'complete', 'Closed', 'Resolved'].includes(ticket.status)
   const internalNotes = (threads || []).filter(t => t.action_type === 'internal_note')
-  const publicThreads = (threads || []).filter(t => t.action_type !== 'internal_note')
+  const allThreads    = [...(threads || [])].sort((a, b) =>
+    threadOrder === 'asc'
+      ? new Date(a.created_at) - new Date(b.created_at)
+      : new Date(b.created_at) - new Date(a.created_at)
+  )
   const visibleNotes = showAllNotes ? internalNotes : internalNotes.slice(0, 3)
   const visibleAlerts = showAllAlerts ? (alerts || []) : (alerts || []).slice(0, 3)
   const hiddenNotes = internalNotes.length - 3
@@ -766,60 +771,77 @@ export default function TicketDetailPage() {
           <Section
             title="Activity Thread"
             icon={MessageSquare}
-            badge={publicThreads.length > 0 ? publicThreads.length : undefined}
+            badge={allThreads.length > 0 ? allThreads.length : undefined}
             defaultOpen={false}
             headerRight={
-              publicThreads.length > 0 ? (
-                <button
-                  onClick={() => setThreadExpanded(v => !v)}
-                  className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium"
-                >
-                  {threadExpanded ? 'Compact' : 'Full view'}
-                </button>
+              allThreads.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setThreadOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                    className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium font-mono"
+                    title="Toggle sort order"
+                  >
+                    {threadOrder === 'asc' ? '↑ Oldest first' : '↓ Newest first'}
+                  </button>
+                  <button
+                    onClick={() => setThreadExpanded(v => !v)}
+                    className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium"
+                  >
+                    {threadExpanded ? 'Compact' : 'Full view'}
+                  </button>
+                </div>
               ) : null
             }
           >
-            {publicThreads.length === 0 ? (
+            {allThreads.length === 0 ? (
               <p className="text-xs text-cortex-muted text-center py-4">No activity recorded</p>
             ) : threadExpanded ? (
               <div className="space-y-4">
-                {publicThreads.map(thread => (
-                  <div key={thread.id} className="relative pl-5 pb-5 border-l-2 border-cortex-border last:pb-0">
-                    <div className="absolute left-0 top-1 w-2 h-2 -translate-x-[5px] rounded-full bg-cortex-accent" />
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold">{thread.actor_name || 'System'}</span>
-                      <span className="badge bg-cortex-bg border border-cortex-border text-cortex-muted text-[10px]">
-                        {thread.action_type?.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-[11px] text-cortex-muted font-mono ml-auto">{formatRelativeTime(thread.created_at)}</span>
+                {allThreads.map(thread => {
+                  const isNote = thread.action_type === 'internal_note'
+                  return (
+                    <div key={thread.id} className={`relative pl-5 pb-5 border-l-2 last:pb-0 ${isNote ? 'border-amber-500/40' : 'border-cortex-border'}`}>
+                      <div className={`absolute left-0 top-1 w-2 h-2 -translate-x-[5px] rounded-full ${isNote ? 'bg-amber-500' : 'bg-cortex-accent'}`} />
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold">{thread.actor_name || 'System'}</span>
+                        <span className={`badge text-[10px] ${isNote ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cortex-bg border border-cortex-border text-cortex-muted'}`}>
+                          {thread.action_type?.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[11px] text-cortex-muted font-mono ml-auto">{formatRelativeTime(thread.created_at)}</span>
+                      </div>
+                      {thread.raw_content && (
+                        <p className={`text-sm rounded-lg p-3 mt-2 ${isNote ? 'text-cortex-text bg-amber-500/5 border border-amber-500/20' : 'text-cortex-muted bg-cortex-bg'}`}>
+                          {thread.raw_content}
+                        </p>
+                      )}
+                      {thread.ai_summary && (
+                        <p className="text-sm text-cortex-accent bg-cortex-accent/5 rounded-lg p-3 mt-2">✨ {thread.ai_summary}</p>
+                      )}
+                      {thread.has_attachments && <p className="text-xs text-cortex-muted mt-1">📎 Has attachments</p>}
                     </div>
-                    {thread.raw_content && (
-                      <p className="text-sm text-cortex-muted bg-cortex-bg rounded-lg p-3 mt-2">{thread.raw_content}</p>
-                    )}
-                    {thread.ai_summary && (
-                      <p className="text-sm text-cortex-accent bg-cortex-accent/5 rounded-lg p-3 mt-2">✨ {thread.ai_summary}</p>
-                    )}
-                    {thread.has_attachments && <p className="text-xs text-cortex-muted mt-1">📎 Has attachments</p>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="divide-y divide-cortex-border/40 -mx-1">
-                {publicThreads.map(thread => (
-                  <div key={thread.id} className="flex items-center gap-3 py-2.5 px-1 text-xs hover:bg-cortex-surface-raised/50 rounded transition-colors">
-                    <div className="w-1.5 h-1.5 rounded-full bg-cortex-accent flex-shrink-0" />
-                    <span className="font-medium text-cortex-text w-28 flex-shrink-0 truncate">
-                      {thread.actor_name || 'System'}
-                    </span>
-                    <span className="badge bg-cortex-bg border border-cortex-border text-cortex-muted text-[10px] flex-shrink-0">
-                      {thread.action_type?.replace(/_/g, ' ')}
-                    </span>
-                    {thread.raw_content && (
-                      <span className="text-cortex-muted flex-1 truncate hidden sm:block">{thread.raw_content}</span>
-                    )}
-                    <span className="text-cortex-muted font-mono flex-shrink-0 ml-auto">{formatRelativeTime(thread.created_at)}</span>
-                  </div>
-                ))}
+                {allThreads.map(thread => {
+                  const isNote = thread.action_type === 'internal_note'
+                  return (
+                    <div key={thread.id} className="flex items-center gap-3 py-2.5 px-1 text-xs hover:bg-cortex-surface-raised/50 rounded transition-colors">
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isNote ? 'bg-amber-500' : 'bg-cortex-accent'}`} />
+                      <span className="font-medium text-cortex-text w-28 flex-shrink-0 truncate">
+                        {thread.actor_name || 'System'}
+                      </span>
+                      <span className={`badge text-[10px] flex-shrink-0 ${isNote ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cortex-bg border border-cortex-border text-cortex-muted'}`}>
+                        {thread.action_type?.replace(/_/g, ' ')}
+                      </span>
+                      {thread.raw_content && (
+                        <span className="text-cortex-muted flex-1 truncate hidden sm:block">{thread.raw_content}</span>
+                      )}
+                      <span className="text-cortex-muted font-mono flex-shrink-0 ml-auto">{formatRelativeTime(thread.created_at)}</span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </Section>
@@ -923,7 +945,7 @@ export default function TicketDetailPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-cortex-muted">Thread entries</span>
-                <span className="text-xs font-mono font-bold">{publicThreads.length}</span>
+                <span className="text-xs font-mono font-bold">{allThreads.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-cortex-muted">Internal notes</span>
