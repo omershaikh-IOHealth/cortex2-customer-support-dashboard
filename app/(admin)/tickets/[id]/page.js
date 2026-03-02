@@ -118,6 +118,9 @@ export default function TicketDetailPage() {
   const [noteContent, setNoteContent] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [showNoteForm, setShowNoteForm] = useState(false)
+  const [cuComment, setCuComment] = useState('')
+  const [addingCuComment, setAddingCuComment] = useState(false)
+  const [showCuCommentForm, setShowCuCommentForm] = useState(false)
   const [showAllNotes, setShowAllNotes] = useState(false)
   const [showAllAlerts, setShowAllAlerts] = useState(false)
   const [threadExpanded, setThreadExpanded] = useState(false)
@@ -169,6 +172,29 @@ export default function TicketDetailPage() {
       toast.error(e.message || 'Failed to add note')
     } finally {
       setAddingNote(false)
+    }
+  }
+
+  const handleAddClickUpComment = async () => {
+    if (!cuComment.trim()) return
+    setAddingCuComment(true)
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/clickup-comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: cuComment }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed')
+      }
+      setCuComment('')
+      setShowCuCommentForm(false)
+      toast.success('Comment posted to ClickUp')
+    } catch (e) {
+      toast.error(e.message || 'Failed to post ClickUp comment')
+    } finally {
+      setAddingCuComment(false)
     }
   }
 
@@ -552,6 +578,53 @@ export default function TicketDetailPage() {
               </div>
             )}
           </Section>
+
+          {/* ClickUp Comment */}
+          {data?.ticket?.clickup_task_id && (
+            <Section
+              title="ClickUp Comment"
+              icon={MessageSquare}
+              iconClass="text-blue-400"
+              className="border-blue-400/20 bg-blue-400/[0.03]"
+              defaultOpen={false}
+              headerRight={
+                <button
+                  onClick={() => setShowCuCommentForm(v => !v)}
+                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  <Plus className="w-3 h-3" /> Add comment
+                </button>
+              }
+            >
+              {showCuCommentForm ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={cuComment}
+                    onChange={e => setCuComment(e.target.value)}
+                    placeholder="Write a comment that will be visible in ClickUp…"
+                    className="input w-full min-h-[80px] resize-y text-sm"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddClickUpComment}
+                      disabled={addingCuComment || !cuComment.trim()}
+                      className="btn-primary text-xs py-1.5 px-3"
+                    >
+                      {addingCuComment ? 'Posting…' : 'Post to ClickUp'}
+                    </button>
+                    <button onClick={() => setShowCuCommentForm(false)} className="btn-secondary text-xs py-1.5 px-3">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-cortex-muted text-center py-4">
+                  Comments posted here appear in the linked ClickUp task.
+                </p>
+              )}
+            </Section>
+          )}
 
           {/* Activity Thread */}
           <Section
