@@ -9,7 +9,7 @@ export async function POST() {
     const userId = String(session.user.id)
 
     await pool.query(
-      `UPDATE test.ai_companion_sessions
+      `UPDATE main.ai_companion_sessions
        SET messages = '[]'::jsonb, summary = NULL, updated_at = NOW()
        WHERE user_id = $1`,
       [userId]

@@ -22,15 +22,15 @@ export async function POST(request, { params }) {
     let userId = assigned_to_id
 
     if (userId && !email) {
-      const u = await pool.query('SELECT email FROM test.users WHERE id = $1', [userId])
+      const u = await pool.query('SELECT email FROM main.users WHERE id = $1', [userId])
       email = u.rows[0]?.email
     } else if (email && !userId) {
-      const u = await pool.query('SELECT id FROM test.users WHERE email = $1', [email])
+      const u = await pool.query('SELECT id FROM main.users WHERE email = $1', [email])
       userId = u.rows[0]?.id
     }
 
     await pool.query(
-      `UPDATE test.tickets
+      `UPDATE main.tickets
        SET assigned_to_id = $1, assigned_to_email = $2
        WHERE id = $3`,
       [userId, email, id]
@@ -38,7 +38,7 @@ export async function POST(request, { params }) {
 
     // Log assignment in threads
     await pool.query(
-      `INSERT INTO test.threads (ticket_id, action_type, thread_source, notes, created_by_email)
+      `INSERT INTO main.threads (ticket_id, action_type, thread_source, notes, created_by_email)
        VALUES ($1, 'assignment', 'internal', $2, $3)`,
       [id, `Assigned to ${email}`, session.user.email]
     )
@@ -46,7 +46,7 @@ export async function POST(request, { params }) {
     // Notify the assigned agent
     if (userId) {
       await pool.query(
-        `INSERT INTO test.notifications (user_id, type, title, body, link)
+        `INSERT INTO main.notifications (user_id, type, title, body, link)
          VALUES ($1, 'assignment', 'Ticket Assigned', $2, $3)`,
         [userId, `Ticket #${id} has been assigned to you`, `/my-tickets/${id}`]
       )
@@ -55,7 +55,7 @@ export async function POST(request, { params }) {
     // Sync assignee to ClickUp (best-effort, non-blocking)
     if (email) {
       const ticketRow = await pool.query(
-        'SELECT clickup_task_id FROM test.tickets WHERE id = $1',
+        'SELECT clickup_task_id FROM main.tickets WHERE id = $1',
         [id]
       )
       const clickupTaskId = ticketRow.rows[0]?.clickup_task_id

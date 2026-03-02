@@ -7,7 +7,7 @@ export async function GET(request, { params }) {
 
     // Get the source ticket's attributes
     const src = await pool.query(
-      'SELECT module, request_type, case_type FROM test.tickets WHERE id = $1',
+      'SELECT module, request_type, case_type FROM main.tickets WHERE id = $1',
       [id]
     )
 
@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
     let result = await pool.query(`
       SELECT id, title, clickup_task_id, priority, status, sla_status, sla_consumption_pct,
              module, request_type, case_type, resolved_at, created_at
-      FROM test.tickets
+      FROM main.tickets
       WHERE id != $1
         AND status IN ('Resolved', 'closed', 'complete')
         AND (is_deleted = false OR is_deleted IS NULL)
@@ -37,7 +37,7 @@ export async function GET(request, { params }) {
       result = await pool.query(`
         SELECT id, title, clickup_task_id, priority, status, sla_status, sla_consumption_pct,
                module, request_type, case_type, resolved_at, created_at
-        FROM test.tickets
+        FROM main.tickets
         WHERE id != $1
           AND status IN ('Resolved', 'closed', 'complete')
           AND (is_deleted = false OR is_deleted IS NULL)

@@ -13,8 +13,8 @@ export async function GET() {
             THEN EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600.0
           END
         )::numeric, 1) as avg_resolution_hours
-      FROM test.tickets
-      WHERE company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)
+      FROM main.tickets
+      WHERE company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
         AND (is_deleted = false OR is_deleted IS NULL)
       GROUP BY priority
       ORDER BY priority

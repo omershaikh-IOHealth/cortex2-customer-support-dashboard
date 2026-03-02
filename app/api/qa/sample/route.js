@@ -12,7 +12,7 @@ export async function GET(request) {
 
     const params = []
     const conditions = [
-      "company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)",
+      "company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)",
       "(is_deleted = false OR is_deleted IS NULL)",
     ]
 
@@ -26,7 +26,7 @@ export async function GET(request) {
     const result = await pool.query(`
       SELECT id, clickup_task_id, title, priority, status, sla_status, sla_consumption_pct,
              module, request_type, case_type, created_by_name, created_by_email, created_at, resolved_at
-      FROM test.tickets
+      FROM main.tickets
       WHERE ${conditions.join(' AND ')}
       ORDER BY RANDOM()
       LIMIT $${params.length}

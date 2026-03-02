@@ -9,8 +9,8 @@ export async function GET() {
         t.sla_consumption_pct, t.sla_status, t.sla_resolution_due,
         t.sla_response_due, t.escalation_level, t.created_at,
         p.name as poc_name
-      FROM test.tickets t
-      LEFT JOIN test.pocs p ON t.poc_id = p.id
+      FROM main.tickets t
+      LEFT JOIN main.pocs p ON t.poc_id = p.id
       WHERE t.sla_status IN ('critical', 'at_risk', 'warning', 'breached')
         AND t.status NOT IN ('closed', 'resolved', 'deleted')
         AND (t.is_deleted = false OR t.is_deleted IS NULL)

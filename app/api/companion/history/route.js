@@ -9,7 +9,7 @@ export async function GET() {
     const userId = String(session.user.id)
 
     const result = await pool.query(
-      'SELECT messages, summary FROM test.ai_companion_sessions WHERE user_id = $1',
+      'SELECT messages, summary FROM main.ai_companion_sessions WHERE user_id = $1',
       [userId]
     )
     if (result.rows.length === 0) return NextResponse.json({ messages: [], summary: null })

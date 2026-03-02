@@ -8,8 +8,8 @@ export async function GET(request) {
     const request_type_id = searchParams.get('request_type_id')
     const params = []
     let query = `
-      SELECT ct.*, rt.request_type FROM test.case_types ct
-      LEFT JOIN test.request_types rt ON ct.request_type_id = rt.id
+      SELECT ct.*, rt.request_type FROM main.case_types ct
+      LEFT JOIN main.request_types rt ON ct.request_type_id = rt.id
       WHERE 1=1
     `
     if (solution_id) { params.push(solution_id); query += ` AND ct.solution_id = $${params.length}` }
@@ -25,7 +25,7 @@ export async function POST(request) {
   try {
     const { solution_id, request_type_id, case_type, description, default_priority } = await request.json()
     const result = await pool.query(`
-      INSERT INTO test.case_types (solution_id, request_type_id, case_type, description, default_priority)
+      INSERT INTO main.case_types (solution_id, request_type_id, case_type, description, default_priority)
       VALUES ($1,$2,$3,$4,$5) RETURNING *
     `, [solution_id, request_type_id, case_type, description, default_priority])
     return NextResponse.json(result.rows[0])

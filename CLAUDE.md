@@ -31,7 +31,7 @@ N8N_WEBHOOK_URL=   # optional — for Force Sync Now feature
 ### Data flow
 ```
 Browser → Next.js App Router pages → React Query → Axios (lib/api.js, relative paths)
-       → Next.js API routes (app/api/**/route.js) → PostgreSQL (lib/db.js pool → test.* schema)
+       → Next.js API routes (app/api/**/route.js) → PostgreSQL (lib/db.js pool → main.* schema (Supabase))
 ```
 
 ### Key library files
@@ -46,7 +46,7 @@ All routes use `import pool from '@/lib/db'` and return `NextResponse.json(...)`
 
 Key route groups:
 - `metrics/overview` — Dashboard KPIs
-- `tickets` + `tickets/[id]` — Ticket list/detail with filters; `last_status_change_at` computed via subquery on `test.threads`
+- `tickets` + `tickets/[id]` — Ticket list/detail with filters; `last_status_change_at` computed via subquery on `main.threads`
 - `tickets/[id]/notes` — Internal notes (action_type='internal_note', thread_source='internal')
 - `tickets/[id]/hold` — SLA pause/resume (sets `sla_paused_at`, `sla_status`)
 - `tickets/[id]/similar` — Resolved tickets sharing module+request_type+case_type
@@ -77,7 +77,7 @@ Key route groups:
 Custom Tailwind theme with `cortex-*` tokens: `cortex-bg`, `cortex-surface`, `cortex-text`, `cortex-accent`, `cortex-muted`, `cortex-border`, `cortex-success`, `cortex-warning`, `cortex-danger`, `cortex-critical`. Global component classes (`.card`, `.badge`, `.btn-primary`, `.btn-secondary`, `.input`, `.table-header`, `.table-cell`) defined in `app/globals.css`. Fonts: IBM Plex Sans (body), Inter Tight (display), JetBrains Mono (mono).
 
 ### Database schema
-All tables in the `test` schema: `test.tickets`, `test.threads`, `test.sla_alerts`, `test.companies`, `test.solutions`, `test.pocs`, `test.sla_configs`, `test.escalation_configs`, `test.assignee_configs`, `test.modules`, `test.request_types`, `test.case_types`, `test.kpi_configs`, `test.processing_logs`, `test.companion_sessions`.
+All tables in the `main` schema: `main.tickets`, `main.threads`, `main.sla_alerts`, `main.companies`, `main.solutions`, `main.pocs`, `main.sla_configs`, `main.escalation_configs`, `main.assignee_configs`, `main.modules`, `main.request_types`, `main.case_types`, `main.kpi_configs`, `main.processing_logs`, `main.companion_sessions`.
 
 ## Adding New Features
 

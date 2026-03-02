@@ -28,16 +28,16 @@ export async function PUT(request, { params }) {
     if (fields.length > 0) {
       vals.push(id)
       await client.query(
-        `UPDATE test.shift_rotas SET ${fields.join(', ')} WHERE id = $${idx}`,
+        `UPDATE main.shift_rotas SET ${fields.join(', ')} WHERE id = $${idx}`,
         vals
       )
     }
 
     if (breaks !== undefined) {
-      await client.query('DELETE FROM test.shift_breaks WHERE shift_id = $1', [id])
+      await client.query('DELETE FROM main.shift_breaks WHERE shift_id = $1', [id])
       for (const b of breaks) {
         await client.query(
-          `INSERT INTO test.shift_breaks (shift_id, break_start, break_end, break_type)
+          `INSERT INTO main.shift_breaks (shift_id, break_start, break_end, break_type)
            VALUES ($1, $2, $3, $4)`,
           [id, b.break_start, b.break_end, b.break_type || 'scheduled']
         )
@@ -62,7 +62,7 @@ export async function DELETE(request, { params }) {
 
   const { id } = params
   try {
-    await pool.query('DELETE FROM test.shift_rotas WHERE id = $1', [id])
+    await pool.query('DELETE FROM main.shift_rotas WHERE id = $1', [id])
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })

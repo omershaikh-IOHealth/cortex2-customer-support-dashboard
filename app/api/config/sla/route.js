@@ -5,9 +5,9 @@ export async function GET() {
   try {
     const result = await pool.query(`
       SELECT sc.*
-      FROM test.sla_configs sc
-      JOIN test.solutions s ON sc.solution_id = s.id
-      JOIN test.companies c ON s.company_id = c.id
+      FROM main.sla_configs sc
+      JOIN main.solutions s ON sc.solution_id = s.id
+      JOIN main.companies c ON s.company_id = c.id
       WHERE c.company_code = 'medgulf' AND s.solution_code = 'app'
       ORDER BY
         CASE sc.priority

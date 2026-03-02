@@ -7,8 +7,8 @@ const BASE = 'https://api.clickup.com/api/v2'
  * POST /api/admin/sync-assignments
  *
  * One-time (or on-demand) backfill: reads all ClickUp tasks in the configured
- * list, extracts the first assignee per task, then updates test.tickets with
- * assigned_to_email (and assigned_to_id if the email matches a test.users row).
+ * list, extracts the first assignee per task, then updates main.tickets with
+ * assigned_to_email (and assigned_to_id if the email matches a main.users row).
  *
  * Returns a summary of how many tickets were updated / skipped.
  */
@@ -55,8 +55,8 @@ export async function POST() {
       }
     }
 
-    // 3. Load all test.users emails → id so we can resolve assigned_to_id
-    const usersResult = await pool.query('SELECT id, email FROM test.users')
+    // 3. Load all main.users emails → id so we can resolve assigned_to_id
+    const usersResult = await pool.query('SELECT id, email FROM main.users')
     const userEmailToId = {}
     for (const u of usersResult.rows) {
       userEmailToId[u.email.toLowerCase()] = u.id
@@ -65,7 +65,7 @@ export async function POST() {
     // 4. Load tickets that have a clickup_task_id but no assignment yet
     const ticketsResult = await pool.query(`
       SELECT id, clickup_task_id
-      FROM test.tickets
+      FROM main.tickets
       WHERE clickup_task_id IS NOT NULL
         AND (assigned_to_email IS NULL OR assigned_to_email = '')
         AND (is_deleted = false OR is_deleted IS NULL)
@@ -81,7 +81,7 @@ export async function POST() {
       const userId = userEmailToId[email.toLowerCase()] ?? null
 
       await pool.query(
-        `UPDATE test.tickets
+        `UPDATE main.tickets
          SET assigned_to_email = $1, assigned_to_id = $2, updated_at = NOW()
          WHERE id = $3`,
         [email, userId, ticket.id]

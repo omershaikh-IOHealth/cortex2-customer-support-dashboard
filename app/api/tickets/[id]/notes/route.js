@@ -20,7 +20,7 @@ export async function POST(request, { params }) {
     const actorName = session.user.name || actorEmail
 
     const result = await pool.query(`
-      INSERT INTO test.threads
+      INSERT INTO main.threads
         (ticket_id, action_type, actor_email, actor_name, raw_content, thread_source, created_at)
       VALUES ($1, 'internal_note', $2, $3, $4, 'internal', NOW())
       RETURNING *
@@ -28,7 +28,7 @@ export async function POST(request, { params }) {
 
     // Sync to ClickUp (best-effort, non-blocking)
     const ticketRow = await pool.query(
-      'SELECT clickup_task_id FROM test.tickets WHERE id = $1',
+      'SELECT clickup_task_id FROM main.tickets WHERE id = $1',
       [id]
     )
     const clickupTaskId = ticketRow.rows[0]?.clickup_task_id

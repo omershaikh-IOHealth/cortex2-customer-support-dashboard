@@ -10,9 +10,9 @@ export async function GET(request) {
 
     // Build dynamic WHERE clauses
     const baseWhere = `
-      company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)
+      company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
       AND (is_deleted = false OR is_deleted IS NULL)
-      ${companyId ? `AND poc_id IN (SELECT id FROM test.pocs WHERE company_id = ${parseInt(companyId)})` : ''}
+      ${companyId ? `AND poc_id IN (SELECT id FROM main.pocs WHERE company_id = ${parseInt(companyId)})` : ''}
       ${solutionId ? `AND solution_id = ${parseInt(solutionId)}` : ''}
       ${priority ? `AND priority = '${priority.replace(/[^A-Za-z0-9]/g, '')}'` : ''}
     `
@@ -26,7 +26,7 @@ export async function GET(request) {
             COUNT(*) FILTER (WHERE priority IN ('P1', 'P2')) as high_priority,
             COUNT(*) FILTER (WHERE sla_consumption_pct >= 100) as breached,
             ROUND(AVG(sla_consumption_pct), 2) as avg_consumption
-          FROM test.tickets
+          FROM main.tickets
           WHERE ${baseWhere}
             AND created_at >= NOW() - INTERVAL '30 days'
           GROUP BY DATE(created_at)
@@ -43,7 +43,7 @@ export async function GET(request) {
             COUNT(*) FILTER (WHERE sla_consumption_pct >= 100) as breached,
             ROUND(AVG(sla_consumption_pct), 2) as avg_consumption,
             (DATE(created_at) - (NOW() - INTERVAL '60 days')::date) as day_index
-          FROM test.tickets
+          FROM main.tickets
           WHERE ${baseWhere}
             AND created_at >= NOW() - INTERVAL '60 days'
             AND created_at < NOW() - INTERVAL '30 days'

@@ -13,8 +13,8 @@ export async function GET() {
     const result = await pool.query(
       `SELECT u.id, u.email, u.full_name, u.role, u.ziwo_email, u.is_active, u.created_at,
               s.status as agent_status, s.status_note, s.set_at as status_set_at
-       FROM test.users u
-       LEFT JOIN test.agent_status s ON s.user_id = u.id
+       FROM main.users u
+       LEFT JOIN main.agent_status s ON s.user_id = u.id
        ORDER BY u.role, u.full_name`
     )
     return NextResponse.json(result.rows)
@@ -52,7 +52,7 @@ export async function POST(request) {
 
     const hash = await bcrypt.hash(password, 10)
     const result = await pool.query(
-      `INSERT INTO test.users (email, password_hash, full_name, role, ziwo_email, ziwo_password)
+      `INSERT INTO main.users (email, password_hash, full_name, role, ziwo_email, ziwo_password)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, full_name, role, ziwo_email, is_active, created_at`,
       [email, hash, full_name, role, ziwo_email || null, ziwo_password || null]

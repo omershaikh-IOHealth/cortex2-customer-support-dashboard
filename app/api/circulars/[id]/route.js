@@ -12,15 +12,15 @@ export async function GET(request, { params }) {
     const [circRes, versRes] = await Promise.all([
       pool.query(
         `SELECT c.*, u.full_name AS created_by_name
-         FROM test.circulars c
-         LEFT JOIN test.users u ON u.id = c.created_by
+         FROM main.circulars c
+         LEFT JOIN main.users u ON u.id = c.created_by
          WHERE c.id = $1`,
         [id]
       ),
       pool.query(
         `SELECT cv.*, u.full_name AS changed_by_name
-         FROM test.circular_versions cv
-         LEFT JOIN test.users u ON u.id = cv.changed_by
+         FROM main.circular_versions cv
+         LEFT JOIN main.users u ON u.id = cv.changed_by
          WHERE cv.circular_id = $1
          ORDER BY cv.version DESC`,
         [id]
@@ -52,7 +52,7 @@ export async function PUT(request, { params }) {
 
     // Snapshot current version before update
     const current = await client.query(
-      `SELECT title, content FROM test.circulars WHERE id = $1`,
+      `SELECT title, content FROM main.circulars WHERE id = $1`,
       [id]
     )
     if (current.rows.length === 0) {
@@ -62,14 +62,14 @@ export async function PUT(request, { params }) {
 
     const versionRes = await client.query(
       `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
-       FROM test.circular_versions WHERE circular_id = $1`,
+       FROM main.circular_versions WHERE circular_id = $1`,
       [id]
     )
     const nextVersion = versionRes.rows[0].next_version
 
     // Save old version
     await client.query(
-      `INSERT INTO test.circular_versions (circular_id, version, title, content, changed_by)
+      `INSERT INTO main.circular_versions (circular_id, version, title, content, changed_by)
        VALUES ($1, $2, $3, $4, $5)`,
       [id, nextVersion, current.rows[0].title, current.rows[0].content, session.user.id]
     )
@@ -88,7 +88,7 @@ export async function PUT(request, { params }) {
     vals.push(id)
 
     const updated = await client.query(
-      `UPDATE test.circulars SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE main.circulars SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
       vals
     )
 
@@ -111,7 +111,7 @@ export async function DELETE(request, { params }) {
   const { id } = params
   try {
     await pool.query(
-      `UPDATE test.circulars SET is_active = false, updated_by = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE main.circulars SET is_active = false, updated_by = $1, updated_at = NOW() WHERE id = $2`,
       [session.user.id, id]
     )
     return NextResponse.json({ ok: true })

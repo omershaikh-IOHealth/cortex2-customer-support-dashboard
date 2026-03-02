@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const result = await pool.query(
       `SELECT id, shift_date, start_time, end_time, shift_type, notes
-       FROM test.shift_rotas
+       FROM main.shift_rotas
        WHERE user_id = $1 AND shift_date = CURRENT_DATE
        LIMIT 1`,
       [session.user.id]

@@ -8,10 +8,10 @@ export async function GET(request) {
     const params = []
     let query = `
       SELECT s.*, c.company_name,
-        (SELECT COUNT(*) FROM test.sla_configs WHERE solution_id = s.id) as sla_count,
-        (SELECT COUNT(*) FROM test.modules WHERE solution_id = s.id) as module_count
-      FROM test.solutions s
-      LEFT JOIN test.companies c ON s.company_id = c.id
+        (SELECT COUNT(*) FROM main.sla_configs WHERE solution_id = s.id) as sla_count,
+        (SELECT COUNT(*) FROM main.modules WHERE solution_id = s.id) as module_count
+      FROM main.solutions s
+      LEFT JOIN main.companies c ON s.company_id = c.id
     `
     if (company_id) { params.push(company_id); query += ' WHERE s.company_id = $1' }
     query += ' ORDER BY s.solution_name'
@@ -27,7 +27,7 @@ export async function POST(request) {
     const { company_id, solution_code, solution_name, description, clickup_space_id, clickup_list_id,
             business_hours_start, business_hours_end, timezone, working_days, is_active } = await request.json()
     const result = await pool.query(`
-      INSERT INTO test.solutions (company_id, solution_code, solution_name, description, clickup_space_id, clickup_list_id,
+      INSERT INTO main.solutions (company_id, solution_code, solution_name, description, clickup_space_id, clickup_list_id,
         business_hours_start, business_hours_end, timezone, working_days, is_active, created_at, updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())
       RETURNING *

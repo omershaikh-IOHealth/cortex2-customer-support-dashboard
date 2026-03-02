@@ -23,7 +23,7 @@ export async function POST(request) {
 
     // Upsert by primary_call_id so duplicate POSTs are safe
     const result = await pool.query(
-      `INSERT INTO test.call_logs
+      `INSERT INTO main.call_logs
          (primary_call_id, agent_call_id, agent_id, direction, customer_number,
           queue_name, duration_secs, hangup_cause, status, started_at, ended_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
@@ -88,8 +88,8 @@ export async function GET(request) {
               c.duration_secs, c.hangup_cause, c.status,
               c.started_at, c.ended_at,
               u.full_name as agent_name, u.email as agent_email
-       FROM test.call_logs c
-       LEFT JOIN test.users u ON c.agent_id = u.id
+       FROM main.call_logs c
+       LEFT JOIN main.users u ON c.agent_id = u.id
        ${where}
        ORDER BY c.started_at DESC
        LIMIT $${i++} OFFSET $${i++}`,

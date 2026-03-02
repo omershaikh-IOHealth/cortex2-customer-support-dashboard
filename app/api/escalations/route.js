@@ -9,9 +9,9 @@ export async function GET() {
         sa.notified_emails, sa.notification_channel, sa.created_at,
         sa.is_acknowledged, sa.acknowledged_by, sa.acknowledged_at,
         t.title, t.priority, t.clickup_task_id
-      FROM test.sla_alerts sa
-      JOIN test.tickets t ON sa.ticket_id = t.id
-      WHERE t.company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)
+      FROM main.sla_alerts sa
+      JOIN main.tickets t ON sa.ticket_id = t.id
+      WHERE t.company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
       ORDER BY sa.created_at DESC
       LIMIT 50
     `)

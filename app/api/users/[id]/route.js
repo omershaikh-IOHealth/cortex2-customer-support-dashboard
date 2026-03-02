@@ -20,7 +20,7 @@ export async function GET(request, { params }) {
   try {
     const result = await pool.query(
       `SELECT id, email, full_name, role, ziwo_email, is_active, created_at, updated_at
-       FROM test.users WHERE id = $1`,
+       FROM main.users WHERE id = $1`,
       [params.id]
     )
     if (result.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -63,7 +63,7 @@ export async function PUT(request, { params }) {
     vals.push(params.id)
 
     const result = await pool.query(
-      `UPDATE test.users SET ${sets.join(', ')} WHERE id = $${i}
+      `UPDATE main.users SET ${sets.join(', ')} WHERE id = $${i}
        RETURNING id, email, full_name, role, ziwo_email, is_active, updated_at`,
       vals
     )
@@ -87,7 +87,7 @@ export async function DELETE(request, { params }) {
 
   try {
     const result = await pool.query(
-      `UPDATE test.users SET is_active = false, updated_at = NOW()
+      `UPDATE main.users SET is_active = false, updated_at = NOW()
        WHERE id = $1 RETURNING id, email, is_active`,
       [params.id]
     )

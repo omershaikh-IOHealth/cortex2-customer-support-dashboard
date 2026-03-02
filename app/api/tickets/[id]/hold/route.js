@@ -8,7 +8,7 @@ export async function POST(request, { params }) {
 
     if (action === 'pause') {
       const result = await pool.query(`
-        UPDATE test.tickets
+        UPDATE main.tickets
         SET sla_paused_at = NOW(), sla_status = 'paused', updated_at = NOW()
         WHERE id = $1
         RETURNING id, sla_status, sla_paused_at
@@ -22,7 +22,7 @@ export async function POST(request, { params }) {
 
     if (action === 'resume') {
       const result = await pool.query(`
-        UPDATE test.tickets
+        UPDATE main.tickets
         SET sla_paused_at = NULL,
             sla_status = CASE
               WHEN sla_consumption_pct >= 100 THEN 'breached'

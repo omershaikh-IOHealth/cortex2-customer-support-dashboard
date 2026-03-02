@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const result = await pool.query(
       `SELECT id, type, title, body, link, is_read, created_at
-       FROM test.notifications
+       FROM main.notifications
        WHERE user_id = $1
        ORDER BY is_read ASC, created_at DESC
        LIMIT 50`,
@@ -33,7 +33,7 @@ export async function POST(request) {
   // mark_all_read action
   if (body.action === 'mark_all_read') {
     await pool.query(
-      `UPDATE test.notifications SET is_read = true WHERE user_id = $1`,
+      `UPDATE main.notifications SET is_read = true WHERE user_id = $1`,
       [session.user.id]
     )
     return NextResponse.json({ ok: true })
@@ -49,7 +49,7 @@ export async function POST(request) {
 
   try {
     const result = await pool.query(
-      `INSERT INTO test.notifications (user_id, type, title, body, link)
+      `INSERT INTO main.notifications (user_id, type, title, body, link)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [user_id, type, title, notifBody, link]
     )

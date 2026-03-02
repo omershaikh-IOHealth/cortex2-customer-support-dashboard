@@ -14,8 +14,8 @@ export async function GET(request) {
       `SELECT c.id, c.title, c.content, c.category, c.tags, c.is_active,
               c.created_at, c.updated_at,
               u.full_name as created_by_name
-       FROM test.circulars c
-       LEFT JOIN test.users u ON c.created_by = u.id
+       FROM main.circulars c
+       LEFT JOIN main.users u ON c.created_by = u.id
        ${showAll ? '' : 'WHERE c.is_active = true'}
        ORDER BY c.is_active DESC, c.updated_at DESC`
     )
@@ -38,7 +38,7 @@ export async function POST(request) {
     }
 
     const result = await pool.query(
-      `INSERT INTO test.circulars (title, content, category, tags, created_by, updated_by)
+      `INSERT INTO main.circulars (title, content, category, tags, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, $5)
        RETURNING id, title, category, tags, is_active, created_at`,
       [title, content, category || null, tags || null, session.user.id]

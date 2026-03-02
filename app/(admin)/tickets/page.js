@@ -55,9 +55,9 @@ export default function TicketsPage() {
 
   const { data: companies = [] }    = useQuery({ queryKey: ['companies'],     queryFn: getAdminCompanies, staleTime: 300000 })
   const { data: pocs = [] }         = useQuery({ queryKey: ['pocs', createForm.company_id], queryFn: () => getPOCs(createForm.company_id || undefined), enabled: showCreate, staleTime: 60000 })
-  const { data: modules = [] }      = useQuery({ queryKey: ['modules'],       queryFn: getModules,       staleTime: 300000 })
-  const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: getRequestTypes,  staleTime: 300000 })
-  const { data: caseTypes = [] }    = useQuery({ queryKey: ['case-types'],    queryFn: getCaseTypes,     staleTime: 300000 })
+  const { data: modules = [] }      = useQuery({ queryKey: ['modules'],       queryFn: () => getModules(),       staleTime: 300000 })
+  const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: () => getRequestTypes(),  staleTime: 300000 })
+  const { data: caseTypes = [] }    = useQuery({ queryKey: ['case-types'],    queryFn: () => getCaseTypes(),     staleTime: 300000 })
 
   const createMutation = useMutation({
     mutationFn: createTicket,

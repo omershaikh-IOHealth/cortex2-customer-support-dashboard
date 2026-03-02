@@ -36,9 +36,9 @@ export async function GET(request) {
                 ) FILTER (WHERE sb.id IS NOT NULL),
                 '[]'
               ) AS breaks
-       FROM test.shift_rotas sr
-       JOIN test.users u ON u.id = sr.user_id
-       LEFT JOIN test.shift_breaks sb ON sb.shift_id = sr.id
+       FROM main.shift_rotas sr
+       JOIN main.users u ON u.id = sr.user_id
+       LEFT JOIN main.shift_breaks sb ON sb.shift_id = sr.id
        WHERE sr.shift_date BETWEEN $1 AND $2${userFilter}
        GROUP BY sr.id, u.full_name, u.email
        ORDER BY sr.shift_date, sr.start_time`,
@@ -68,7 +68,7 @@ export async function POST(request) {
     await client.query('BEGIN')
 
     const shiftRes = await client.query(
-      `INSERT INTO test.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, notes, created_by)
+      `INSERT INTO main.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, notes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [user_id, shift_date, start_time, end_time, shift_type, notes, session.user.id]
@@ -77,7 +77,7 @@ export async function POST(request) {
 
     for (const b of breaks) {
       await client.query(
-        `INSERT INTO test.shift_breaks (shift_id, break_start, break_end, break_type)
+        `INSERT INTO main.shift_breaks (shift_id, break_start, break_end, break_type)
          VALUES ($1, $2, $3, $4)`,
         [shift.id, b.break_start, b.break_end, b.break_type || 'scheduled']
       )

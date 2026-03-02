@@ -10,7 +10,7 @@ export async function PUT(request, { params }) {
   const { id } = params
   try {
     await pool.query(
-      `UPDATE test.notifications SET is_read = true
+      `UPDATE main.notifications SET is_read = true
        WHERE id = $1 AND user_id = $2`,
       [id, session.user.id]
     )

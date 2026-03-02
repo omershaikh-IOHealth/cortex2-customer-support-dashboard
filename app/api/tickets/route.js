@@ -20,7 +20,7 @@ export async function POST(request) {
 
     // 1. Insert into DB
     const result = await pool.query(
-      `INSERT INTO test.tickets
+      `INSERT INTO main.tickets
          (title, description, priority, status, module, request_type, case_type,
           poc_id, company_id, solution_id, created_by_name, created_by_email)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -35,7 +35,7 @@ export async function POST(request) {
     const cu = await createClickUpTask(ticket)
     if (cu?.clickup_task_id) {
       await pool.query(
-        `UPDATE test.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
+        `UPDATE main.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
         [cu.clickup_task_id, cu.clickup_url, ticket.id]
       )
       ticket.clickup_task_id = cu.clickup_task_id
@@ -62,7 +62,7 @@ export async function GET(request) {
 
     const params = []
     const conditions = [
-      "t.company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)",
+      "t.company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)",
       "(t.is_deleted = false OR t.is_deleted IS NULL)",
     ]
 
@@ -93,7 +93,7 @@ export async function GET(request) {
 
     const whereClause = conditions.join(' AND ')
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM test.tickets t WHERE ${whereClause}`,
+      `SELECT COUNT(*) FROM main.tickets t WHERE ${whereClause}`,
       params
     )
     const total = parseInt(countResult.rows[0].count)
@@ -109,12 +109,12 @@ export async function GET(request) {
         t.assigned_to_id, t.assigned_to_email,
         t.created_at, t.updated_at, t.created_by_name, t.created_by_email,
         p.name as poc_name, p.email as poc_email,
-        (SELECT COUNT(*) FROM test.threads WHERE ticket_id = t.id) as thread_count,
-        (SELECT created_at FROM test.threads
+        (SELECT COUNT(*) FROM main.threads WHERE ticket_id = t.id) as thread_count,
+        (SELECT created_at FROM main.threads
          WHERE ticket_id = t.id AND action_type = 'status_change'
          ORDER BY created_at DESC LIMIT 1) as last_status_change_at
-      FROM test.tickets t
-      LEFT JOIN test.pocs p ON t.poc_id = p.id
+      FROM main.tickets t
+      LEFT JOIN main.pocs p ON t.poc_id = p.id
       WHERE ${whereClause}
       ORDER BY
         CASE

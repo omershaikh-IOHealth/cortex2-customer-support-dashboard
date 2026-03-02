@@ -34,7 +34,7 @@ export async function POST(request) {
   try {
     // Get this agent's ZIWO credentials from DB
     const credsResult = await pool.query(
-      'SELECT ziwo_email, ziwo_password FROM test.users WHERE id = $1',
+      'SELECT ziwo_email, ziwo_password FROM main.users WHERE id = $1',
       [session.user.id]
     )
     const creds = credsResult.rows[0]

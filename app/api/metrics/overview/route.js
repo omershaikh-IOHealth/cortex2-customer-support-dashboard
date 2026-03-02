@@ -11,8 +11,8 @@ export async function GET() {
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours' AND (is_deleted = false OR is_deleted IS NULL)) as tickets_24h,
         ROUND(AVG(sla_consumption_pct) FILTER (WHERE LOWER(sla_status) NOT IN ('resolved', 'not_applicable') AND (is_deleted = false OR is_deleted IS NULL)), 2) as avg_sla_consumption,
         COUNT(*) FILTER (WHERE sla_consumption_pct >= 100 AND (is_deleted = false OR is_deleted IS NULL)) as breached_sla
-      FROM test.tickets
-      WHERE company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)
+      FROM main.tickets
+      WHERE company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
     `)
     return NextResponse.json(result.rows[0])
   } catch (e) {

@@ -6,7 +6,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
     const result = await pool.query(
-      'SELECT * FROM test.processing_logs ORDER BY created_at DESC LIMIT $1',
+      'SELECT * FROM main.processing_logs ORDER BY created_at DESC LIMIT $1',
       [limit]
     )
     return NextResponse.json(result.rows)

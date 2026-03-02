@@ -5,9 +5,9 @@ export async function GET() {
   try {
     const result = await pool.query(`
       SELECT c.*,
-        (SELECT COUNT(*) FROM test.pocs WHERE company_id = c.id) as poc_count,
-        (SELECT COUNT(*) FROM test.solutions WHERE company_id = c.id) as solution_count
-      FROM test.companies c
+        (SELECT COUNT(*) FROM main.pocs WHERE company_id = c.id) as poc_count,
+        (SELECT COUNT(*) FROM main.solutions WHERE company_id = c.id) as solution_count
+      FROM main.companies c
       ORDER BY c.company_name
     `)
     return NextResponse.json(result.rows)
@@ -20,7 +20,7 @@ export async function POST(request) {
   try {
     const { company_code, company_name, description, domain, is_active } = await request.json()
     const result = await pool.query(`
-      INSERT INTO test.companies (company_code, company_name, description, domain, is_active, created_at, updated_at)
+      INSERT INTO main.companies (company_code, company_name, description, domain, is_active, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
       RETURNING *
     `, [company_code, company_name, description, domain, is_active !== false])

@@ -13,7 +13,7 @@ import pool from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
 const MIGRATION_SQL = `
-CREATE TABLE IF NOT EXISTS test.users (
+CREATE TABLE IF NOT EXISTS main.users (
   id              SERIAL PRIMARY KEY,
   email           VARCHAR(255) UNIQUE NOT NULL,
   password_hash   VARCHAR(255) NOT NULL,
@@ -26,19 +26,19 @@ CREATE TABLE IF NOT EXISTS test.users (
   updated_at      TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS test.agent_status (
+CREATE TABLE IF NOT EXISTS main.agent_status (
   id          SERIAL PRIMARY KEY,
-  user_id     INT REFERENCES test.users(id) ON DELETE CASCADE UNIQUE,
+  user_id     INT REFERENCES main.users(id) ON DELETE CASCADE UNIQUE,
   status      VARCHAR(50) DEFAULT 'available',
   status_note VARCHAR(255),
   set_at      TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS test.call_logs (
+CREATE TABLE IF NOT EXISTS main.call_logs (
   id               SERIAL PRIMARY KEY,
   primary_call_id  VARCHAR(255) UNIQUE,
   agent_call_id    VARCHAR(255),
-  agent_id         INT REFERENCES test.users(id),
+  agent_id         INT REFERENCES main.users(id),
   direction        VARCHAR(20) NOT NULL DEFAULT 'inbound',
   customer_number  VARCHAR(50),
   queue_name       VARCHAR(255),
@@ -49,52 +49,52 @@ CREATE TABLE IF NOT EXISTS test.call_logs (
   hangup_by        VARCHAR(50),
   recording_file   VARCHAR(255),
   status           VARCHAR(50) DEFAULT 'ended',
-  ticket_id        INT REFERENCES test.tickets(id),
+  ticket_id        INT REFERENCES main.tickets(id),
   started_at       TIMESTAMP DEFAULT NOW(),
   answered_at      TIMESTAMP,
   ended_at         TIMESTAMP,
   created_at       TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS test.shift_rotas (
+CREATE TABLE IF NOT EXISTS main.shift_rotas (
   id          SERIAL PRIMARY KEY,
-  user_id     INT REFERENCES test.users(id) ON DELETE CASCADE,
+  user_id     INT REFERENCES main.users(id) ON DELETE CASCADE,
   shift_date  DATE NOT NULL,
   start_time  TIME NOT NULL,
   end_time    TIME NOT NULL,
   shift_type  VARCHAR(50) DEFAULT 'regular',
   notes       TEXT,
-  created_by  INT REFERENCES test.users(id),
+  created_by  INT REFERENCES main.users(id),
   created_at  TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS test.circulars (
+CREATE TABLE IF NOT EXISTS main.circulars (
   id          SERIAL PRIMARY KEY,
   title       VARCHAR(500) NOT NULL,
   content     TEXT NOT NULL,
   category    VARCHAR(100),
   tags        TEXT[],
   is_active   BOOLEAN DEFAULT true,
-  created_by  INT REFERENCES test.users(id),
-  updated_by  INT REFERENCES test.users(id),
+  created_by  INT REFERENCES main.users(id),
+  updated_by  INT REFERENCES main.users(id),
   created_at  TIMESTAMP DEFAULT NOW(),
   updated_at  TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS test.circular_versions (
+CREATE TABLE IF NOT EXISTS main.circular_versions (
   id          SERIAL PRIMARY KEY,
-  circular_id INT REFERENCES test.circulars(id) ON DELETE CASCADE,
+  circular_id INT REFERENCES main.circulars(id) ON DELETE CASCADE,
   version     INT NOT NULL,
   title       VARCHAR(500),
   content     TEXT,
-  changed_by  INT REFERENCES test.users(id),
+  changed_by  INT REFERENCES main.users(id),
   changed_at  TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_call_logs_agent_id   ON test.call_logs(agent_id);
-CREATE INDEX IF NOT EXISTS idx_call_logs_started_at ON test.call_logs(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_shift_rotas_user_date ON test.shift_rotas(user_id, shift_date);
-CREATE INDEX IF NOT EXISTS idx_circulars_is_active   ON test.circulars(is_active);
+CREATE INDEX IF NOT EXISTS idx_call_logs_agent_id   ON main.call_logs(agent_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_started_at ON main.call_logs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_shift_rotas_user_date ON main.shift_rotas(user_id, shift_date);
+CREATE INDEX IF NOT EXISTS idx_circulars_is_active   ON main.circulars(is_active);
 `
 
 const SEED_USERS = [
@@ -136,21 +136,21 @@ export async function GET(request) {
 
     // 2. Run migration 002 (phase 2 — auth hardening, notifications, shift_breaks, ticket assignment)
     const MIGRATION_002 = `
-ALTER TABLE test.users
+ALTER TABLE main.users
   ADD COLUMN IF NOT EXISTS login_attempts      INT DEFAULT 0,
   ADD COLUMN IF NOT EXISTS locked_until        TIMESTAMP,
   ADD COLUMN IF NOT EXISTS last_login_at       TIMESTAMP,
   ADD COLUMN IF NOT EXISTS current_session_tok VARCHAR(255);
 
-ALTER TABLE test.tickets
-  ADD COLUMN IF NOT EXISTS assigned_to_id    INT REFERENCES test.users(id),
+ALTER TABLE main.tickets
+  ADD COLUMN IF NOT EXISTS assigned_to_id    INT REFERENCES main.users(id),
   ADD COLUMN IF NOT EXISTS assigned_to_email VARCHAR(255);
 
-CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON test.tickets(assigned_to_email);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON main.tickets(assigned_to_email);
 
-CREATE TABLE IF NOT EXISTS test.auth_logs (
+CREATE TABLE IF NOT EXISTS main.auth_logs (
   id             SERIAL PRIMARY KEY,
-  user_id        INT REFERENCES test.users(id) ON DELETE SET NULL,
+  user_id        INT REFERENCES main.users(id) ON DELETE SET NULL,
   email          VARCHAR(255),
   success        BOOLEAN NOT NULL,
   ip_address     VARCHAR(45),
@@ -159,12 +159,12 @@ CREATE TABLE IF NOT EXISTS test.auth_logs (
   created_at     TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_auth_logs_email      ON test.auth_logs(email);
-CREATE INDEX IF NOT EXISTS idx_auth_logs_created_at ON test.auth_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_logs_email      ON main.auth_logs(email);
+CREATE INDEX IF NOT EXISTS idx_auth_logs_created_at ON main.auth_logs(created_at DESC);
 
-CREATE TABLE IF NOT EXISTS test.notifications (
+CREATE TABLE IF NOT EXISTS main.notifications (
   id         SERIAL PRIMARY KEY,
-  user_id    INT REFERENCES test.users(id) ON DELETE CASCADE,
+  user_id    INT REFERENCES main.users(id) ON DELETE CASCADE,
   type       VARCHAR(50) NOT NULL,
   title      VARCHAR(255) NOT NULL,
   body       TEXT,
@@ -173,18 +173,18 @@ CREATE TABLE IF NOT EXISTS test.notifications (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON test.notifications(user_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON main.notifications(user_id, is_read, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS test.shift_breaks (
+CREATE TABLE IF NOT EXISTS main.shift_breaks (
   id          SERIAL PRIMARY KEY,
-  shift_id    INT REFERENCES test.shift_rotas(id) ON DELETE CASCADE,
+  shift_id    INT REFERENCES main.shift_rotas(id) ON DELETE CASCADE,
   break_start TIME NOT NULL,
   break_end   TIME NOT NULL,
   break_type  VARCHAR(50) DEFAULT 'scheduled',
   created_at  TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_shift_breaks_shift_id ON test.shift_breaks(shift_id);
+CREATE INDEX IF NOT EXISTS idx_shift_breaks_shift_id ON main.shift_breaks(shift_id);
 `
     await pool.query(MIGRATION_002)
     log.push('✓ Migration 002 complete (auth hardening, notifications, shift_breaks, ticket assignment)')
@@ -193,7 +193,7 @@ CREATE INDEX IF NOT EXISTS idx_shift_breaks_shift_id ON test.shift_breaks(shift_
     for (const u of SEED_USERS) {
       const hash = await bcrypt.hash(u.password, 10)
       const result = await pool.query(
-        `INSERT INTO test.users (email, password_hash, full_name, role, ziwo_email, ziwo_password)
+        `INSERT INTO main.users (email, password_hash, full_name, role, ziwo_email, ziwo_password)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE SET
            password_hash = EXCLUDED.password_hash,

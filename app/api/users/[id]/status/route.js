@@ -11,8 +11,8 @@ export async function GET(request, { params }) {
   try {
     const result = await pool.query(
       `SELECT s.status, s.status_note, s.set_at, u.full_name, u.email
-       FROM test.agent_status s
-       JOIN test.users u ON u.id = s.user_id
+       FROM main.agent_status s
+       JOIN main.users u ON u.id = s.user_id
        WHERE s.user_id = $1`,
       [id]
     )
@@ -39,7 +39,7 @@ export async function PUT(request, { params }) {
 
   try {
     await pool.query(
-      `INSERT INTO test.agent_status (user_id, status, status_note, set_at)
+      `INSERT INTO main.agent_status (user_id, status, status_note, set_at)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          status      = EXCLUDED.status,

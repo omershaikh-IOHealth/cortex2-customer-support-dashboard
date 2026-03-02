@@ -97,7 +97,7 @@ USER QUESTION: "${userMessage}"
 
 RULES:
 - Write ONE complete SELECT query only (no INSERT/UPDATE/DELETE/DROP)
-- Always filter: company_id = (SELECT id FROM test.companies WHERE company_code = 'medgulf' LIMIT 1)
+- Always filter: company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
 - Always filter: (is_deleted = false OR is_deleted IS NULL)
 - Use LOWER(status) for case-insensitive status comparisons
 - Active/open statuses: 'open', 'in progress', 'waiting'
@@ -184,7 +184,7 @@ export async function POST(request) {
 
     // Load session
     const sessionResult = await pool.query(
-      'SELECT messages, summary FROM test.ai_companion_sessions WHERE user_id = $1',
+      'SELECT messages, summary FROM main.ai_companion_sessions WHERE user_id = $1',
       [userId]
     )
     let messages = sessionResult.rows[0]?.messages || []
@@ -302,7 +302,7 @@ export async function POST(request) {
 
 async function upsertSession(pool, userId, messages, summary) {
   await pool.query(`
-    INSERT INTO test.ai_companion_sessions (user_id, messages, summary, updated_at)
+    INSERT INTO main.ai_companion_sessions (user_id, messages, summary, updated_at)
     VALUES ($1, $2, $3, NOW())
     ON CONFLICT (user_id)
     DO UPDATE SET messages = $2, summary = $3, updated_at = NOW()
