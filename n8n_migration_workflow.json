@@ -1,0 +1,781 @@
+{
+  "name": "Cortex DB Migration — test → main (Supabase)",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Run Migration",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 500],
+      "parameters": {}
+    },
+    {
+      "id": "sel-01",
+      "name": "SELECT companies",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.companies ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-01",
+      "name": "INSERT companies",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "companies", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-02",
+      "name": "SELECT processing_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.processing_logs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-02",
+      "name": "INSERT processing_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "processing_logs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-03",
+      "name": "SELECT users",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.users ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-03",
+      "name": "INSERT users",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "users", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-04",
+      "name": "SELECT ai_companion_sessions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.ai_companion_sessions",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-04",
+      "name": "INSERT ai_companion_sessions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "ai_companion_sessions", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-05",
+      "name": "SELECT pocs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.pocs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-05",
+      "name": "INSERT pocs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "pocs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-06",
+      "name": "SELECT solutions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.solutions ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-06",
+      "name": "INSERT solutions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "solutions", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-07",
+      "name": "SELECT agent_status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.agent_status ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-07",
+      "name": "INSERT agent_status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "agent_status", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-08",
+      "name": "SELECT auth_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.auth_logs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-08",
+      "name": "INSERT auth_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "auth_logs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-09",
+      "name": "SELECT circulars",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.circulars ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-09",
+      "name": "INSERT circulars",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "circulars", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-10",
+      "name": "SELECT notifications",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.notifications ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-10",
+      "name": "INSERT notifications",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [5000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "notifications", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-11",
+      "name": "SELECT shift_rotas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [5260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.shift_rotas ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-11",
+      "name": "INSERT shift_rotas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [5500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "shift_rotas", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-12",
+      "name": "SELECT tickets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [5760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.tickets ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-12",
+      "name": "INSERT tickets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [6000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "tickets", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-13",
+      "name": "SELECT assignee_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [6260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.assignee_configs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-13",
+      "name": "INSERT assignee_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [6500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "assignee_configs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-14",
+      "name": "SELECT call_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [6760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.call_logs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-14",
+      "name": "INSERT call_logs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [7000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "call_logs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-15",
+      "name": "SELECT circular_versions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [7260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.circular_versions ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-15",
+      "name": "INSERT circular_versions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [7500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "circular_versions", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-16",
+      "name": "SELECT escalation_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [7760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.escalation_configs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-16",
+      "name": "INSERT escalation_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [8000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "escalation_configs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-17",
+      "name": "SELECT kpi_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [8260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.kpi_configs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-17",
+      "name": "INSERT kpi_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [8500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "kpi_configs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-18",
+      "name": "SELECT modules",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [8760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.modules ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-18",
+      "name": "INSERT modules",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [9000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "modules", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-19",
+      "name": "SELECT notification_queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [9260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.notification_queue ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-19",
+      "name": "INSERT notification_queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [9500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "notification_queue", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-20",
+      "name": "SELECT request_types",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [9760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.request_types ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-20",
+      "name": "INSERT request_types",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [10000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "request_types", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-21",
+      "name": "SELECT shift_breaks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [10260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.shift_breaks ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-21",
+      "name": "INSERT shift_breaks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [10500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "shift_breaks", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-22",
+      "name": "SELECT sla_alerts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [10760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.sla_alerts ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-22",
+      "name": "INSERT sla_alerts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [11000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "sla_alerts", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-23",
+      "name": "SELECT sla_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [11260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.sla_configs ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-23",
+      "name": "INSERT sla_configs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [11500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "sla_configs", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-24",
+      "name": "SELECT threads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [11760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.threads ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-24",
+      "name": "INSERT threads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [12000, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "threads", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "sel-25",
+      "name": "SELECT case_types",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [12260, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM test.case_types ORDER BY id",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "OLD_DB_CRED_ID", "name": "Cortex Old DB" } }
+    },
+    {
+      "id": "ins-25",
+      "name": "INSERT case_types",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [12500, 500],
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "main", "mode": "list" },
+        "table": { "__rl": true, "value": "case_types", "mode": "list" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": { "onConflict": "ignore" }
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    },
+    {
+      "id": "reset-seq",
+      "name": "Reset Sequences",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [12760, 500],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setval(pg_get_serial_sequence('main.companies', 'id'),           COALESCE(MAX(id), 1)) FROM main.companies;\nSELECT setval(pg_get_serial_sequence('main.processing_logs', 'id'),      COALESCE(MAX(id), 1)) FROM main.processing_logs;\nSELECT setval(pg_get_serial_sequence('main.users', 'id'),                COALESCE(MAX(id), 1)) FROM main.users;\nSELECT setval(pg_get_serial_sequence('main.pocs', 'id'),                 COALESCE(MAX(id), 1)) FROM main.pocs;\nSELECT setval(pg_get_serial_sequence('main.solutions', 'id'),            COALESCE(MAX(id), 1)) FROM main.solutions;\nSELECT setval(pg_get_serial_sequence('main.agent_status', 'id'),         COALESCE(MAX(id), 1)) FROM main.agent_status;\nSELECT setval(pg_get_serial_sequence('main.auth_logs', 'id'),            COALESCE(MAX(id), 1)) FROM main.auth_logs;\nSELECT setval(pg_get_serial_sequence('main.circulars', 'id'),            COALESCE(MAX(id), 1)) FROM main.circulars;\nSELECT setval(pg_get_serial_sequence('main.notifications', 'id'),        COALESCE(MAX(id), 1)) FROM main.notifications;\nSELECT setval(pg_get_serial_sequence('main.shift_rotas', 'id'),          COALESCE(MAX(id), 1)) FROM main.shift_rotas;\nSELECT setval(pg_get_serial_sequence('main.tickets', 'id'),              COALESCE(MAX(id), 1)) FROM main.tickets;\nSELECT setval(pg_get_serial_sequence('main.assignee_configs', 'id'),     COALESCE(MAX(id), 1)) FROM main.assignee_configs;\nSELECT setval(pg_get_serial_sequence('main.call_logs', 'id'),            COALESCE(MAX(id), 1)) FROM main.call_logs;\nSELECT setval(pg_get_serial_sequence('main.circular_versions', 'id'),    COALESCE(MAX(id), 1)) FROM main.circular_versions;\nSELECT setval(pg_get_serial_sequence('main.escalation_configs', 'id'),   COALESCE(MAX(id), 1)) FROM main.escalation_configs;\nSELECT setval(pg_get_serial_sequence('main.kpi_configs', 'id'),          COALESCE(MAX(id), 1)) FROM main.kpi_configs;\nSELECT setval(pg_get_serial_sequence('main.modules', 'id'),              COALESCE(MAX(id), 1)) FROM main.modules;\nSELECT setval(pg_get_serial_sequence('main.notification_queue', 'id'),   COALESCE(MAX(id), 1)) FROM main.notification_queue;\nSELECT setval(pg_get_serial_sequence('main.request_types', 'id'),        COALESCE(MAX(id), 1)) FROM main.request_types;\nSELECT setval(pg_get_serial_sequence('main.shift_breaks', 'id'),         COALESCE(MAX(id), 1)) FROM main.shift_breaks;\nSELECT setval(pg_get_serial_sequence('main.sla_alerts', 'id'),           COALESCE(MAX(id), 1)) FROM main.sla_alerts;\nSELECT setval(pg_get_serial_sequence('main.sla_configs', 'id'),          COALESCE(MAX(id), 1)) FROM main.sla_configs;\nSELECT setval(pg_get_serial_sequence('main.threads', 'id'),              COALESCE(MAX(id), 1)) FROM main.threads;\nSELECT setval(pg_get_serial_sequence('main.case_types', 'id'),           COALESCE(MAX(id), 1)) FROM main.case_types;",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "SUPABASE_CRED_ID", "name": "Cortex Supabase" } }
+    }
+  ],
+  "connections": {
+    "Run Migration":             { "main": [[{ "node": "SELECT companies",            "type": "main", "index": 0 }]] },
+    "SELECT companies":          { "main": [[{ "node": "INSERT companies",            "type": "main", "index": 0 }]] },
+    "INSERT companies":          { "main": [[{ "node": "SELECT processing_logs",      "type": "main", "index": 0 }]] },
+    "SELECT processing_logs":    { "main": [[{ "node": "INSERT processing_logs",      "type": "main", "index": 0 }]] },
+    "INSERT processing_logs":    { "main": [[{ "node": "SELECT users",                "type": "main", "index": 0 }]] },
+    "SELECT users":              { "main": [[{ "node": "INSERT users",                "type": "main", "index": 0 }]] },
+    "INSERT users":              { "main": [[{ "node": "SELECT ai_companion_sessions","type": "main", "index": 0 }]] },
+    "SELECT ai_companion_sessions": { "main": [[{ "node": "INSERT ai_companion_sessions","type": "main", "index": 0 }]] },
+    "INSERT ai_companion_sessions": { "main": [[{ "node": "SELECT pocs",             "type": "main", "index": 0 }]] },
+    "SELECT pocs":               { "main": [[{ "node": "INSERT pocs",                "type": "main", "index": 0 }]] },
+    "INSERT pocs":               { "main": [[{ "node": "SELECT solutions",            "type": "main", "index": 0 }]] },
+    "SELECT solutions":          { "main": [[{ "node": "INSERT solutions",            "type": "main", "index": 0 }]] },
+    "INSERT solutions":          { "main": [[{ "node": "SELECT agent_status",         "type": "main", "index": 0 }]] },
+    "SELECT agent_status":       { "main": [[{ "node": "INSERT agent_status",         "type": "main", "index": 0 }]] },
+    "INSERT agent_status":       { "main": [[{ "node": "SELECT auth_logs",            "type": "main", "index": 0 }]] },
+    "SELECT auth_logs":          { "main": [[{ "node": "INSERT auth_logs",            "type": "main", "index": 0 }]] },
+    "INSERT auth_logs":          { "main": [[{ "node": "SELECT circulars",            "type": "main", "index": 0 }]] },
+    "SELECT circulars":          { "main": [[{ "node": "INSERT circulars",            "type": "main", "index": 0 }]] },
+    "INSERT circulars":          { "main": [[{ "node": "SELECT notifications",        "type": "main", "index": 0 }]] },
+    "SELECT notifications":      { "main": [[{ "node": "INSERT notifications",        "type": "main", "index": 0 }]] },
+    "INSERT notifications":      { "main": [[{ "node": "SELECT shift_rotas",          "type": "main", "index": 0 }]] },
+    "SELECT shift_rotas":        { "main": [[{ "node": "INSERT shift_rotas",          "type": "main", "index": 0 }]] },
+    "INSERT shift_rotas":        { "main": [[{ "node": "SELECT tickets",              "type": "main", "index": 0 }]] },
+    "SELECT tickets":            { "main": [[{ "node": "INSERT tickets",              "type": "main", "index": 0 }]] },
+    "INSERT tickets":            { "main": [[{ "node": "SELECT assignee_configs",     "type": "main", "index": 0 }]] },
+    "SELECT assignee_configs":   { "main": [[{ "node": "INSERT assignee_configs",     "type": "main", "index": 0 }]] },
+    "INSERT assignee_configs":   { "main": [[{ "node": "SELECT call_logs",            "type": "main", "index": 0 }]] },
+    "SELECT call_logs":          { "main": [[{ "node": "INSERT call_logs",            "type": "main", "index": 0 }]] },
+    "INSERT call_logs":          { "main": [[{ "node": "SELECT circular_versions",   "type": "main", "index": 0 }]] },
+    "SELECT circular_versions":  { "main": [[{ "node": "INSERT circular_versions",   "type": "main", "index": 0 }]] },
+    "INSERT circular_versions":  { "main": [[{ "node": "SELECT escalation_configs",  "type": "main", "index": 0 }]] },
+    "SELECT escalation_configs": { "main": [[{ "node": "INSERT escalation_configs",  "type": "main", "index": 0 }]] },
+    "INSERT escalation_configs": { "main": [[{ "node": "SELECT kpi_configs",         "type": "main", "index": 0 }]] },
+    "SELECT kpi_configs":        { "main": [[{ "node": "INSERT kpi_configs",         "type": "main", "index": 0 }]] },
+    "INSERT kpi_configs":        { "main": [[{ "node": "SELECT modules",             "type": "main", "index": 0 }]] },
+    "SELECT modules":            { "main": [[{ "node": "INSERT modules",             "type": "main", "index": 0 }]] },
+    "INSERT modules":            { "main": [[{ "node": "SELECT notification_queue",  "type": "main", "index": 0 }]] },
+    "SELECT notification_queue": { "main": [[{ "node": "INSERT notification_queue",  "type": "main", "index": 0 }]] },
+    "INSERT notification_queue": { "main": [[{ "node": "SELECT request_types",       "type": "main", "index": 0 }]] },
+    "SELECT request_types":      { "main": [[{ "node": "INSERT request_types",       "type": "main", "index": 0 }]] },
+    "INSERT request_types":      { "main": [[{ "node": "SELECT shift_breaks",        "type": "main", "index": 0 }]] },
+    "SELECT shift_breaks":       { "main": [[{ "node": "INSERT shift_breaks",        "type": "main", "index": 0 }]] },
+    "INSERT shift_breaks":       { "main": [[{ "node": "SELECT sla_alerts",          "type": "main", "index": 0 }]] },
+    "SELECT sla_alerts":         { "main": [[{ "node": "INSERT sla_alerts",          "type": "main", "index": 0 }]] },
+    "INSERT sla_alerts":         { "main": [[{ "node": "SELECT sla_configs",         "type": "main", "index": 0 }]] },
+    "SELECT sla_configs":        { "main": [[{ "node": "INSERT sla_configs",         "type": "main", "index": 0 }]] },
+    "INSERT sla_configs":        { "main": [[{ "node": "SELECT threads",             "type": "main", "index": 0 }]] },
+    "SELECT threads":            { "main": [[{ "node": "INSERT threads",             "type": "main", "index": 0 }]] },
+    "INSERT threads":            { "main": [[{ "node": "SELECT case_types",          "type": "main", "index": 0 }]] },
+    "SELECT case_types":         { "main": [[{ "node": "INSERT case_types",          "type": "main", "index": 0 }]] },
+    "INSERT case_types":         { "main": [[{ "node": "Reset Sequences",            "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
