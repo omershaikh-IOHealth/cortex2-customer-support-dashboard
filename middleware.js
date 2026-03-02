@@ -42,9 +42,7 @@ export default auth(function middleware(req) {
   const isAdminPath = ADMIN_PATHS.some(
     p => pathname === p || pathname.startsWith(p + '/')
   )
-  // Allow agents to access individual ticket detail pages (linked from my-tickets)
-  const isTicketDetailPage = /^\/tickets\/\d+$/.test(pathname)
-  if (isAdminPath && !isTicketDetailPage && session.user?.role !== 'admin') {
+  if (isAdminPath && session.user?.role !== 'admin') {
     return NextResponse.redirect(new URL('/briefing', req.url))
   }
 

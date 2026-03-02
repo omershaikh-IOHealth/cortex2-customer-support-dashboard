@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import pool from '@/lib/db'
+import { getClickUpMembers, updateClickUpTask } from '@/lib/clickup'
 
 // POST — assign ticket to an agent
 // Body: { assigned_to_id, assigned_to_email }
 export async function POST(request, { params }) {
   const session = await auth()
-  if (!session?.user || session.user.role !== 'admin')
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session?.user)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = params
   const { assigned_to_id, assigned_to_email } = await request.json()
@@ -47,8 +48,25 @@ export async function POST(request, { params }) {
       await pool.query(
         `INSERT INTO test.notifications (user_id, type, title, body, link)
          VALUES ($1, 'assignment', 'Ticket Assigned', $2, $3)`,
-        [userId, `Ticket #${id} has been assigned to you`, `/tickets/${id}`]
+        [userId, `Ticket #${id} has been assigned to you`, `/my-tickets/${id}`]
       )
+    }
+
+    // Sync assignee to ClickUp (best-effort, non-blocking)
+    if (email) {
+      const ticketRow = await pool.query(
+        'SELECT clickup_task_id FROM test.tickets WHERE id = $1',
+        [id]
+      )
+      const clickupTaskId = ticketRow.rows[0]?.clickup_task_id
+      if (clickupTaskId) {
+        getClickUpMembers().then(members => {
+          const match = members.find(m => m.email === email)
+          if (match) {
+            updateClickUpTask(clickupTaskId, { assignees: [match.id] }).catch(() => {})
+          }
+        }).catch(() => {})
+      }
     }
 
     return NextResponse.json({ ok: true, assigned_to_id: userId, assigned_to_email: email })

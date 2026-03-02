@@ -5,7 +5,6 @@ import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } fro
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
 import {
   getSLAStatusColor,
   getPriorityColor,
@@ -82,7 +81,7 @@ function Section({ title, icon: Icon, iconClass, badge, defaultOpen = true, clas
 }
 
 /* ── Live SLA countdown ─────────────────────────────────────────────── */
-function SLACountdown({ dueDate, label }) {
+function SLACountdown({ dueDate }) {
   const [countdown, setCountdown] = useState(null)
   useEffect(() => {
     if (!dueDate) return
@@ -108,12 +107,10 @@ function SLACountdown({ dueDate, label }) {
 }
 
 /* ── Main page ──────────────────────────────────────────────────────── */
-export default function TicketDetailPage() {
+export default function AgentTicketDetailPage() {
   const params = useParams()
   const ticketId = params.id
   const queryClient = useQueryClient()
-  const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'admin'
 
   const [noteContent, setNoteContent] = useState('')
   const [addingNote, setAddingNote] = useState(false)
@@ -215,7 +212,7 @@ export default function TicketDetailPage() {
       await fetch(`/api/tickets/${ticketId}/escalate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Manual escalation by admin' }),
+        body: JSON.stringify({ reason: 'Manual escalation by agent' }),
       })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
       toast.success('Ticket escalated')
@@ -226,17 +223,17 @@ export default function TicketDetailPage() {
     }
   }
 
-  async function handleAssign(agentId, agentEmail) {
+  async function handleAssign(userId, userEmail) {
     setAssigning(true)
     setShowAssignDrop(false)
     try {
       await fetch(`/api/tickets/${ticketId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assigned_to_id: agentId, assigned_to_email: agentEmail }),
+        body: JSON.stringify({ assigned_to_id: userId, assigned_to_email: userEmail }),
       })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
-      toast.success(agentEmail ? `Assigned to ${agentEmail.split('@')[0]}` : 'Unassigned')
+      toast.success(userEmail ? `Assigned to ${userEmail.split('@')[0]}` : 'Unassigned')
     } catch (err) {
       toast.error(err.message || 'Failed to assign ticket')
     } finally {
@@ -269,7 +266,7 @@ export default function TicketDetailPage() {
         <XCircle className="w-14 h-14 mx-auto mb-4 text-cortex-danger" />
         <h2 className="text-xl font-bold mb-2">Ticket Not Found</h2>
         <p className="text-cortex-muted text-sm mb-6">The ticket you are looking for does not exist.</p>
-        <Link href="/tickets" className="btn-primary">Back to Tickets</Link>
+        <Link href="/my-tickets" className="btn-primary">Back to My Tickets</Link>
       </div>
     )
   }
@@ -291,11 +288,11 @@ export default function TicketDetailPage() {
       {/* ── Breadcrumb ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 text-sm">
         <Link
-          href="/tickets"
+          href="/my-tickets"
           className="flex items-center gap-1.5 text-cortex-muted hover:text-cortex-text transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Tickets
+          My Tickets
         </Link>
         <span className="text-cortex-border select-none">/</span>
         <span className="font-mono text-xs text-cortex-text">#{ticketId}</span>
@@ -371,95 +368,93 @@ export default function TicketDetailPage() {
         </div>
       </div>
 
-      {/* ── Admin action toolbar ────────────────────────────────────── */}
-      {isAdmin && (
-        <div
-          className="bg-cortex-surface border border-cortex-border rounded-2xl px-4 py-3 flex items-center gap-2 flex-wrap"
-          style={{ boxShadow: '0 1px 3px rgb(0 0 0 / 0.04)' }}
-        >
-          <span className="text-xs text-cortex-muted font-medium mr-1">Actions</span>
+      {/* ── Action toolbar ──────────────────────────────────────────── */}
+      <div
+        className="bg-cortex-surface border border-cortex-border rounded-2xl px-4 py-3 flex items-center gap-2 flex-wrap"
+        style={{ boxShadow: '0 1px 3px rgb(0 0 0 / 0.04)' }}
+      >
+        <span className="text-xs text-cortex-muted font-medium mr-1">Actions</span>
 
-          {/* Status */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowStatusDrop(s => !s); setShowAssignDrop(false); setShowPriorityDrop(false) }}
-              disabled={changingStatus}
-              className="flex items-center gap-1.5 text-xs bg-cortex-bg border border-cortex-border hover:border-cortex-accent px-3 py-1.5 rounded-lg transition-colors text-cortex-text font-medium"
-            >
-              {changingStatus ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 text-cortex-muted" />}
-              {ticket.status}
-              <ChevronDown className="w-3 h-3 text-cortex-muted" />
-            </button>
-            {showStatusDrop && (
-              <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-30 py-1 min-w-[150px] overflow-hidden animate-slide-in">
-                {TICKET_STATUSES.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => handleStatusChange(s)}
-                    className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-cortex-surface-raised transition-colors ${s === ticket.status ? 'text-cortex-accent' : 'text-cortex-text'}`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Priority */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowPriorityDrop(s => !s); setShowStatusDrop(false); setShowAssignDrop(false) }}
-              disabled={changingPriority}
-              className="flex items-center gap-1.5 text-xs bg-cortex-bg border border-cortex-border hover:border-cortex-accent px-3 py-1.5 rounded-lg transition-colors text-cortex-text font-medium"
-            >
-              {changingPriority ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
-              {ticket.priority || 'Priority'}
-              <ChevronDown className="w-3 h-3 text-cortex-muted" />
-            </button>
-            {showPriorityDrop && (
-              <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-30 py-1 min-w-[100px] overflow-hidden animate-slide-in">
-                {TICKET_PRIORITIES.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => handlePriorityChange(p)}
-                    className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-cortex-surface-raised transition-colors ${p === ticket.priority ? 'text-cortex-accent' : 'text-cortex-text'}`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="w-px h-4 bg-cortex-border mx-1" />
-
-          {/* Escalate */}
+        {/* Status */}
+        <div className="relative">
           <button
-            onClick={handleEscalate}
-            disabled={escalating}
-            className="flex items-center gap-1.5 text-xs bg-cortex-warning/10 text-cortex-warning hover:bg-cortex-warning/20 px-3 py-1.5 rounded-lg transition-colors font-medium"
+            onClick={() => { setShowStatusDrop(s => !s); setShowAssignDrop(false); setShowPriorityDrop(false) }}
+            disabled={changingStatus}
+            className="flex items-center gap-1.5 text-xs bg-cortex-bg border border-cortex-border hover:border-cortex-accent px-3 py-1.5 rounded-lg transition-colors text-cortex-text font-medium"
           >
-            <ArrowUpCircle className="w-3 h-3" />
-            {escalating ? 'Escalating…' : 'Escalate'}
+            {changingStatus ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 text-cortex-muted" />}
+            {ticket.status}
+            <ChevronDown className="w-3 h-3 text-cortex-muted" />
           </button>
-
-          {/* Assign */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowAssignDrop(s => !s); setShowStatusDrop(false); setShowPriorityDrop(false) }}
-              disabled={assigning}
-              className="flex items-center gap-1.5 text-xs bg-cortex-accent/10 text-cortex-accent hover:bg-cortex-accent/20 px-3 py-1.5 rounded-lg transition-colors font-medium"
-            >
-              <UserCheck className="w-3 h-3" />
-              {ticket.assigned_to_email ? ticket.assigned_to_email.split('@')[0] : 'Assign'}
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {showAssignDrop && (
-              <AssignDropdown onAssign={handleAssign} onClose={() => setShowAssignDrop(false)} agentsOnly />
-            )}
-          </div>
+          {showStatusDrop && (
+            <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-30 py-1 min-w-[150px] overflow-hidden animate-slide-in">
+              {TICKET_STATUSES.map(s => (
+                <button
+                  key={s}
+                  onClick={() => handleStatusChange(s)}
+                  className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-cortex-surface-raised transition-colors ${s === ticket.status ? 'text-cortex-accent' : 'text-cortex-text'}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Priority */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowPriorityDrop(s => !s); setShowStatusDrop(false); setShowAssignDrop(false) }}
+            disabled={changingPriority}
+            className="flex items-center gap-1.5 text-xs bg-cortex-bg border border-cortex-border hover:border-cortex-accent px-3 py-1.5 rounded-lg transition-colors text-cortex-text font-medium"
+          >
+            {changingPriority ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+            {ticket.priority || 'Priority'}
+            <ChevronDown className="w-3 h-3 text-cortex-muted" />
+          </button>
+          {showPriorityDrop && (
+            <div className="absolute top-full left-0 mt-1.5 bg-cortex-surface border border-cortex-border rounded-xl shadow-lg z-30 py-1 min-w-[100px] overflow-hidden animate-slide-in">
+              {TICKET_PRIORITIES.map(p => (
+                <button
+                  key={p}
+                  onClick={() => handlePriorityChange(p)}
+                  className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-cortex-surface-raised transition-colors ${p === ticket.priority ? 'text-cortex-accent' : 'text-cortex-text'}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-4 bg-cortex-border mx-1" />
+
+        {/* Escalate */}
+        <button
+          onClick={handleEscalate}
+          disabled={escalating}
+          className="flex items-center gap-1.5 text-xs bg-cortex-warning/10 text-cortex-warning hover:bg-cortex-warning/20 px-3 py-1.5 rounded-lg transition-colors font-medium"
+        >
+          <ArrowUpCircle className="w-3 h-3" />
+          {escalating ? 'Escalating…' : 'Escalate'}
+        </button>
+
+        {/* Assign */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowAssignDrop(s => !s); setShowStatusDrop(false); setShowPriorityDrop(false) }}
+            disabled={assigning}
+            className="flex items-center gap-1.5 text-xs bg-cortex-accent/10 text-cortex-accent hover:bg-cortex-accent/20 px-3 py-1.5 rounded-lg transition-colors font-medium"
+          >
+            <UserCheck className="w-3 h-3" />
+            {ticket.assigned_to_email ? ticket.assigned_to_email.split('@')[0] : 'Assign'}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {showAssignDrop && (
+            <AssignDropdown onAssign={handleAssign} onClose={() => setShowAssignDrop(false)} />
+          )}
+        </div>
+      </div>
 
       {/* ── 2-column layout ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
@@ -620,13 +615,12 @@ export default function TicketDetailPage() {
             <Section title="Similar Resolved Tickets" icon={History} badge={similarTickets.length} defaultOpen={false}>
               <div className="space-y-2">
                 {similarTickets.map(t => (
-                  <Link
+                  <div
                     key={t.id}
-                    href={`/tickets/${t.id}`}
-                    className="flex items-center justify-between p-3 bg-cortex-bg rounded-xl hover:bg-cortex-surface-raised transition-colors border border-cortex-border group"
+                    className="flex items-center justify-between p-3 bg-cortex-bg rounded-xl border border-cortex-border"
                   >
                     <div className="flex-1 min-w-0 mr-4">
-                      <p className="text-sm font-medium text-cortex-text truncate group-hover:text-cortex-accent transition-colors">{t.title}</p>
+                      <p className="text-sm font-medium text-cortex-text truncate">{t.title}</p>
                       <p className="text-xs text-cortex-muted mt-0.5">{t.module} · {t.request_type}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -635,7 +629,7 @@ export default function TicketDetailPage() {
                         {t.resolved_at ? formatRelativeTime(t.resolved_at) : ''}
                       </span>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </Section>
@@ -669,14 +663,14 @@ export default function TicketDetailPage() {
                   <span className="text-xs text-cortex-muted">Resolution due</span>
                   <div className="text-right">
                     <p className="text-xs font-mono">{formatDate(ticket.sla_resolution_due)}</p>
-                    {!isPaused && <SLACountdown dueDate={ticket.sla_resolution_due} label="" />}
+                    {!isPaused && <SLACountdown dueDate={ticket.sla_resolution_due} />}
                   </div>
                 </div>
               )}
               {ticket.sla_response_due && !isPaused && (
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-xs text-cortex-muted">Response due</span>
-                  <SLACountdown dueDate={ticket.sla_response_due} label="" />
+                  <SLACountdown dueDate={ticket.sla_response_due} />
                 </div>
               )}
               {isPaused && (
@@ -775,11 +769,6 @@ export default function TicketDetailPage() {
                       <span className="text-[10px] text-cortex-muted font-mono">{formatRelativeTime(alert.created_at)}</span>
                     </div>
                     <p className="text-xs text-cortex-muted">Consumption: {alert.consumption_pct}%</p>
-                    {alert.notified_emails?.length > 0 && (
-                      <p className="text-[10px] text-cortex-muted mt-1 truncate">
-                        Notified: {alert.notified_emails.join(', ')}
-                      </p>
-                    )}
                   </div>
                 ))}
                 {hiddenAlerts > 0 && (
@@ -799,15 +788,11 @@ export default function TicketDetailPage() {
   )
 }
 
-/* ── Assign dropdown ────────────────────────────────────────────────── */
-function AssignDropdown({ onAssign, onClose, agentsOnly }) {
+/* ── Assign dropdown — shows all active users ───────────────────────── */
+function AssignDropdown({ onAssign, onClose }) {
   const { data: users = [] } = useQuery({
-    queryKey: ['assign-user-list', agentsOnly],
-    queryFn: () => getUsers().then(u =>
-      agentsOnly
-        ? u.filter(x => x.role === 'agent' && x.is_active)
-        : u.filter(x => x.is_active)
-    ),
+    queryKey: ['all-user-list-assign'],
+    queryFn: () => getUsers().then(u => u.filter(x => x.is_active)),
     staleTime: 300000,
   })
 

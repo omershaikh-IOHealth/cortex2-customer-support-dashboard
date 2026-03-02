@@ -144,7 +144,7 @@ export default function MyTicketsPage() {
           {sorted.map(ticket => (
             <Link
               key={ticket.id}
-              href={`/tickets/${ticket.id}`}
+              href={`/my-tickets/${ticket.id}`}
               className="card flex items-center gap-4 hover:border-cortex-accent/40 transition-colors group"
             >
               {/* SLA bar */}
