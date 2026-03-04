@@ -442,7 +442,10 @@ function CompanyCard({ company, isExpanded, onToggle, onEdit, onDelete, onAddPOC
                   <div key={poc.id} className="p-3 bg-cortex-bg rounded-lg border border-cortex-border">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium">{poc.name}</p>
+                        <p className="font-medium flex items-center gap-1.5">
+                          {poc.name}
+                          {poc.is_vip && <span title="VIP customer">⭐</span>}
+                        </p>
                         <p className="text-sm text-cortex-muted">{poc.email}</p>
                         {poc.phone && <p className="text-xs text-cortex-muted font-mono">{poc.phone}</p>}
                         {poc.role && <p className="text-xs text-cortex-accent mt-1">{poc.role}</p>}
@@ -1011,12 +1014,13 @@ function POCModal({ isOpen, onClose, data, company_id, onSave }) {
     phone: '',
     role: '',
     status: 'active',
-    is_primary: false
+    is_primary: false,
+    is_vip: false,
   })
 
   useEffect(() => {
     if (data) setForm(data)
-    else setForm({ company_id, email: '', name: '', phone: '', role: '', status: 'active', is_primary: false })
+    else setForm({ company_id, email: '', name: '', phone: '', role: '', status: 'active', is_primary: false, is_vip: false })
   }, [data, company_id])
 
   return (
@@ -1042,6 +1046,16 @@ function POCModal({ isOpen, onClose, data, company_id, onSave }) {
             <label className="block text-sm font-medium mb-2">Role</label>
             <input type="text" value={form.role || ''} onChange={(e) => setForm({ ...form, role: e.target.value })} className="input w-full" />
           </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={!!form.is_primary} onChange={(e) => setForm({ ...form, is_primary: e.target.checked })} />
+            Primary contact
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={!!form.is_vip} onChange={(e) => setForm({ ...form, is_vip: e.target.checked })} />
+            ⭐ VIP customer
+          </label>
         </div>
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
@@ -1186,6 +1200,25 @@ function EscalationConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
     else setForm({ ...defaults, solution_id })
   }, [data, solution_id])
 
+  const { data: assignees = [] } = useQuery({
+    queryKey: ['assignees', solution_id],
+    queryFn: () => getAssignees(solution_id),
+    enabled: !!solution_id && isOpen,
+  })
+
+  // Unique roles from assignee configs
+  const roleOptions = [...new Map(assignees.map(a => [a.role_code, a])).values()]
+
+  function toggleRole(role_code) {
+    const current = form.notify_roles || []
+    setForm(f => ({
+      ...f,
+      notify_roles: current.includes(role_code)
+        ? current.filter(r => r !== role_code)
+        : [...current, role_code]
+    }))
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={data ? 'Edit Escalation' : 'Add Escalation'}>
       <form onSubmit={(e) => {
@@ -1194,17 +1227,47 @@ function EscalationConfigModal({ isOpen, onClose, data, solution_id, onSave }) {
       }} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-          <label className="block text-sm font-medium mb-2">Level *</label>
-          <input type="number" min="1" max="10" value={form.level} onChange={(e) => setForm({ ...form, level: parseInt(e.target.value) || '' })} className="input w-full" required />
+            <label className="block text-sm font-medium mb-2">Level *</label>
+            <input type="number" min="1" max="10" value={form.level} onChange={(e) => setForm({ ...form, level: parseInt(e.target.value) || '' })} className="input w-full" required />
           </div>
           <div>
-          <label className="block text-sm font-medium mb-2">Threshold % *</label>
-          <input type="number" min="0" max="100" step="1" value={form.threshold_percent} onChange={(e) => setForm({ ...form, threshold_percent: parseFloat(e.target.value) || '' })} className="input w-full" required />
+            <label className="block text-sm font-medium mb-2">Threshold % *</label>
+            <input type="number" min="0" max="100" step="1" value={form.threshold_percent} onChange={(e) => setForm({ ...form, threshold_percent: parseFloat(e.target.value) || '' })} className="input w-full" required />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">Level Name *</label>
           <input type="text" value={form.level_name} onChange={(e) => setForm({ ...form, level_name: e.target.value })} className="input w-full" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Notify Roles</label>
+          {roleOptions.length === 0 ? (
+            <p className="text-xs text-cortex-muted">No assignees configured for this solution yet. Add them in the Assignees section first.</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {roleOptions.map(a => (
+                <label key={a.role_code} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(form.notify_roles || []).includes(a.role_code)}
+                    onChange={() => toggleRole(a.role_code)}
+                    className="rounded"
+                  />
+                  <span className="text-cortex-text">{a.role_name || a.role_code}</span>
+                  <span className="text-xs text-cortex-muted">({a.person_name})</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Action Description</label>
+          <textarea
+            value={form.action_description || ''}
+            onChange={(e) => setForm({ ...form, action_description: e.target.value })}
+            placeholder="Describe what action to take at this escalation level..."
+            className="input w-full min-h-[72px] resize-y text-sm"
+          />
         </div>
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>

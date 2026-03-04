@@ -10,26 +10,27 @@ export async function POST(request, { params }) {
   const { id } = params
   const body = await request.json().catch(() => ({}))
   const reason = body.reason || 'Manual escalation'
+  const requestedLevel = body.level ? parseInt(body.level) : null
 
   try {
     const ticketRes = await pool.query(
-      `SELECT id, escalation_level, company_code FROM main.tickets WHERE id = $1`,
+      `SELECT id, escalation_level FROM main.tickets WHERE id = $1`,
       [id]
     )
     if (ticketRes.rows.length === 0)
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
 
     const ticket = ticketRes.rows[0]
-    const newLevel = (ticket.escalation_level || 0) + 1
+    const newLevel = requestedLevel ?? (ticket.escalation_level || 0) + 1
 
     await pool.query(
-      `UPDATE main.tickets SET escalation_level = $1 WHERE id = $2`,
+      `UPDATE main.tickets SET escalation_level = $1, last_escalation_at = NOW() WHERE id = $2`,
       [newLevel, id]
     )
 
     // Log in threads
     await pool.query(
-      `INSERT INTO main.threads (ticket_id, action_type, thread_source, notes, created_by_email)
+      `INSERT INTO main.threads (ticket_id, action_type, thread_source, raw_content, actor_email)
        VALUES ($1, 'escalation', 'internal', $2, $3)`,
       [id, `Escalated to Level ${newLevel}: ${reason}`, session.user.email]
     )

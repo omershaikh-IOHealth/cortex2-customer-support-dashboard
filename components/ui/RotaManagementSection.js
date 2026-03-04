@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, CalendarRange, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee } from 'lucide-react'
+import { Calendar, CalendarRange, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee, CheckCircle, Circle } from 'lucide-react'
 import Modal from './Modal'
 import { getUsers, getRotas, createRota, updateRota, deleteRota, createBulkRota } from '@/lib/api'
 
@@ -138,6 +138,18 @@ export default function RotaManagementSection() {
 
   const today = fmt(new Date())
 
+  // Fetch briefing ack status for today's shifts
+  const { data: todayAcks = [] } = useQuery({
+    queryKey: ['briefing-acks-today', today],
+    queryFn: () => fetch(`/api/admin/briefing-acks?date=${today}`).then(r => r.ok ? r.json() : []),
+    refetchInterval: 60000,
+  })
+  const ackByUserId = useMemo(() => {
+    const map = {}
+    for (const a of todayAcks) map[a.user_id] = a.acked_at
+    return map
+  }, [todayAcks])
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -225,36 +237,54 @@ export default function RotaManagementSection() {
                 ) : dayShifts.length === 0 ? (
                   <p className="text-xs text-cortex-muted text-center pt-4">—</p>
                 ) : (
-                  dayShifts.map(s => (
-                    <div
-                      key={s.id}
-                      draggable
-                      onDragStart={e => {
-                        dragShiftRef.current = { id: s.id, shift_date: key }
-                        e.dataTransfer.effectAllowed = 'move'
-                      }}
-                      onDragEnd={() => setDragOverDate(null)}
-                      className="bg-cortex-bg border border-cortex-border rounded p-1.5 group relative cursor-grab active:cursor-grabbing"
-                    >
-                      <div className="text-xs font-medium text-cortex-text truncate">{s.agent_name}</div>
-                      <div className="flex items-center gap-1 text-xs text-cortex-muted mt-0.5">
-                        <Clock className="w-2.5 h-2.5" />
-                        {s.start_time?.slice(0,5)}–{s.end_time?.slice(0,5)}
-                      </div>
-                      {s.breaks?.length > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-cortex-warning mt-0.5">
-                          <Coffee className="w-2.5 h-2.5" />
-                          {s.breaks.length} break{s.breaks.length > 1 ? 's' : ''}
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-cortex-muted hover:text-cortex-danger transition-all"
+                  dayShifts.map(s => {
+                    const ackedAt = isToday ? ackByUserId[s.user_id] : null
+                    const ackTitle = isToday
+                      ? (ackedAt
+                          ? `Acknowledged at ${new Date(ackedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Not yet acknowledged')
+                      : null
+                    return (
+                      <div
+                        key={s.id}
+                        draggable
+                        onDragStart={e => {
+                          dragShiftRef.current = { id: s.id, shift_date: key }
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragEnd={() => setDragOverDate(null)}
+                        className="bg-cortex-bg border border-cortex-border rounded p-1.5 group relative cursor-grab active:cursor-grabbing"
                       >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))
+                        <div className="flex items-center gap-1 pr-4">
+                          <span className="text-xs font-medium text-cortex-text truncate flex-1">{s.agent_name}</span>
+                          {isToday && (
+                            <span title={ackTitle} className="flex-shrink-0">
+                              {ackedAt
+                                ? <CheckCircle className="w-3 h-3 text-cortex-success" />
+                                : <Circle className="w-3 h-3 text-cortex-muted" />
+                              }
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-cortex-muted mt-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          {s.start_time?.slice(0,5)}–{s.end_time?.slice(0,5)}
+                        </div>
+                        {s.breaks?.length > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-cortex-warning mt-0.5">
+                            <Coffee className="w-2.5 h-2.5" />
+                            {s.breaks.length} break{s.breaks.length > 1 ? 's' : ''}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleDelete(s.id)}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-cortex-muted hover:text-cortex-danger transition-all"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )
+                  })
                 )}
               </div>
 

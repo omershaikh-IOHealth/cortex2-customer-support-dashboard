@@ -18,13 +18,18 @@ import {
   Users,
   CalendarDays,
   RadioTower,
+  Plug,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import NotificationBell from './NotificationBell'
+import { useQuery } from '@tanstack/react-query'
+import { getNotifications } from '@/lib/api'
+import NewBadge from './NewBadge'
 
 const navigation = [
   { name: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard },
   { name: 'Tickets',       href: '/tickets',        icon: Ticket },
+  { name: 'Customers',     href: '/pocs',           icon: Users,       isNew: true, newDesc: 'New page — search, view and edit all contacts. See linked tickets and open ticket count. Accessible by agents too.' },
   { name: 'SLA Monitor',   href: '/sla',            icon: Clock },
   { name: 'Escalations',   href: '/escalations',    icon: AlertTriangle },
   { name: 'Analytics',     href: '/analytics',      icon: TrendingUp },
@@ -33,6 +38,8 @@ const navigation = [
   { name: 'Knowledge Base',href: '/knowledge-base', icon: BookOpen },
   { name: 'QA Sampling',   href: '/qa',             icon: Shuffle },
   { name: 'System Logs',   href: '/logs',           icon: Activity },
+  { name: 'Integrations',  href: '/integrations',   icon: Plug,        isNew: true, newDesc: 'New page — real-time health status of all integrations: Database, ClickUp, ZIWO, n8n, AI, and Zoho.' },
+  { name: 'Notifications', href: '/notifications',  icon: Bell,        isNew: true, newDesc: 'New full-page notification centre with filter tabs (All, Unread, Escalations, SLA Alerts). Replaces the old dropdown bell.' },
   { name: 'Admin',         href: '/admin',          icon: Settings },
 ]
 
@@ -43,6 +50,13 @@ function getInitials(str = '') {
 export default function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: getNotifications,
+    refetchInterval: 30000,
+  })
+  const unreadCount = notifData?.unread_count ?? 0
 
   return (
     <div className="flex flex-col w-64 h-screen bg-cortex-surface border-r border-cortex-border fixed left-0 top-0">
@@ -90,7 +104,13 @@ export default function Sidebar() {
                 'w-4 h-4 flex-shrink-0 transition-colors',
                 isActive ? 'text-cortex-accent' : 'text-cortex-muted group-hover:text-cortex-text'
               )} />
-              <span>{item.name}</span>
+              <span className="flex-1">{item.name}</span>
+              {item.isNew && <NewBadge description={item.newDesc} />}
+              {item.href === '/notifications' && unreadCount > 0 && (
+                <span className="w-4 h-4 flex items-center justify-center bg-cortex-danger text-white text-[9px] font-bold rounded-full flex-shrink-0">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}
@@ -102,7 +122,6 @@ export default function Sidebar() {
         {/* Controls row */}
         <div className="flex items-center gap-2 px-1">
           <ThemeToggle />
-          <NotificationBell />
           <div className="flex items-center gap-1.5 ml-auto">
             <span className="w-1.5 h-1.5 bg-cortex-success rounded-full animate-pulse" />
             <span className="text-[10px] text-cortex-muted font-mono">Online</span>

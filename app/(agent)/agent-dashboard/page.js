@@ -1,11 +1,13 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2 } from 'lucide-react'
+import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2, Target, RefreshCw } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { getCalls } from '@/lib/api'
+import { getCalls, getAHTMetrics, getFCRMetrics, syncMyCalls } from '@/lib/api'
 import EmptyState from '@/components/ui/EmptyState'
+import NewBadge from '@/components/ui/NewBadge'
 
 function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent', bg = 'bg-cortex-accent/10' }) {
   return (
@@ -24,11 +26,41 @@ function MetricTile({ label, value, sub, icon: Icon, color = 'text-cortex-accent
 
 export default function AgentDashboardPage() {
   const { data: session } = useSession()
+  const qc = useQueryClient()
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState(null)
+
+  async function handleSync() {
+    setSyncing(true); setSyncMsg(null)
+    try {
+      const r = await syncMyCalls()
+      setSyncMsg({ ok: true, text: `Synced ${r.synced} · ${r.skipped} already existed` })
+      qc.invalidateQueries({ queryKey: ['my-calls'] })
+      qc.invalidateQueries({ queryKey: ['aht-metrics'] })
+      qc.invalidateQueries({ queryKey: ['fcr-metrics'] })
+    } catch (e) {
+      setSyncMsg({ ok: false, text: e.message || 'Sync failed' })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const { data: calls = [], isLoading } = useQuery({
     queryKey: ['my-calls'],
     queryFn: () => getCalls({ limit: 50 }),
     refetchInterval: 30000,
+  })
+
+  const { data: ahtData } = useQuery({
+    queryKey: ['aht-metrics'],
+    queryFn: getAHTMetrics,
+    refetchInterval: 300000,
+  })
+
+  const { data: fcrData } = useQuery({
+    queryKey: ['fcr-metrics'],
+    queryFn: getFCRMetrics,
+    refetchInterval: 300000,
   })
 
   const total     = calls.length
@@ -46,12 +78,26 @@ export default function AgentDashboardPage() {
     <div className="space-y-8 animate-fade-in">
 
       {/* Header */}
-      <div>
-        <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">Overview</p>
-        <h1 className="text-3xl font-display font-bold text-cortex-text">My Dashboard</h1>
-        {session?.user?.name && (
-          <p className="text-sm text-cortex-muted mt-0.5">{session.user.name} · last 50 calls</p>
-        )}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">Overview</p>
+          <h1 className="text-3xl font-display font-bold text-cortex-text">My Dashboard</h1>
+          {session?.user?.name && (
+            <p className="text-sm text-cortex-muted mt-0.5">{session.user.name} · last 50 calls</p>
+          )}
+        </div>
+        <div className="flex items-center gap-3 pb-1">
+          {syncMsg && (
+            <p className={`text-xs font-mono ${syncMsg.ok ? 'text-cortex-success' : 'text-cortex-danger'}`}>
+              {syncMsg.text}
+            </p>
+          )}
+          <button onClick={handleSync} disabled={syncing} className="btn-secondary flex items-center gap-2 text-xs">
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync from ZIWO'}
+          </button>
+          <NewBadge description="New — pulls your call history from ZIWO into Cortex. Run this once to backfill your call log and populate your AHT & FCR metrics." />
+        </div>
       </div>
 
       {/* KPI tiles */}
@@ -88,6 +134,32 @@ export default function AgentDashboardPage() {
           color="text-cortex-text"
           bg="bg-cortex-surface-raised"
         />
+        <div className="relative">
+          <MetricTile
+            label="Avg Handle Time (30d)"
+            value={ahtData?.avg_minutes ? `${ahtData.avg_minutes} min` : '— min'}
+            sub="Talk time · API"
+            icon={Clock}
+            color="text-cortex-accent"
+            bg="bg-cortex-accent/10"
+          />
+          <div className="absolute top-3 right-3">
+            <NewBadge description="New KPI — your average call handle time over the last 30 days. Sync from ZIWO first to populate this." />
+          </div>
+        </div>
+        <div className="relative">
+          <MetricTile
+            label="FCR Rate (30d)"
+            value={fcrData?.fcr_rate != null ? `${fcrData.fcr_rate}%` : '—%'}
+            sub="No-ticket calls"
+            icon={Target}
+            color={fcrData?.fcr_rate >= 70 ? 'text-cortex-success' : fcrData?.fcr_rate >= 50 ? 'text-cortex-warning' : 'text-cortex-danger'}
+            bg={fcrData?.fcr_rate >= 70 ? 'bg-cortex-success/10' : fcrData?.fcr_rate >= 50 ? 'bg-cortex-warning/10' : 'bg-cortex-danger/10'}
+          />
+          <div className="absolute top-3 right-3">
+            <NewBadge description="New KPI — your First Call Resolution Rate. Calls you handled without creating a ticket count as resolved on first contact." />
+          </div>
+        </div>
       </div>
 
       {/* Recent call log */}

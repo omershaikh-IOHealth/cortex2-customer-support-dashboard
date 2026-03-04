@@ -14,6 +14,7 @@ export async function POST(request) {
       title, description, priority = 'P3', status = 'Open',
       module, request_type, case_type,
       poc_id, company_id, solution_id,
+      channel = 'email',
     } = body
 
     if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
@@ -22,12 +23,12 @@ export async function POST(request) {
     const result = await pool.query(
       `INSERT INTO main.tickets
          (title, description, priority, status, module, request_type, case_type,
-          poc_id, company_id, solution_id, created_by_name, created_by_email)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          poc_id, company_id, solution_id, created_by_name, created_by_email, channel)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [title, description, priority, status, module, request_type, case_type,
        poc_id || null, company_id || null, solution_id || null,
-       session.user.name, session.user.email]
+       session.user.name, session.user.email, channel]
     )
     const ticket = result.rows[0]
 
@@ -106,9 +107,9 @@ export async function GET(request) {
         t.status, t.priority, t.request_type, t.case_type, t.module,
         t.sla_consumption_pct, t.sla_status, t.sla_response_due, t.sla_resolution_due,
         t.escalation_level, t.last_escalation_at, t.ai_sentiment,
-        t.assigned_to_id, t.assigned_to_email,
+        t.assigned_to_id, t.assigned_to_email, t.channel,
         t.created_at, t.updated_at, t.created_by_name, t.created_by_email,
-        p.name as poc_name, p.email as poc_email,
+        p.name as poc_name, p.email as poc_email, p.is_vip as poc_is_vip,
         (SELECT COUNT(*) FROM main.threads WHERE ticket_id = t.id) as thread_count,
         (SELECT created_at FROM main.threads
          WHERE ticket_id = t.id AND action_type = 'status_change'

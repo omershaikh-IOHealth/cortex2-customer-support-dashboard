@@ -65,6 +65,8 @@ export async function GET(request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
     const offset = parseInt(searchParams.get('offset') || '0')
     const direction = searchParams.get('direction')
+    const agentId = searchParams.get('agent_id')
+    const hasTicket = searchParams.get('has_ticket') // 'yes' | 'no'
 
     const conditions = []
     const params = []
@@ -74,22 +76,29 @@ export async function GET(request) {
     if (session.user.role !== 'admin') {
       conditions.push(`c.agent_id = $${i++}`)
       params.push(session.user.id)
+    } else if (agentId) {
+      conditions.push(`c.agent_id = $${i++}`)
+      params.push(agentId)
     }
     if (direction) {
       conditions.push(`c.direction = $${i++}`)
       params.push(direction)
     }
+    if (hasTicket === 'yes') conditions.push('c.ticket_id IS NOT NULL')
+    if (hasTicket === 'no') conditions.push('c.ticket_id IS NULL')
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     params.push(limit, offset)
 
     const result = await pool.query(
       `SELECT c.id, c.primary_call_id, c.direction, c.customer_number,
-              c.duration_secs, c.hangup_cause, c.status,
-              c.started_at, c.ended_at,
-              u.full_name as agent_name, u.email as agent_email
+              c.duration_secs, c.talk_time_secs, c.hangup_cause, c.status,
+              c.started_at, c.ended_at, c.ticket_id,
+              u.full_name as agent_name, u.email as agent_email,
+              t.id as ticket_ref, t.title as ticket_title, t.status as ticket_status
        FROM main.call_logs c
        LEFT JOIN main.users u ON c.agent_id = u.id
+       LEFT JOIN main.tickets t ON c.ticket_id = t.id
        ${where}
        ORDER BY c.started_at DESC
        LIMIT $${i++} OFFSET $${i++}`,

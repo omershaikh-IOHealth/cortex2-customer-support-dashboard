@@ -42,6 +42,7 @@ import {
   AtSign,
 } from 'lucide-react'
 import { openCompanionWith } from '@/components/ui/AICompanion'
+import NewBadge from '@/components/ui/NewBadge'
 import toast from 'react-hot-toast'
 
 const TICKET_STATUSES = ['Open', 'In Progress', 'Waiting', 'Resolved', 'Closed']
@@ -142,6 +143,9 @@ export default function TicketDetailPage() {
   const [changingPriority, setChangingPriority] = useState(false)
   const [escalating, setEscalating] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [showEscalateModal, setShowEscalateModal] = useState(false)
+  const [escalateLevel, setEscalateLevel] = useState('1')
+  const [escalateReason, setEscalateReason] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -307,16 +311,24 @@ export default function TicketDetailPage() {
   }
 
   async function handleEscalate() {
-    if (!confirm('Escalate this ticket one level?')) return
+    setShowEscalateModal(true)
+    setEscalateLevel('1')
+    setEscalateReason('')
+  }
+
+  async function submitEscalation() {
+    if (!escalateReason.trim()) return
     setEscalating(true)
     try {
       await fetch(`/api/tickets/${ticketId}/escalate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Manual escalation by admin' }),
+        body: JSON.stringify({ level: parseInt(escalateLevel), reason: escalateReason.trim() }),
       })
+      await addTicketNote(ticketId, { content: `Escalation reason (L${escalateLevel}): ${escalateReason.trim()}` })
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
-      toast.success('Ticket escalated')
+      toast.success(`Escalated to Level ${escalateLevel}`)
+      setShowEscalateModal(false)
     } catch (err) {
       toast.error(err.message || 'Failed to escalate')
     } finally {
@@ -388,6 +400,7 @@ export default function TicketDetailPage() {
   const slaPct = Math.min(ticket.sla_consumption_pct || 0, 100)
 
   return (
+    <>
     <div className="max-w-screen-xl mx-auto space-y-5 animate-fade-in">
 
       {/* ── Breadcrumb ─────────────────────────────────────────────── */}
@@ -450,7 +463,23 @@ export default function TicketDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {ticket.channel === 'voice'
+            ? <span className="badge bg-blue-500/10 text-blue-400 border border-blue-500/20">📞 Voice</span>
+            : <span className="badge bg-cortex-surface border border-cortex-border text-cortex-muted">✉ Email</span>
+          }
+          <NewBadge description="Channel tag (new) — Voice or Email source of this ticket. Used for filtering in My Tickets and Call Logs." />
           <span className={`badge ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
+          {(() => {
+            const s = ticket.ai_sentiment; const e = ticket.escalation_level || 0
+            const isHigh = s === 'negative' && e >= 2
+            const isMed = (s === 'negative' || e >= 2) && !isHigh
+            return isHigh
+              ? <span className="badge bg-cortex-danger/15 text-cortex-danger">High Risk</span>
+              : isMed
+              ? <span className="badge bg-cortex-warning/15 text-cortex-warning">Med Risk</span>
+              : <span className="badge bg-cortex-success/15 text-cortex-success">Low Risk</span>
+          })()}
+          <NewBadge description="Risk Badge (new) — AI-powered risk level based on sentiment analysis and escalation level. High Risk = negative sentiment + escalation level 2+." />
           <span className={`badge ${getStatusColor(ticket.status)}`}>{ticket.status}</span>
           <span className={`badge ${getSLAStatusColor(ticket.sla_status)}`}>
             SLA: {ticket.sla_paused_at ? 'paused' : ticket.sla_status}
@@ -544,6 +573,7 @@ export default function TicketDetailPage() {
             <ArrowUpCircle className="w-3 h-3" />
             {escalating ? 'Escalating…' : 'Escalate'}
           </button>
+          <NewBadge description="Escalation modal (new) — replaces the old browser popup. Select L1/L2/L3 and enter a required reason. The reason is automatically logged in the Activity Thread." />
 
           {/* Assign */}
           <div className="relative">
@@ -919,7 +949,10 @@ export default function TicketDetailPage() {
           {/* Reporter */}
           <Section title="Reporter" icon={User} defaultOpen>
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-cortex-text">{ticket.poc_name || ticket.created_by_name || 'Unknown'}</p>
+              <p className="text-sm font-semibold text-cortex-text flex items-center gap-1.5">
+                {ticket.poc_name || ticket.created_by_name || 'Unknown'}
+                {ticket.poc_is_vip && <span title="VIP customer">⭐</span>}
+              </p>
               <p className="text-xs text-cortex-muted">{ticket.poc_email || ticket.created_by_email || '—'}</p>
               {ticket.poc_phone && <p className="text-xs text-cortex-muted font-mono mt-1">{ticket.poc_phone}</p>}
               {ticket.assigned_to_email && (
@@ -1027,6 +1060,63 @@ export default function TicketDetailPage() {
         </div>
       </div>
     </div>
+
+    {/* ── Escalation modal ── */}
+    {showEscalateModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl w-full max-w-md animate-slide-in">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border">
+            <h2 className="font-display font-bold text-cortex-text flex items-center gap-2">
+              <ArrowUpCircle className="w-4 h-4 text-cortex-warning" /> Escalate Ticket
+            </h2>
+            <button onClick={() => setShowEscalateModal(false)} className="p-1.5 hover:bg-cortex-surface-raised rounded-lg text-cortex-muted hover:text-cortex-text transition-colors">
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Escalation Level</label>
+              <div className="flex gap-2">
+                {['1', '2', '3'].map(l => (
+                  <button
+                    key={l}
+                    onClick={() => setEscalateLevel(l)}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                      escalateLevel === l
+                        ? 'bg-cortex-warning/15 text-cortex-warning border-cortex-warning/40'
+                        : 'bg-cortex-bg border-cortex-border text-cortex-muted hover:border-cortex-muted hover:text-cortex-text'
+                    }`}
+                  >
+                    Level {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Reason *</label>
+              <textarea
+                value={escalateReason}
+                onChange={e => setEscalateReason(e.target.value)}
+                placeholder="Explain why this ticket needs escalation…"
+                className="input min-h-[90px] resize-y text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={submitEscalation}
+                disabled={!escalateReason.trim() || escalating}
+                className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {escalating ? 'Escalating…' : `Escalate to Level ${escalateLevel}`}
+              </button>
+              <button onClick={() => setShowEscalateModal(false)} className="btn-secondary px-5">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

@@ -19,6 +19,7 @@ const STATUS_NUMBER = {
   break:     2,
   meeting:   3,
   not_ready: 5,
+  wrap_up:   5,
 }
 
 export async function POST(request) {

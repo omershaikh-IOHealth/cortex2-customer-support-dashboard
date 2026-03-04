@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import NewBadge from '@/components/ui/NewBadge'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -15,11 +16,13 @@ import {
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime, cn } from '@/lib/utils'
 
 const STATUS_TABS = [
-  { key: 'all',         label: 'All',         filter: {} },
-  { key: 'open',        label: 'Open',        filter: { status: 'Open' } },
-  { key: 'in_progress', label: 'In Progress', filter: { status: 'In Progress' } },
-  { key: 'waiting',     label: 'Waiting',     filter: { status: 'Waiting' } },
-  { key: 'resolved',    label: 'Resolved',    filter: { status: 'complete' } },
+  { key: 'all',         label: 'All',         filter: {},                    channelFilter: null },
+  { key: 'open',        label: 'Open',        filter: { status: 'Open' },    channelFilter: null },
+  { key: 'in_progress', label: 'In Progress', filter: { status: 'In Progress' }, channelFilter: null },
+  { key: 'waiting',     label: 'Waiting',     filter: { status: 'Waiting' }, channelFilter: null },
+  { key: 'resolved',    label: 'Resolved',    filter: { status: 'complete' }, channelFilter: null },
+  { key: 'voice',       label: '📞 Voice',    filter: {},                    channelFilter: 'voice' },
+  { key: 'email',       label: '✉ Email',     filter: {},                    channelFilter: 'email' },
 ]
 
 function fetchMyTickets(params = {}) {
@@ -57,7 +60,10 @@ export default function MyTicketsPage() {
       !orgFilter ||
       t.company_name === orgFilter ||
       t.company_code === orgFilter
-    return matchSearch && matchOrg
+    const matchChannel =
+      !currentTab.channelFilter ||
+      t.channel === currentTab.channelFilter
+    return matchSearch && matchOrg && matchChannel
   })
 
   // Sort by SLA consumption (highest first) — critical tickets to top
@@ -110,7 +116,7 @@ export default function MyTicketsPage() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex gap-1.5 flex-wrap items-center">
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
@@ -125,6 +131,7 @@ export default function MyTicketsPage() {
             {tab.label}
           </button>
         ))}
+        <NewBadge description="Channel filters (new) — the 📞 Voice and ✉ Email tabs filter your tickets by how they came in. Voice tickets are created from ZIWO calls." />
       </div>
 
       {/* Ticket list */}

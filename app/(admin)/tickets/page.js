@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket } from '@/lib/api'
+import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, getStatusColor, formatRelativeTime, truncate, getSentimentEmoji } from '@/lib/utils'
-import { Search, ExternalLink, Bookmark, Trash2, PauseCircle, PlayCircle, Plus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ExternalLink, Bookmark, Trash2, PauseCircle, PlayCircle, Plus, X, Loader2, ChevronLeft, ChevronRight, ArrowUpCircle } from 'lucide-react'
+import NewBadge from '@/components/ui/NewBadge'
 
 const PRESETS_KEY     = 'cortex_filter_presets'
 const LAST_PRESET_KEY = 'cortex_last_preset'
@@ -30,6 +31,10 @@ export default function TicketsPage() {
   const [showCreate, setShowCreate]   = useState(false)
   const [createForm, setCreateForm]   = useState(BLANK_TICKET)
   const [createError, setCreateError] = useState('')
+  const [escalateTarget, setEscalateTarget] = useState(null) // ticketId | null
+  const [escalateLevel, setEscalateLevel]   = useState('1')
+  const [escalateReason, setEscalateReason] = useState('')
+  const [escalating, setEscalating]         = useState(false)
 
   useEffect(() => {
     setPresets(loadPresets())
@@ -184,11 +189,26 @@ export default function TicketsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-cortex-border">
-                <th className="table-header">Ticket</th>
-                <th className="table-header text-center">Priority</th>
+                <th className="table-header">
+                  <div className="flex items-center gap-1.5">
+                    Ticket
+                    <NewBadge description="Channel tag (new) — 📞 Voice or ✉ Email badge on every ticket. Filter by channel using the Voice/Email tabs in My Tickets." />
+                  </div>
+                </th>
+                <th className="table-header text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    Priority
+                    <NewBadge description="Risk Badge (new) — AI-powered risk level combining sentiment analysis and escalation level. High Risk = negative sentiment + ESC 2+. Hover to learn more." />
+                  </div>
+                </th>
                 <th className="table-header text-center">SLA</th>
                 <th className="table-header text-center">Status</th>
-                <th className="table-header">Reporter</th>
+                <th className="table-header">
+                  <div className="flex items-center gap-1.5">
+                    Reporter
+                    <NewBadge description="VIP flag (new) — ⭐ marks contacts flagged as VIP in the Customers page. Manage VIP status under Customers in the sidebar." />
+                  </div>
+                </th>
                 <th className="table-header">Created</th>
                 <th className="table-header">In Status</th>
                 <th className="table-header text-center">Actions</th>
@@ -216,7 +236,13 @@ export default function TicketsPage() {
                               <span className="text-base leading-5 flex-shrink-0">{getSentimentEmoji(ticket.ai_sentiment)}</span>
                             )}
                             <div>
-                              <p className="font-medium text-cortex-text group-hover:text-cortex-accent transition-colors text-sm leading-snug mb-0.5">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                {ticket.channel === 'voice'
+                                  ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">📞 Voice</span>
+                                  : <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cortex-muted/10 text-cortex-muted border border-cortex-border">✉ Email</span>
+                                }
+                              </div>
+                              <p className="font-medium text-cortex-text group-hover:text-cortex-accent transition-colors text-sm leading-snug">
                                 {truncate(ticket.title, 55)}
                               </p>
                               <p className="text-xs text-cortex-muted font-mono">{ticket.clickup_task_id?.substring(0, 12)}</p>
@@ -225,7 +251,19 @@ export default function TicketsPage() {
                         </Link>
                       </td>
                       <td className="table-cell text-center">
-                        <span className={`badge ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`badge ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
+                          {(() => {
+                            const s = ticket.ai_sentiment; const e = ticket.escalation_level || 0
+                            const isHigh = s === 'negative' && e >= 2
+                            const isMed = (s === 'negative' || e >= 2) && !isHigh
+                            return isHigh
+                              ? <span className="badge bg-cortex-danger/15 text-cortex-danger">High Risk</span>
+                              : isMed
+                              ? <span className="badge bg-cortex-warning/15 text-cortex-warning">Med Risk</span>
+                              : <span className="badge bg-cortex-success/15 text-cortex-success">Low Risk</span>
+                          })()}
+                        </div>
                       </td>
                       <td className="table-cell text-center">
                         <div className="flex flex-col items-center gap-1">
@@ -245,7 +283,10 @@ export default function TicketsPage() {
                       </td>
                       <td className="table-cell">
                         <p className="text-sm font-medium text-cortex-text">{ticket.created_by_name || '—'}</p>
-                        <p className="text-xs text-cortex-muted">{ticket.poc_email}</p>
+                        <p className="text-xs text-cortex-muted flex items-center gap-1">
+                          {ticket.poc_email}
+                          {ticket.poc_is_vip && <span title="VIP customer">⭐</span>}
+                        </p>
                       </td>
                       <td className="table-cell">
                         <span className="text-xs text-cortex-muted">{formatRelativeTime(ticket.created_at)}</span>
@@ -268,6 +309,13 @@ export default function TicketsPage() {
                                 : <PauseCircle className="w-4 h-4 text-cortex-warning" />}
                             </button>
                           )}
+                          <button
+                            onClick={() => { setEscalateTarget(ticket.id); setEscalateLevel('1'); setEscalateReason('') }}
+                            title="Escalate ticket"
+                            className="p-1.5 hover:bg-cortex-surface-raised rounded-lg transition-colors"
+                          >
+                            <ArrowUpCircle className="w-4 h-4 text-cortex-warning" />
+                          </button>
                           {ticket.clickup_url && (
                             <a href={ticket.clickup_url} target="_blank" rel="noopener noreferrer"
                               className="p-1.5 hover:bg-cortex-surface-raised rounded-lg transition-colors" title="Open in ClickUp">
@@ -414,6 +462,80 @@ export default function TicketsPage() {
                 <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary px-5">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Escalation modal */}
+      {escalateTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl w-full max-w-md animate-slide-in">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border">
+              <h2 className="font-display font-bold text-cortex-text flex items-center gap-2">
+                <ArrowUpCircle className="w-4 h-4 text-cortex-warning" /> Escalate Ticket
+              </h2>
+              <button onClick={() => setEscalateTarget(null)} className="p-1.5 hover:bg-cortex-surface-raised rounded-lg text-cortex-muted hover:text-cortex-text transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Escalation Level</label>
+                <div className="flex gap-2">
+                  {['1', '2', '3'].map(l => (
+                    <button
+                      key={l}
+                      onClick={() => setEscalateLevel(l)}
+                      className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                        escalateLevel === l
+                          ? 'bg-cortex-warning/15 text-cortex-warning border-cortex-warning/40'
+                          : 'bg-cortex-bg border-cortex-border text-cortex-muted hover:border-cortex-muted hover:text-cortex-text'
+                      }`}
+                    >
+                      Level {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Reason *</label>
+                <textarea
+                  value={escalateReason}
+                  onChange={e => setEscalateReason(e.target.value)}
+                  placeholder="Explain why this ticket needs escalation…"
+                  className="input min-h-[90px] resize-y text-sm"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  disabled={!escalateReason.trim() || escalating}
+                  onClick={async () => {
+                    if (!escalateReason.trim()) return
+                    setEscalating(true)
+                    try {
+                      await fetch(`/api/tickets/${escalateTarget}/escalate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ level: parseInt(escalateLevel), reason: escalateReason.trim() }),
+                      })
+                      await addTicketNote(escalateTarget, { content: `Escalation reason (L${escalateLevel}): ${escalateReason.trim()}` })
+                      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+                      toast.success(`Escalated to Level ${escalateLevel}`)
+                      setEscalateTarget(null)
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to escalate')
+                    } finally {
+                      setEscalating(false)
+                    }
+                  }}
+                  className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {escalating ? 'Escalating…' : `Escalate to Level ${escalateLevel}`}
+                </button>
+                <button onClick={() => setEscalateTarget(null)} className="btn-secondary px-5">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

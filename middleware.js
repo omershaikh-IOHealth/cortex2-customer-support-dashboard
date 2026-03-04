@@ -1,7 +1,7 @@
 import { auth } from '@/auth.config'
 import { NextResponse } from 'next/server'
 
-const ADMIN_PATHS = ['/dashboard', '/tickets', '/sla', '/escalations', '/analytics', '/qa', '/logs', '/admin', '/agent-status', '/rota']
+const ADMIN_PATHS = ['/dashboard', '/tickets', '/sla', '/escalations', '/analytics', '/qa', '/logs', '/admin', '/agent-status', '/rota', '/integrations']
 
 export default auth(function middleware(req) {
   const { pathname } = req.nextUrl

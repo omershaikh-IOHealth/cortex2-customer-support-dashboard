@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Script from 'next/script'
 import { useSession } from 'next-auth/react'
-import { getMe, logCall } from '@/lib/api'
+import { getMe, logCall, createTicket, updateCallLog, createPOC, createCompany } from '@/lib/api'
+import toast from 'react-hot-toast'
 import {
   Phone,
   PhoneOff,
@@ -62,6 +63,32 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   const [minimized, setMinimized] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
 
+  // Caller screen pop state
+  const [callerPOC, setCallerPOC] = useState(null) // null | { id, name, is_vip, company_name, open_ticket_count }
+
+  // Post-call ticket form state
+  const [showTicketForm, setShowTicketForm] = useState(false)
+  const [ticketTitle, setTicketTitle] = useState('')
+  const [ticketDesc, setTicketDesc] = useState('')
+  const [ticketPriority, setTicketPriority] = useState('P3')
+  const [creatingTicket, setCreatingTicket] = useState(false)
+
+  // POC (customer) section
+  const [pocMode, setPocMode] = useState('search')
+  const [pocSearch, setPocSearch] = useState('')
+  const [pocResults, setPocResults] = useState([])
+  const [pocSearching, setPocSearching] = useState(false)
+  const [selectedPOC, setSelectedPOC] = useState(null)
+  const [newPOCName, setNewPOCName] = useState('')
+  const [newPOCEmail, setNewPOCEmail] = useState('')
+  const [newPOCPhone, setNewPOCPhone] = useState('')
+  // Org (company) section
+  const [orgMode, setOrgMode] = useState('search')
+  const [orgSearch, setOrgSearch] = useState('')
+  const [allOrgs, setAllOrgs] = useState([])
+  const [selectedOrg, setSelectedOrg] = useState(null)
+  const [newOrgName, setNewOrgName] = useState('')
+
   // Drag state — default bottom-4 right-4 (16px each)
   const [pos, setPos] = useState({ bottom: 16, right: 16 })
   const dragState = useRef({ dragging: false, startX: 0, startY: 0, origRight: 16, origBottom: 16 })
@@ -73,6 +100,24 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   const callStartRef = useRef(null)
   const currentCallRef = useRef(null)
   const initDoneRef = useRef(false)
+  const callerPOCRef = useRef(null)
+
+  // Keep callerPOCRef in sync so event-listener closures can read the latest value
+  useEffect(() => { callerPOCRef.current = callerPOC }, [callerPOC])
+
+  // Debounced POC search
+  useEffect(() => {
+    if (!pocSearch.trim() || pocMode !== 'search') { setPocResults([]); return }
+    const t = setTimeout(() => {
+      setPocSearching(true)
+      fetch(`/api/admin/pocs?search=${encodeURIComponent(pocSearch)}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setPocResults(Array.isArray(d) ? d.slice(0, 5) : []))
+        .catch(() => setPocResults([]))
+        .finally(() => setPocSearching(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [pocSearch, pocMode])
 
   // If the Script was already loaded by a previous mount (e.g. page navigation),
   // Next.js won't fire onLoad again — detect it synchronously on mount.
@@ -212,9 +257,18 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
       console.warn('[ZiwoWidget] error', e.detail)
     }
     function onRinging(e) {
+      const number = e.detail?.customerNumber || ''
       currentCallRef.current = e.detail?.currentCall
-      setCallInfo({ number: e.detail?.customerNumber || 'Unknown', direction: e.detail?.direction || 'inbound' })
+      setCallInfo({ number: number || 'Unknown', direction: e.detail?.direction || 'inbound' })
       setStatus(S.RINGING)
+      // Fetch caller info for screen pop
+      setCallerPOC(null)
+      if (number) {
+        fetch(`/api/pocs?phone=${encodeURIComponent(number)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(poc => setCallerPOC(poc || null))
+          .catch(() => {})
+      }
     }
     function onActive(e) {
       currentCallRef.current = e.detail?.currentCall
@@ -240,8 +294,24 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
         startedAt: callStartRef.current,
       }
       setEndedInfo(ended)
+      // Capture callerPOC before clearing (ref holds latest value)
+      const snapPOC = callerPOCRef.current
+      setCallerPOC(null)
+      setShowTicketForm(true)
+      setTicketTitle('')
+      setTicketDesc('')
+      setTicketPriority('P3')
+      // Reset POC/org form
+      setPocMode('search'); setPocSearch(''); setPocResults([])
+      setNewPOCName(''); setNewPOCEmail(''); setNewPOCPhone('')
+      setOrgMode('search'); setOrgSearch(''); setSelectedOrg(null); setNewOrgName('')
+      // Pre-populate from caller screen pop
+      setSelectedPOC(snapPOC?.id ? { id: snapPOC.id, name: snapPOC.name } : null)
+      // Load orgs for dropdown
+      fetch('/api/admin/companies').then(r => r.json()).then(d => setAllOrgs(Array.isArray(d) ? d : [])).catch(() => {})
       currentCallRef.current = null
       setStatus(S.ENDED)
+      window.dispatchEvent(new CustomEvent('cortex-wrap-up-start'))
     }
     function onDestroy() {
       if (currentCallRef.current) {
@@ -419,6 +489,27 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
                     {callInfo?.direction} · waiting to answer
                   </p>
                 </div>
+
+                {/* Caller screen pop */}
+                {callerPOC ? (
+                  <div className="rounded-lg border border-cortex-border bg-cortex-bg px-3 py-2.5 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-cortex-text truncate">{callerPOC.name}</span>
+                      {callerPOC.is_vip && <span title="VIP customer" className="text-base leading-none">⭐</span>}
+                    </div>
+                    {callerPOC.company_name && (
+                      <p className="text-xs text-cortex-muted">{callerPOC.company_name}</p>
+                    )}
+                    <p className="text-xs text-cortex-muted">
+                      {callerPOC.open_ticket_count} open ticket{callerPOC.open_ticket_count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                ) : callInfo?.number && callInfo.number !== 'Unknown' ? (
+                  <div className="rounded-lg border border-cortex-border bg-cortex-bg px-3 py-2 text-xs text-cortex-muted">
+                    Unknown caller
+                  </div>
+                ) : null}
+
                 <div className="flex gap-2">
                   <button
                     onClick={handleAnswer}
@@ -483,30 +574,200 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
               </div>
             )}
 
-            {/* ── Ended call summary ── */}
+            {/* ── Ended call summary + ticket creation ── */}
             {status === S.ENDED && endedInfo && (
               <div className="space-y-3">
+                {/* Call summary */}
                 <div>
                   <p className="text-xs text-cortex-muted font-mono uppercase tracking-wider mb-2">
                     Call Ended
                   </p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <span className="text-cortex-muted">Duration</span>
                     <span className="text-cortex-text font-mono">{fmt(endedInfo.duration)}</span>
-                    <span className="text-cortex-muted">Direction</span>
-                    <span className="text-cortex-text capitalize">{endedInfo.direction}</span>
                     <span className="text-cortex-muted">Number</span>
                     <span className="text-cortex-text font-mono truncate">{endedInfo.number}</span>
-                    <span className="text-cortex-muted">Cause</span>
-                    <span className="text-cortex-text capitalize">{endedInfo.cause}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setStatus(S.CONNECTED)}
-                  className="w-full py-1.5 text-xs text-cortex-muted hover:text-cortex-text border border-cortex-border rounded-lg transition-colors"
-                >
-                  Dismiss
-                </button>
+
+                {/* Ticket creation form */}
+                {showTicketForm ? (
+                  <div className="space-y-2.5 border-t border-cortex-border/60 pt-3">
+                    <p className="text-xs font-semibold text-cortex-text">Create ticket for this call</p>
+                    <input
+                      type="text"
+                      placeholder="Title *"
+                      value={ticketTitle}
+                      onChange={e => setTicketTitle(e.target.value)}
+                      className="input text-xs py-1.5"
+                    />
+                    <textarea
+                      placeholder="Description (optional)"
+                      value={ticketDesc}
+                      onChange={e => setTicketDesc(e.target.value)}
+                      className="input text-xs py-1.5 resize-none h-16"
+                    />
+                    <select
+                      value={ticketPriority}
+                      onChange={e => setTicketPriority(e.target.value)}
+                      className="input text-xs py-1.5"
+                    >
+                      <option value="P1">P1 — Critical</option>
+                      <option value="P2">P2 — High</option>
+                      <option value="P3">P3 — Medium</option>
+                      <option value="P4">P4 — Low</option>
+                    </select>
+
+                    {/* ── Customer (POC) ── */}
+                    <div className="rounded-lg border border-cortex-border bg-cortex-bg p-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wide">Customer (optional)</p>
+                        <div className="flex gap-1">
+                          {['search', 'create'].map(m => (
+                            <button key={m} onClick={() => { setPocMode(m); setSelectedPOC(null); setPocSearch('') }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${pocMode === m ? 'bg-cortex-accent/15 text-cortex-accent' : 'text-cortex-muted hover:text-cortex-text'}`}>
+                              {m === 'search' ? 'Existing' : 'New'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {pocMode === 'search' ? (
+                        <div className="relative">
+                          {selectedPOC ? (
+                            <div className="flex items-center justify-between bg-cortex-accent/10 rounded px-2 py-1">
+                              <span className="text-xs text-cortex-accent truncate">{selectedPOC.name}</span>
+                              <button onClick={() => setSelectedPOC(null)} className="text-cortex-muted hover:text-cortex-danger ml-1 flex-shrink-0 text-[10px]">✕</button>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="text" placeholder="Search by name / email…" value={pocSearch}
+                                onChange={e => setPocSearch(e.target.value)}
+                                className="input text-xs py-1.5"
+                              />
+                              {pocSearching && <p className="text-[10px] text-cortex-muted px-1">Searching…</p>}
+                              {pocResults.length > 0 && (
+                                <div className="absolute z-10 left-0 right-0 mt-0.5 bg-cortex-surface border border-cortex-border rounded-lg shadow-lg overflow-hidden">
+                                  {pocResults.map(p => (
+                                    <button key={p.id} onClick={() => { setSelectedPOC({ id: p.id, name: p.name }); setPocSearch(''); setPocResults([]) }}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-cortex-surface-raised transition-colors">
+                                      <span className="font-medium text-cortex-text">{p.name}</span>
+                                      {p.company_name && <span className="text-cortex-muted ml-1">· {p.company_name}</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <input type="text" placeholder="Name *" value={newPOCName} onChange={e => setNewPOCName(e.target.value)} className="input text-xs py-1" />
+                          <input type="email" placeholder="Email" value={newPOCEmail} onChange={e => setNewPOCEmail(e.target.value)} className="input text-xs py-1" />
+                          <input type="tel" placeholder="Phone" value={newPOCPhone} onChange={e => setNewPOCPhone(e.target.value)} className="input text-xs py-1" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Organization ── */}
+                    <div className="rounded-lg border border-cortex-border bg-cortex-bg p-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wide">Organization (optional)</p>
+                        <div className="flex gap-1">
+                          {['search', 'create'].map(m => (
+                            <button key={m} onClick={() => { setOrgMode(m); setSelectedOrg(null); setOrgSearch('') }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${orgMode === m ? 'bg-cortex-accent/15 text-cortex-accent' : 'text-cortex-muted hover:text-cortex-text'}`}>
+                              {m === 'search' ? 'Existing' : 'New'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {orgMode === 'search' ? (
+                        selectedOrg ? (
+                          <div className="flex items-center justify-between bg-cortex-accent/10 rounded px-2 py-1">
+                            <span className="text-xs text-cortex-accent truncate">{selectedOrg.company_name}</span>
+                            <button onClick={() => setSelectedOrg(null)} className="text-cortex-muted hover:text-cortex-danger ml-1 flex-shrink-0 text-[10px]">✕</button>
+                          </div>
+                        ) : (
+                          <div>
+                            <input type="text" placeholder="Filter organizations…" value={orgSearch} onChange={e => setOrgSearch(e.target.value)} className="input text-xs py-1.5" />
+                            {orgSearch.trim() && (
+                              <div className="mt-0.5 max-h-24 overflow-y-auto bg-cortex-surface border border-cortex-border rounded-lg shadow-lg">
+                                {allOrgs.filter(o => o.company_name?.toLowerCase().includes(orgSearch.toLowerCase())).slice(0, 5).map(o => (
+                                  <button key={o.id} onClick={() => { setSelectedOrg({ id: o.id, company_name: o.company_name }); setOrgSearch('') }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-cortex-surface-raised transition-colors text-cortex-text">
+                                    {o.company_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <input type="text" placeholder="Company name *" value={newOrgName} onChange={e => setNewOrgName(e.target.value)} className="input text-xs py-1" />
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!ticketTitle.trim()) return
+                          setCreatingTicket(true)
+                          try {
+                            let poc_id = selectedPOC?.id || undefined
+                            let company_id = selectedOrg?.id || undefined
+
+                            // Create new org first (so POC can be linked to it)
+                            if (orgMode === 'create' && newOrgName.trim()) {
+                              const org = await createCompany({ company_name: newOrgName.trim(), company_code: newOrgName.trim().toLowerCase().replace(/\s+/g, '_').slice(0, 20) })
+                              company_id = org.id
+                            }
+
+                            // Create new POC (linked to org if available)
+                            if (pocMode === 'create' && newPOCName.trim()) {
+                              const poc = await createPOC({ name: newPOCName.trim(), email: newPOCEmail.trim() || undefined, phone: newPOCPhone.trim() || undefined, company_id: company_id || undefined })
+                              poc_id = poc.id
+                            }
+
+                            const ticket = await createTicket({
+                              title: ticketTitle.trim(),
+                              description: ticketDesc.trim() || undefined,
+                              priority: ticketPriority,
+                              channel: 'voice',
+                              poc_id,
+                              company_id,
+                            })
+                            if (endedInfo.primaryCallId) {
+                              updateCallLog(endedInfo.primaryCallId, { ticket_id: ticket.id }).catch(() => {})
+                            }
+                            toast.success(`Ticket #${ticket.id} created`)
+                          } catch (e) {
+                            toast.error(e.message || 'Failed to create ticket')
+                          } finally {
+                            setCreatingTicket(false)
+                            setShowTicketForm(false)
+                            setEndedInfo(null)
+                            setStatus(S.CONNECTED)
+                          }
+                        }}
+                        disabled={!ticketTitle.trim() || creatingTicket}
+                        className="flex-1 py-1.5 text-xs rounded-lg bg-cortex-accent/15 text-cortex-accent border border-cortex-accent/30 hover:bg-cortex-accent/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        {creatingTicket ? 'Creating…' : 'Create Ticket'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowTicketForm(false)
+                          setEndedInfo(null)
+                          setStatus(S.CONNECTED)
+                        }}
+                        className="px-3 py-1.5 text-xs text-cortex-muted hover:text-cortex-text border border-cortex-border rounded-lg transition-colors"
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 

@@ -64,7 +64,7 @@ export async function GET(request, { params }) {
 
     const [ticketResult, threadsResult, alertsResult] = await Promise.all([
       pool.query(`
-        SELECT t.*, p.name as poc_name, p.email as poc_email, p.phone as poc_phone,
+        SELECT t.*, p.name as poc_name, p.email as poc_email, p.phone as poc_phone, p.is_vip as poc_is_vip,
                c.company_name, c.company_code, s.solution_name, s.solution_code
         FROM main.tickets t
         LEFT JOIN main.pocs p ON t.poc_id = p.id

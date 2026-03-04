@@ -1,9 +1,10 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets } from '@/lib/api'
+import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets, getAHTMetrics, getFCRMetrics } from '@/lib/api'
 import MetricCard from '@/components/ui/MetricCard'
-import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity } from 'lucide-react'
+import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target } from 'lucide-react'
+import NewBadge from '@/components/ui/NewBadge'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime } from '@/lib/utils'
 
@@ -61,6 +62,16 @@ export default function DashboardPage() {
     queryFn: () => fetch('/api/health').then(r => r.json()),
     refetchInterval: 120000,
   })
+  const { data: ahtData, isLoading: ahtLoading } = useQuery({
+    queryKey: ['aht-metrics'],
+    queryFn: getAHTMetrics,
+    refetchInterval: 300000,
+  })
+  const { data: fcrData, isLoading: fcrLoading } = useQuery({
+    queryKey: ['fcr-metrics'],
+    queryFn: getFCRMetrics,
+    refetchInterval: 300000,
+  })
 
   const systemChecks = [
     { key: 'database', label: 'Database' },
@@ -96,6 +107,32 @@ export default function DashboardPage() {
           variant={metrics?.avg_sla_consumption > 75 ? 'warning' : 'success'}
           loading={metricsLoading}
         />
+        <div className="relative">
+          <MetricCard
+            title="Avg Handle Time"
+            value={ahtData?.avg_minutes ? `${ahtData.avg_minutes} min` : '— min'}
+            subtitle="Talk time · last 30 days"
+            icon={Clock}
+            variant="info"
+            loading={ahtLoading}
+          />
+          <div className="absolute top-3 right-3">
+            <NewBadge description="Average Handle Time — calculated from the last 30 days of call logs using talk time (or total duration as fallback). Covers all agents." />
+          </div>
+        </div>
+        <div className="relative">
+          <MetricCard
+            title="FCR Rate"
+            value={fcrData?.fcr_rate != null ? `${fcrData.fcr_rate}%` : '—%'}
+            subtitle="No-ticket calls · last 30 days"
+            icon={Target}
+            variant={fcrData?.fcr_rate >= 70 ? 'success' : fcrData?.fcr_rate >= 50 ? 'warning' : 'critical'}
+            loading={fcrLoading}
+          />
+          <div className="absolute top-3 right-3">
+            <NewBadge description="First Call Resolution Rate — % of calls that were handled without creating a support ticket. Higher is better. Last 30 days, all agents." />
+          </div>
+        </div>
       </div>
 
       {/* Secondary row */}

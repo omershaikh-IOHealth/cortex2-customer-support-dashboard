@@ -1,8 +1,9 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { BookOpen, Info, Calendar, Clock, Coffee, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
+import { BookOpen, Info, Calendar, Clock, Coffee, ChevronLeft, ChevronRight, Zap, CheckCircle } from 'lucide-react'
+import NewBadge from '@/components/ui/NewBadge'
 import { useState, useMemo } from 'react'
 import { formatRelativeTime } from '@/lib/utils'
 import { getCirculars } from '@/lib/api'
@@ -32,7 +33,9 @@ function fmt(date) {
 
 export default function BriefingPage() {
   const { data: session } = useSession()
+  const qc = useQueryClient()
   const [weekBase, setWeekBase] = useState(new Date())
+  const [acking, setAcking] = useState(false)
   const weekDates = useMemo(() => getWeekDates(weekBase), [weekBase])
   const from = fmt(weekDates[0])
   const to   = fmt(weekDates[6])
@@ -61,6 +64,27 @@ export default function BriefingPage() {
   const today = fmt(new Date())
   const todayShift = shiftsByDate[today]
   const firstName = session?.user?.name?.split(' ')[0] || 'Agent'
+
+  const { data: ackData } = useQuery({
+    queryKey: ['briefing-ack', todayShift?.id],
+    queryFn: () => fetch(`/api/briefing/acknowledge?shift_id=${todayShift.id}`).then(r => r.ok ? r.json() : { acked: false }),
+    enabled: !!todayShift?.id,
+  })
+
+  async function handleAcknowledge() {
+    if (!todayShift?.id || acking) return
+    setAcking(true)
+    try {
+      await fetch('/api/briefing/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shift_id: todayShift.id }),
+      })
+      qc.invalidateQueries({ queryKey: ['briefing-ack', todayShift.id] })
+    } finally {
+      setAcking(false)
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -263,6 +287,45 @@ export default function BriefingPage() {
           </div>
         )}
       </div>
+
+      {/* Shift Acknowledgment */}
+      {todayShift && (
+        <div className={cn(
+          'card border-2 transition-colors',
+          ackData?.acked ? 'border-cortex-success/30 bg-cortex-success/5' : 'border-cortex-accent/20'
+        )}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className={cn('w-5 h-5 flex-shrink-0', ackData?.acked ? 'text-cortex-success' : 'text-cortex-muted')} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-cortex-text text-sm">Shift Briefing</p>
+                  <NewBadge description="New — confirm you've read today's briefing. Your acknowledgment is recorded and visible to admins on the Rota page as a green dot next to your name." />
+                </div>
+                {ackData?.acked ? (
+                  <p className="text-xs text-cortex-success mt-0.5">
+                    Acknowledged at {new Date(ackData.acked_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                ) : (
+                  <p className="text-xs text-cortex-muted mt-0.5">Confirm you have read today's briefing</p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleAcknowledge}
+              disabled={ackData?.acked || acking}
+              className={cn(
+                'px-4 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0',
+                ackData?.acked
+                  ? 'bg-cortex-success/10 text-cortex-success border border-cortex-success/30 cursor-default'
+                  : 'bg-cortex-accent text-white hover:bg-cortex-accent/90 disabled:opacity-50'
+              )}
+            >
+              {acking ? 'Acknowledging…' : ackData?.acked ? '✓ Acknowledged' : 'Acknowledge Shift'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

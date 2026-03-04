@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import ThemeToggle from './ThemeToggle'
-import NotificationBell from './NotificationBell'
 import {
   BookOpen,
   Ticket,
@@ -17,14 +16,21 @@ import {
   ChevronDown,
   Users,
   RadioTower,
+  Clock,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
+import { getNotifications } from '@/lib/api'
+import NewBadge from './NewBadge'
 
 const navigation = [
   { name: 'Briefing',       href: '/briefing',        icon: BookOpen },
   { name: 'My Tickets',     href: '/my-tickets',      icon: Ticket },
   { name: 'My Dashboard',   href: '/agent-dashboard', icon: BarChart2 },
+  { name: 'Customers',      href: '/pocs',            icon: Users,    isNew: true, newDesc: 'New Customers page — search and view all contacts, see their linked tickets and company.' },
   { name: 'Knowledge Base', href: '/knowledge-base',  icon: BookOpen },
+  { name: 'Notifications',  href: '/notifications',   icon: Bell,     isNew: true, newDesc: 'New notification centre — see all your alerts, filter by type, and click to jump to the linked ticket.' },
 ]
 
 const STATUS_OPTIONS = [
@@ -32,6 +38,7 @@ const STATUS_OPTIONS = [
   { value: 'break',     label: 'On Break',   icon: Coffee,      color: 'text-blue-400',        dot: 'bg-blue-400',        ring: 'ring-blue-400/30' },
   { value: 'meeting',   label: 'Meeting',    icon: Users,       color: 'text-purple-400',      dot: 'bg-purple-400',      ring: 'ring-purple-400/30' },
   { value: 'not_ready', label: 'Not Ready',  icon: AlertCircle, color: 'text-cortex-danger',   dot: 'bg-cortex-danger',   ring: 'ring-cortex-danger/30' },
+  { value: 'wrap_up',   label: 'Wrap-Up',    icon: Clock,       color: 'text-orange-400',      dot: 'bg-orange-400',      ring: 'ring-orange-400/30' },
 ]
 
 function fmtDuration(secs) {
@@ -48,15 +55,23 @@ function getInitials(str = '') {
 export default function AgentSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: getNotifications,
+    refetchInterval: 30000,
+  })
+  const unreadCount = notifData?.unread_count ?? 0
   const [status, setStatus] = useState('available')
   const [statusSince, setStatusSince] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [wrapUpEnd, setWrapUpEnd] = useState(null)
   const dropdownRef = useRef(null)
+  const changeStatusRef = useRef(null)
 
   const currentStatus = STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0]
-  const StatusIcon = currentStatus.icon
 
   useEffect(() => {
     if (!session?.user?.id) return
@@ -99,7 +114,7 @@ export default function AgentSidebar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showDropdown])
 
-  async function changeStatus(newStatus) {
+  const changeStatus = useCallback(async (newStatus) => {
     setShowDropdown(false)
     if (newStatus === status) return
     setUpdatingStatus(true)
@@ -113,6 +128,12 @@ export default function AgentSidebar() {
       setStatusSince(new Date().toISOString())
       setElapsed(0)
 
+      if (newStatus === 'wrap_up') {
+        setWrapUpEnd(Date.now() + 120000)
+      } else {
+        setWrapUpEnd(null)
+      }
+
       fetch('/api/ziwo/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +144,26 @@ export default function AgentSidebar() {
     } finally {
       setUpdatingStatus(false)
     }
-  }
+  }, [status, session?.user?.id])
+
+  // Keep a ref to latest changeStatus so the wrap-up event listener never goes stale
+  useEffect(() => { changeStatusRef.current = changeStatus }, [changeStatus])
+
+  // Listen for cortex-wrap-up-start dispatched by ZiwoWidget after hangup
+  useEffect(() => {
+    function onWrapUpStart() { changeStatusRef.current?.('wrap_up') }
+    window.addEventListener('cortex-wrap-up-start', onWrapUpStart)
+    return () => window.removeEventListener('cortex-wrap-up-start', onWrapUpStart)
+  }, [])
+
+  // Auto-revert to Available when 2-min wrap-up timer expires
+  useEffect(() => {
+    if (status !== 'wrap_up' || !wrapUpEnd) return
+    const remaining = Math.max(0, wrapUpEnd - Date.now())
+    if (remaining === 0) { changeStatusRef.current?.('available'); return }
+    const t = setTimeout(() => changeStatusRef.current?.('available'), remaining)
+    return () => clearTimeout(t)
+  }, [status, wrapUpEnd])
 
   return (
     <div className="flex flex-col w-52 h-screen bg-cortex-surface border-r border-cortex-border fixed left-0 top-0 overflow-hidden">
@@ -177,11 +217,25 @@ export default function AgentSidebar() {
           }
         </button>
 
-        {/* Duration badge */}
-        <div className="px-4 pb-2.5 flex items-center gap-1.5">
-          <span className="text-xs font-mono text-cortex-muted tabular-nums">
-            {fmtDuration(elapsed)}
-          </span>
+        {/* Duration / countdown badge */}
+        <div className="px-4 pb-2.5 flex items-center justify-between gap-1.5">
+          {status === 'wrap_up' && wrapUpEnd ? (
+            <>
+              <span className="text-xs font-mono text-orange-400 tabular-nums">
+                {fmtDuration(Math.max(0, Math.floor((wrapUpEnd - Date.now()) / 1000)))} left
+              </span>
+              <button
+                onClick={() => changeStatus('available')}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/40 transition-colors border border-orange-400/30"
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <span className="text-xs font-mono text-cortex-muted tabular-nums">
+              {fmtDuration(elapsed)}
+            </span>
+          )}
         </div>
 
         {/* Dropdown */}
@@ -237,7 +291,13 @@ export default function AgentSidebar() {
                 'w-4 h-4 flex-shrink-0 transition-colors',
                 isActive ? 'text-cortex-accent' : 'text-cortex-muted group-hover:text-cortex-text'
               )} />
-              <span>{item.name}</span>
+              <span className="flex-1">{item.name}</span>
+              {item.isNew && <NewBadge description={item.newDesc} />}
+              {item.href === '/notifications' && unreadCount > 0 && (
+                <span className="w-4 h-4 flex items-center justify-center bg-cortex-danger text-white text-[9px] font-bold rounded-full flex-shrink-0">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}
@@ -248,7 +308,6 @@ export default function AgentSidebar() {
 
         <div className="flex items-center gap-2 px-1">
           <ThemeToggle />
-          <NotificationBell />
         </div>
 
         {session?.user && (
