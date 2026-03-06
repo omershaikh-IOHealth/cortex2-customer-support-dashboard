@@ -12,7 +12,7 @@ export async function GET() {
       FROM main.tickets t
       LEFT JOIN main.pocs p ON t.poc_id = p.id
       WHERE t.sla_status IN ('critical', 'at_risk', 'warning', 'breached')
-        AND t.status NOT IN ('closed', 'resolved', 'deleted')
+        AND LOWER(t.status) NOT IN ('closed', 'resolved', 'deleted', 'complete', 'cancelled')
         AND (t.is_deleted = false OR t.is_deleted IS NULL)
       ORDER BY t.sla_consumption_pct DESC
       LIMIT 20

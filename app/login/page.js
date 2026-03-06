@@ -35,8 +35,8 @@ export default function LoginPage() {
         }
         setLoading(false)
       } else {
-        router.push('/')
-        router.refresh()
+        // /dashboard → middleware redirects agents to /briefing automatically
+        router.push('/dashboard')
       }
     } catch {
       setError('An unexpected error occurred. Please try again.')
