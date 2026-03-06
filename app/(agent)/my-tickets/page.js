@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import NewBadge from '@/components/ui/NewBadge'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -12,23 +11,29 @@ import {
   Search,
   Building2,
   X,
+  ArrowUpDown,
 } from 'lucide-react'
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime, cn } from '@/lib/utils'
 import TicketThread from '@/components/tickets/TicketThread'
 import TicketSidebar from '@/components/tickets/TicketSidebar'
 
 const STATUS_TABS = [
-  { key: 'all',         label: 'All',         filter: {},                    channelFilter: null },
-  { key: 'open',        label: 'Open',        filter: { status: 'Open' },    channelFilter: null },
-  { key: 'in_progress', label: 'In Progress', filter: { status: 'In Progress' }, channelFilter: null },
-  { key: 'waiting',     label: 'Waiting',     filter: { status: 'Waiting' }, channelFilter: null },
-  { key: 'resolved',    label: 'Resolved',    filter: { status: 'complete' }, channelFilter: null },
-  { key: 'voice',       label: '📞 Voice',    filter: {},                    channelFilter: 'voice' },
-  { key: 'email',       label: '✉ Email',     filter: {},                    channelFilter: 'email' },
+  { key: 'all',         label: 'All',         statusFilter: null,            channelFilter: null },
+  { key: 'open',        label: 'Open',        statusFilter: 'Open',          channelFilter: null },
+  { key: 'in_progress', label: 'In Progress', statusFilter: 'In Progress',   channelFilter: null },
+  { key: 'waiting',     label: 'Waiting',     statusFilter: 'Waiting',       channelFilter: null },
+  { key: 'resolved',    label: 'Resolved',    statusFilter: 'Resolved',      channelFilter: null },
+]
+
+const CHANNEL_FILTERS = [
+  { key: 'all',    label: 'All Channels' },
+  { key: 'voice',  label: '📞 Voice' },
+  { key: 'email',  label: '✉ Email' },
+  { key: 'clickup', label: '📋 ClickUp' },
 ]
 
 function fetchMyTickets(params = {}) {
-  const qs = new URLSearchParams({ limit: '100', ...params }).toString()
+  const qs = new URLSearchParams({ limit: '200', ...params }).toString()
   return fetch(`/api/tickets?${qs}`).then(r => r.ok ? r.json() : { tickets: [], total: 0 })
 }
 
@@ -50,38 +55,57 @@ function MyTicketsInner() {
   const selectedId = searchParams.get('selected') ? Number(searchParams.get('selected')) : null
 
   const [activeTab, setActiveTab] = useState('all')
+  const [channelFilter, setChannelFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [orgFilter, setOrgFilter] = useState('')
+  const [slaAsc, setSlaAsc] = useState(false)
 
   const currentTab = STATUS_TABS.find(t => t.key === activeTab)
   const agentEmail = session?.user?.email
 
+  // Always fetch ALL tickets (filter client-side for status counts)
   const { data: ticketData, isLoading } = useQuery({
-    queryKey: ['my-tickets', activeTab, agentEmail],
-    queryFn: () => fetchMyTickets({ ...currentTab.filter, ...(agentEmail ? { assigned_to: agentEmail } : {}) }),
+    queryKey: ['my-tickets', agentEmail],
+    queryFn: () => fetchMyTickets({ ...(agentEmail ? { assigned_to: agentEmail } : {}) }),
     refetchInterval: 30000,
     enabled: !!agentEmail,
   })
 
-  const tickets = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])
-  const orgOptions = [...new Set(tickets.map(t => t.company_name || t.company_code).filter(Boolean))].sort()
+  const allTickets = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])
+  const orgOptions = [...new Set(allTickets.map(t => t.company_name || t.company_code).filter(Boolean))].sort()
 
-  const filtered = tickets.filter(t => {
+  // Normalize status strings: 'In Progress', 'in_progress', 'in progress' → 'inprogress'
+  function normStatus(s) { return (s || '').toLowerCase().replace(/[\s_]/g, '') }
+
+  // Status counts for summary row
+  const statusCounts = {
+    Open: allTickets.filter(t => normStatus(t.status) === 'open').length,
+    'In Progress': allTickets.filter(t => normStatus(t.status) === 'inprogress').length,
+    Waiting: allTickets.filter(t => normStatus(t.status) === 'waiting').length,
+    Resolved: allTickets.filter(t => ['resolved', 'complete'].includes(normStatus(t.status))).length,
+  }
+
+  const filtered = allTickets.filter(t => {
     const matchSearch =
       !search ||
       t.title?.toLowerCase().includes(search.toLowerCase()) ||
       t.id?.toString().includes(search)
     const matchOrg = !orgFilter || t.company_name === orgFilter || t.company_code === orgFilter
-    const matchChannel = !currentTab.channelFilter || t.channel === currentTab.channelFilter
-    return matchSearch && matchOrg && matchChannel
+    const matchChannel = channelFilter === 'all' || t.channel === channelFilter
+    const matchStatus = !currentTab.statusFilter ||
+      normStatus(t.status) === normStatus(currentTab.statusFilter) ||
+      (currentTab.key === 'resolved' && ['resolved', 'complete'].includes(normStatus(t.status)))
+    return matchSearch && matchOrg && matchChannel && matchStatus
   })
 
   const sorted = [...filtered].sort((a, b) => {
     const slaOrder = { critical: 0, at_risk: 1, warning: 2, healthy: 3 }
     const slaA = slaOrder[a.sla_status] ?? 4
     const slaB = slaOrder[b.sla_status] ?? 4
-    if (slaA !== slaB) return slaA - slaB
-    return (b.sla_consumption_pct || 0) - (a.sla_consumption_pct || 0)
+    if (slaA !== slaB) return slaAsc ? slaB - slaA : slaA - slaB
+    return slaAsc
+      ? (a.sla_consumption_pct || 0) - (b.sla_consumption_pct || 0)
+      : (b.sla_consumption_pct || 0) - (a.sla_consumption_pct || 0)
   })
 
   const selectTicket = (id) => {
@@ -221,13 +245,24 @@ function MyTicketsInner() {
           <p className="text-xs font-mono text-cortex-muted uppercase tracking-widest mb-1">My Queue</p>
           <h1 className="text-3xl font-display font-bold text-cortex-text">My Tickets</h1>
           <p className="text-cortex-muted text-sm mt-0.5">
-            {sorted.length} ticket{sorted.length !== 1 ? 's' : ''} · sorted by SLA urgency
+            {sorted.length} ticket{sorted.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
-      {/* Search + Org filter */}
-      <div className="flex gap-3 flex-wrap">
+      {/* Status summary counts */}
+      {!isLoading && allTickets.length > 0 && (
+        <div className="flex gap-3 flex-wrap text-xs font-mono">
+          {Object.entries(statusCounts).map(([label, count]) => (
+            <span key={label} className="px-2.5 py-1 rounded-lg bg-cortex-surface border border-cortex-border text-cortex-muted">
+              {label} <span className="font-bold text-cortex-text">{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search + Org + Channel filter */}
+      <div className="flex gap-3 flex-wrap items-center">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cortex-muted" />
           <input
@@ -238,18 +273,40 @@ function MyTicketsInner() {
           />
         </div>
         {orgOptions.length > 0 && (
-          <div className="relative flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-cortex-muted" />
             <select
               value={orgFilter}
               onChange={e => setOrgFilter(e.target.value)}
-              className="input pr-8"
+              className="input"
             >
               <option value="">All Orgs</option>
               {orgOptions.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
         )}
+        <select
+          value={channelFilter}
+          onChange={e => setChannelFilter(e.target.value)}
+          className="input"
+        >
+          {CHANNEL_FILTERS.map(f => (
+            <option key={f.key} value={f.key}>{f.label}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => setSlaAsc(a => !a)}
+          title={slaAsc ? 'Sorted: lowest urgency first' : 'Sorted: highest urgency first'}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+            slaAsc
+              ? 'bg-cortex-accent/15 text-cortex-accent border-cortex-accent/30'
+              : 'text-cortex-muted border-cortex-border hover:text-cortex-text'
+          )}
+        >
+          <ArrowUpDown className="w-3.5 h-3.5" />
+          SLA {slaAsc ? '↑ Low→High' : '↓ High→Low'}
+        </button>
       </div>
 
       {/* Status tabs */}
@@ -266,9 +323,15 @@ function MyTicketsInner() {
             )}
           >
             {tab.label}
+            {tab.statusFilter && (
+              <span className="ml-1.5 text-[10px] opacity-70">
+                {tab.key === 'resolved'
+                  ? statusCounts['Resolved']
+                  : statusCounts[tab.statusFilter] ?? 0}
+              </span>
+            )}
           </button>
         ))}
-        <NewBadge description="Channel filters (new) — the 📞 Voice and ✉ Email tabs filter your tickets by how they came in." />
       </div>
 
       {/* Ticket list */}

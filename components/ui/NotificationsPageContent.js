@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Bell, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info, CheckCheck, FileText, ArrowLeftRight } from 'lucide-react'
+import { Bell, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info, Trash2, FileText, ArrowLeftRight, X } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/api'
+import { getNotifications, markNotificationRead, deleteNotification, clearAllNotifications } from '@/lib/api'
 
 const TYPE_CONFIG = {
   sla_alert:      { icon: AlertTriangle, color: 'text-cortex-danger' },
@@ -54,8 +54,14 @@ export default function NotificationsPageContent() {
     if (n.link) router.push(n.link)
   }
 
-  async function markAllRead() {
-    await markAllNotificationsRead()
+  async function handleDelete(e, id) {
+    e.stopPropagation()
+    await deleteNotification(id)
+    qc.invalidateQueries({ queryKey: ['notifications'] })
+  }
+
+  async function handleClearAll() {
+    await clearAllNotifications()
     qc.invalidateQueries({ queryKey: ['notifications'] })
   }
 
@@ -66,7 +72,7 @@ export default function NotificationsPageContent() {
       <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-cortex-accent/8 border border-cortex-accent/20 text-sm">
         <span className="px-1.5 py-0.5 text-[9px] font-bold bg-cortex-accent text-white rounded-full uppercase tracking-wide select-none leading-none flex-shrink-0 mt-0.5">NEW</span>
         <span className="text-cortex-muted leading-relaxed">
-          <span className="font-semibold text-cortex-text">Notification Centre</span> — Full-page inbox replacing the old dropdown bell. Filter by All, Unread, Escalations, SLA Alerts, or System. Click any notification to mark it read and jump to the linked ticket. Use &ldquo;Mark all read&rdquo; to clear everything at once. Note: notifications are generated automatically by the system — this page shows them as they come in.
+          <span className="font-semibold text-cortex-text">Notification Centre</span> — Full-page inbox. Filter by All, Unread, Escalations, SLA Alerts, or System. Click any notification to mark it read and jump to the linked ticket. Use the &times; button to permanently delete a notification, or &ldquo;Clear all&rdquo; to wipe the entire inbox at once.
         </span>
       </div>
 
@@ -81,10 +87,10 @@ export default function NotificationsPageContent() {
             )}
           </h1>
         </div>
-        {unread_count > 0 && (
-          <button onClick={markAllRead} className="btn-secondary flex items-center gap-2">
-            <CheckCheck className="w-3.5 h-3.5" />
-            Mark all read
+        {notifications.length > 0 && (
+          <button onClick={handleClearAll} className="btn-secondary flex items-center gap-2 text-cortex-danger border-cortex-danger/30 hover:bg-cortex-danger/10">
+            <Trash2 className="w-3.5 h-3.5" />
+            Clear all
           </button>
         )}
       </div>
@@ -131,7 +137,7 @@ export default function NotificationsPageContent() {
               <div
                 key={n.id}
                 onClick={() => handleClick(n)}
-                className={`flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-cortex-surface-raised transition-colors ${
+                className={`flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-cortex-surface-raised transition-colors group ${
                   !n.is_read ? 'bg-cortex-accent/5' : ''
                 }`}
               >
@@ -145,9 +151,18 @@ export default function NotificationsPageContent() {
                   {n.body && <p className="text-xs text-cortex-muted mt-0.5 line-clamp-2">{n.body}</p>}
                   <p className="text-xs text-cortex-muted font-mono mt-1">{formatRelativeTime(n.created_at)}</p>
                 </div>
-                {!n.is_read && (
-                  <span className="w-2 h-2 rounded-full bg-cortex-accent flex-shrink-0 mt-1.5" />
-                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!n.is_read && (
+                    <span className="w-2 h-2 rounded-full bg-cortex-accent" />
+                  )}
+                  <button
+                    onClick={(e) => handleDelete(e, n.id)}
+                    title="Clear notification"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-cortex-muted hover:text-cortex-danger hover:bg-cortex-danger/10 transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )
           })

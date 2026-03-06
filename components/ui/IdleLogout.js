@@ -4,14 +4,32 @@ import { useEffect, useRef, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { LogOut } from 'lucide-react'
 
-const IDLE_MS   = 10 * 60 * 1000  // 10 minutes
-const WARN_MS   = 60 * 1000        // show warning 1 min before logout
+const WARN_MS = 60 * 1000 // show warning 1 min before logout
+const DEFAULT_IDLE_MINS = 10
 
 export default function IdleLogout() {
   const [countdown, setCountdown] = useState(null) // seconds remaining
+  const [idleMs, setIdleMs] = useState(DEFAULT_IDLE_MINS * 60 * 1000)
   const timerRef   = useRef(null)
   const warnRef    = useRef(null)
   const countRef   = useRef(null)
+  const idleMsRef  = useRef(idleMs)
+
+  // Fetch admin settings on mount
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const enabled = data.auto_logoff_enabled !== 'false'
+        if (!enabled) return // auto-logoff disabled globally
+        const mins = parseInt(data.auto_logoff_minutes) || DEFAULT_IDLE_MINS
+        const ms = mins * 60 * 1000
+        setIdleMs(ms)
+        idleMsRef.current = ms
+      })
+      .catch(() => {})
+  }, [])
 
   function reset() {
     clearTimeout(timerRef.current)
@@ -19,7 +37,8 @@ export default function IdleLogout() {
     clearInterval(countRef.current)
     setCountdown(null)
 
-    // Set warning at (IDLE_MS - WARN_MS)
+    const currentIdleMs = idleMsRef.current
+    // Set warning at (idleMs - WARN_MS)
     warnRef.current = setTimeout(() => {
       setCountdown(60)
       countRef.current = setInterval(() => {
@@ -28,12 +47,20 @@ export default function IdleLogout() {
           return s - 1
         })
       }, 1000)
-    }, IDLE_MS - WARN_MS)
+    }, Math.max(currentIdleMs - WARN_MS, 0))
 
-    // Actual logout at IDLE_MS
+    // Actual logout at idleMs
     timerRef.current = setTimeout(() => {
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const sessionStart = sessionStorage.getItem('cortex_session_start')
+      if (sessionStart) {
+        const elapsed = Math.floor((Date.now() - new Date(sessionStart).getTime()) / 1000)
+        const acc = parseInt(localStorage.getItem(`cortex_acc_${todayStr}`) || '0', 10)
+        localStorage.setItem(`cortex_acc_${todayStr}`, acc + elapsed)
+        sessionStorage.removeItem('cortex_session_start')
+      }
       signOut({ callbackUrl: '/login' })
-    }, IDLE_MS)
+    }, currentIdleMs)
   }
 
   useEffect(() => {

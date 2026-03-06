@@ -38,6 +38,15 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: `status must be one of: ${allowed.join(', ')}` }, { status: 400 })
 
   try {
+    // Close out the previous status period in history
+    await pool.query(
+      `UPDATE main.agent_status_history
+       SET ended_at = NOW()
+       WHERE user_id = $1 AND ended_at IS NULL`,
+      [id]
+    ).catch(() => {}) // ignore if table doesn't exist yet
+
+    // Upsert current status
     await pool.query(
       `INSERT INTO main.agent_status (user_id, status, status_note, set_at)
        VALUES ($1, $2, $3, NOW())
@@ -48,7 +57,13 @@ export async function PUT(request, { params }) {
       [id, status, status_note || null]
     )
 
-    // If going on break, fire a notification to admin users after 30 min (handled client-side for now)
+    // Log new status period
+    await pool.query(
+      `INSERT INTO main.agent_status_history (user_id, status, started_at)
+       VALUES ($1, $2, NOW())`,
+      [id, status]
+    ).catch(() => {}) // ignore if table doesn't exist yet
+
     return NextResponse.json({ ok: true, status })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })

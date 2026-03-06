@@ -19,6 +19,7 @@ import {
   Clock,
   Bell,
   ListTodo,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -26,13 +27,14 @@ import { getNotifications } from '@/lib/api'
 import NewBadge from './NewBadge'
 
 const navigation = [
-  { name: 'Briefing',       href: '/briefing',        icon: BookOpen,  isNew: true, newDesc: 'New — Request leave and shift swaps from the Briefing page. Accept or decline incoming swap requests from teammates.' },
+  { name: 'Briefing',       href: '/briefing',        icon: BookOpen,       isNew: true, newDesc: 'New — Request leave and shift swaps from the Briefing page. Accept or decline incoming swap requests from teammates.' },
   { name: 'My Tickets',     href: '/my-tickets',      icon: Ticket },
-  { name: 'My Tasks',       href: '/tasks',            icon: ListTodo,  isNew: true, newDesc: 'New page — connect your ClickUp account to view and manage your assigned tasks. Mark tasks complete directly from Cortex.' },
+  { name: 'My Tasks',       href: '/tasks',            icon: ListTodo,       isNew: true, newDesc: 'New page — connect your ClickUp account to view and manage your assigned tasks. Mark tasks complete directly from Cortex.' },
+  { name: 'My Requests',    href: '/my-requests',     icon: ClipboardList,  isNew: true, newDesc: 'New — submit leave requests, break requests, and shift swaps all in one place.' },
   { name: 'My Dashboard',   href: '/agent-dashboard', icon: BarChart2 },
-  { name: 'Customers',      href: '/pocs',            icon: Users,    isNew: true, newDesc: 'New Customers page — search and view all contacts, see their linked tickets and company.' },
+  { name: 'Customers',      href: '/pocs',            icon: Users,          isNew: true, newDesc: 'New Customers page — search and view all contacts, see their linked tickets and company.' },
   { name: 'Knowledge Base', href: '/knowledge-base',  icon: BookOpen },
-  { name: 'Notifications',  href: '/notifications',   icon: Bell,     isNew: true, newDesc: 'New notification centre — see all your alerts, filter by type, and click to jump to the linked ticket.' },
+  { name: 'Notifications',  href: '/notifications',   icon: Bell,           isNew: true, newDesc: 'New notification centre — see all your alerts, filter by type, and click to jump to the linked ticket.' },
 ]
 
 const STATUS_OPTIONS = [
@@ -324,7 +326,17 @@ export default function AgentSidebar() {
               <p className="text-[10px] font-mono text-cortex-muted capitalize mt-0.5">Agent</p>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={() => {
+                const todayStr = new Date().toISOString().slice(0, 10)
+                const sessionStart = sessionStorage.getItem('cortex_session_start')
+                if (sessionStart) {
+                  const elapsed = Math.floor((Date.now() - new Date(sessionStart).getTime()) / 1000)
+                  const acc = parseInt(localStorage.getItem(`cortex_acc_${todayStr}`) || '0', 10)
+                  localStorage.setItem(`cortex_acc_${todayStr}`, acc + elapsed)
+                  sessionStorage.removeItem('cortex_session_start')
+                }
+                signOut({ callbackUrl: '/login' })
+              }}
               className="text-cortex-muted hover:text-cortex-danger transition-colors p-1 rounded flex-shrink-0"
               title="Sign out"
             >
