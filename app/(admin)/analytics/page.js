@@ -2,16 +2,27 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getTrends, getPriorityDistribution, getAdminCompanies, getAllSolutions } from '@/lib/api'
+import { getTrends, getPriorityDistribution, getAdminCompanies, getAllSolutions, getChannelMix } from '@/lib/api'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts'
-import { TrendingUp, BarChart2, Filter, X } from 'lucide-react'
+import { TrendingUp, BarChart2, Filter, X, Radio } from 'lucide-react'
+import NewBadge from '@/components/ui/NewBadge'
 import { format } from 'date-fns'
 
 const PRIORITY_COLORS = {
   P1: '#ef4444', P2: '#f97316', P3: '#f59e0b', P4: '#5ea3ff', P5: '#94a3b8',
+}
+
+const CHANNEL_COLORS = {
+  voice: '#f59e0b',
+  email: '#5ea3ff',
+}
+
+const CHANNEL_LABELS = {
+  voice: 'Voice',
+  email: 'Email',
 }
 
 // Tooltip shared style — works in both light and dark
@@ -52,6 +63,11 @@ export default function AnalyticsPage() {
   const { data: priorityDist, isLoading: priorityLoading } = useQuery({
     queryKey: ['priority-distribution'],
     queryFn: getPriorityDistribution,
+  })
+  const { data: channelMix = [], isLoading: channelLoading } = useQuery({
+    queryKey: ['channel-mix'],
+    queryFn: getChannelMix,
+    refetchInterval: 60000,
   })
 
   const currentTrends  = trendsData?.current  || (Array.isArray(trendsData) ? trendsData : [])
@@ -209,6 +225,63 @@ export default function AnalyticsPage() {
             <p className="text-center py-12 text-cortex-muted">No SLA data</p>
           )}
         </div>
+      </div>
+
+      {/* Channel mix chart */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-5">
+          <Radio className="w-4 h-4 text-cortex-accent" />
+          <h2 className="font-display font-bold text-cortex-text">Tickets by Channel</h2>
+          <NewBadge description="New — shows the Voice vs Email split across all tickets for the current period." />
+        </div>
+        {channelLoading ? (
+          <div className="h-64 bg-cortex-bg animate-pulse rounded-xl" />
+        ) : channelMix.length > 0 ? (
+          <div className="flex items-center gap-8 flex-wrap">
+            <div className="flex-shrink-0">
+              <ResponsiveContainer width={240} height={240}>
+                <PieChart>
+                  <Pie
+                    data={channelMix}
+                    cx="50%" cy="50%"
+                    outerRadius={95} innerRadius={52}
+                    dataKey="count"
+                    nameKey="channel"
+                    labelLine={false}
+                  >
+                    {channelMix.map((entry, i) => (
+                      <Cell key={i} fill={CHANNEL_COLORS[entry.channel] || '#94a3b8'} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    {...TOOLTIP_STYLE}
+                    formatter={(v, name) => [`${v} tickets`, CHANNEL_LABELS[name] || name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-col gap-4">
+              {channelMix.map(entry => (
+                <div key={entry.channel} className="flex items-center gap-3">
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: CHANNEL_COLORS[entry.channel] || '#94a3b8' }}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-cortex-text capitalize">
+                      {CHANNEL_LABELS[entry.channel] || entry.channel}
+                    </p>
+                    <p className="text-xs text-cortex-muted">
+                      {entry.count.toLocaleString()} tickets &middot; {entry.percentage}%
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-center py-12 text-cortex-muted">No channel data</p>
+        )}
       </div>
 
       {/* Priority breakdown cards */}

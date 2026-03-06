@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } from '@/lib/api'
+import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers, flagTicket, unflagTicket } from '@/lib/api'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
@@ -40,6 +40,9 @@ import {
   Pencil,
   Trash2,
   AtSign,
+  Flag,
+  Mail,
+  Send,
 } from 'lucide-react'
 import { openCompanionWith } from '@/components/ui/AICompanion'
 import NewBadge from '@/components/ui/NewBadge'
@@ -146,6 +149,13 @@ export default function TicketDetailPage() {
   const [showEscalateModal, setShowEscalateModal] = useState(false)
   const [escalateLevel, setEscalateLevel] = useState('1')
   const [escalateReason, setEscalateReason] = useState('')
+  const [showFlagModal, setShowFlagModal] = useState(false)
+  const [flagReason, setFlagReason] = useState('')
+  const [flagging, setFlagging] = useState(false)
+  const [zohoIdInput, setZohoIdInput] = useState('')
+  const [savingZohoId, setSavingZohoId] = useState(false)
+  const [replyContent, setReplyContent] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -333,6 +343,35 @@ export default function TicketDetailPage() {
       toast.error(err.message || 'Failed to escalate')
     } finally {
       setEscalating(false)
+    }
+  }
+
+  async function handleFlagSubmit() {
+    if (!flagReason.trim()) return
+    setFlagging(true)
+    try {
+      await flagTicket(ticketId, flagReason.trim())
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Ticket flagged for QA review')
+      setShowFlagModal(false)
+      setFlagReason('')
+    } catch (e) {
+      toast.error(e.message || 'Failed to flag ticket')
+    } finally {
+      setFlagging(false)
+    }
+  }
+
+  async function handleUnflag() {
+    setFlagging(true)
+    try {
+      await unflagTicket(ticketId)
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      toast.success('Flag removed')
+    } catch (e) {
+      toast.error(e.message || 'Failed to remove flag')
+    } finally {
+      setFlagging(false)
     }
   }
 
@@ -590,6 +629,30 @@ export default function TicketDetailPage() {
               <AssignDropdown onAssign={handleAssign} onClose={() => setShowAssignDrop(false)} />
             )}
           </div>
+
+          <div className="w-px h-4 bg-cortex-border mx-1" />
+
+          {/* Flag for QA */}
+          {ticket.flag_for_qa ? (
+            <button
+              onClick={handleUnflag}
+              disabled={flagging}
+              className="flex items-center gap-1.5 text-xs bg-cortex-danger/10 text-cortex-danger hover:bg-cortex-danger/20 px-3 py-1.5 rounded-lg transition-colors font-medium"
+              title={`Flagged: ${ticket.qa_flag_reason || ''}`}
+            >
+              <Flag className="w-3 h-3 fill-current" />
+              {flagging ? 'Removing…' : 'Flagged for QA'}
+            </button>
+          ) : (
+            <button
+              onClick={() => { setFlagReason(''); setShowFlagModal(true) }}
+              disabled={flagging}
+              className="flex items-center gap-1.5 text-xs bg-cortex-bg border border-cortex-border hover:border-cortex-danger/50 hover:text-cortex-danger text-cortex-muted px-3 py-1.5 rounded-lg transition-colors font-medium"
+            >
+              <Flag className="w-3 h-3" />
+              Flag for QA
+            </button>
+          )}
         </div>
       )}
 
@@ -876,6 +939,108 @@ export default function TicketDetailPage() {
             )}
           </Section>
 
+          {/* Zoho Email Reply — visible for email channel tickets */}
+          {ticket.channel === 'Email' && session?.user?.role === 'admin' && (
+            <Section title="Reply via Email" icon={Mail} defaultOpen={false} headerRight={<NewBadge description="New — send an email reply via Zoho Desk. Link a Zoho ticket ID first; replies are logged in the Activity Thread." />}>
+              {!ticket.zoho_ticket_id && !zohoIdInput ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-cortex-muted">Link a Zoho Desk ticket ID to enable email replies.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Zoho ticket ID (e.g. 1234567)"
+                      value={zohoIdInput}
+                      onChange={e => setZohoIdInput(e.target.value)}
+                      className="input flex-1 text-sm"
+                    />
+                    <button
+                      disabled={savingZohoId || !zohoIdInput.trim()}
+                      onClick={async () => {
+                        setSavingZohoId(true)
+                        try {
+                          const res = await fetch(`/api/tickets/${ticketId}/reply`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ zoho_ticket_id: zohoIdInput.trim() }),
+                          })
+                          if (!res.ok) throw new Error((await res.json()).error)
+                          toast.success('Zoho ID saved')
+                          qc.invalidateQueries({ queryKey: ['ticket', ticketId] })
+                        } catch (e) {
+                          toast.error(e.message)
+                        } finally {
+                          setSavingZohoId(false)
+                        }
+                      }}
+                      className="btn-primary text-sm disabled:opacity-50"
+                    >
+                      {savingZohoId ? 'Saving…' : 'Link'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-cortex-muted font-mono">
+                      Zoho ID: <span className="text-cortex-text font-semibold">{ticket.zoho_ticket_id}</span>
+                    </p>
+                    <button
+                      onClick={async () => {
+                        setSavingZohoId(true)
+                        try {
+                          await fetch(`/api/tickets/${ticketId}/reply`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ zoho_ticket_id: '' }),
+                          })
+                          qc.invalidateQueries({ queryKey: ['ticket', ticketId] })
+                        } catch {}
+                        setSavingZohoId(false)
+                      }}
+                      className="text-[10px] text-cortex-muted hover:text-cortex-danger transition-colors"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    placeholder="Type your reply…"
+                    value={replyContent}
+                    onChange={e => setReplyContent(e.target.value)}
+                    className="input w-full text-sm resize-none"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      disabled={sendingReply || !replyContent.trim()}
+                      onClick={async () => {
+                        setSendingReply(true)
+                        try {
+                          const res = await fetch(`/api/tickets/${ticketId}/reply`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: replyContent }),
+                          })
+                          if (!res.ok) throw new Error((await res.json()).error)
+                          toast.success('Reply sent via Zoho Desk')
+                          setReplyContent('')
+                          qc.invalidateQueries({ queryKey: ['ticket', ticketId] })
+                        } catch (e) {
+                          toast.error(e.message)
+                        } finally {
+                          setSendingReply(false)
+                        }
+                      }}
+                      className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      {sendingReply ? 'Sending…' : 'Send Reply'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* Similar Tickets */}
           {similarTickets.length > 0 && (
             <Section title="Similar Resolved Tickets" icon={History} badge={similarTickets.length} defaultOpen={false}>
@@ -955,6 +1120,39 @@ export default function TicketDetailPage() {
               </p>
               <p className="text-xs text-cortex-muted">{ticket.poc_email || ticket.created_by_email || '—'}</p>
               {ticket.poc_phone && <p className="text-xs text-cortex-muted font-mono mt-1">{ticket.poc_phone}</p>}
+              {ticket.poc_id && (
+                <div className="mt-2">
+                  <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full ${
+                    ticket.poc_open_ticket_count > 0
+                      ? 'bg-cortex-warning/15 text-cortex-warning'
+                      : 'bg-cortex-success/15 text-cortex-success'
+                  }`}>
+                    {ticket.poc_open_ticket_count > 0
+                      ? `${ticket.poc_open_ticket_count} other open ticket${ticket.poc_open_ticket_count !== 1 ? 's' : ''}`
+                      : 'No other open tickets'}
+                  </span>
+                </div>
+              )}
+              {ticket.poc_recent_threads?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-cortex-border/40">
+                  <p className="text-[10px] text-cortex-muted uppercase tracking-wider mb-2">Last Interactions</p>
+                  <div className="space-y-2">
+                    {ticket.poc_recent_threads.map((th, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cortex-muted mt-1.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-cortex-muted capitalize">
+                            {th.action_type?.replace(/_/g, ' ') || 'Note'} · {formatDate(th.created_at)}
+                          </p>
+                          <p className="text-xs text-cortex-text line-clamp-1">
+                            {(th.raw_content || th.new_value || '').substring(0, 80) || '—'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {ticket.assigned_to_email && (
                 <div className="mt-3 pt-3 border-t border-cortex-border/40">
                   <p className="text-[10px] text-cortex-muted uppercase tracking-wider mb-1">Assigned to</p>
@@ -1060,6 +1258,44 @@ export default function TicketDetailPage() {
         </div>
       </div>
     </div>
+
+    {/* ── Flag for QA modal ── */}
+    {showFlagModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl w-full max-w-md animate-slide-in">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border">
+            <h2 className="font-display font-bold text-cortex-text flex items-center gap-2">
+              <Flag className="w-4 h-4 text-cortex-danger" /> Flag for QA Review
+            </h2>
+            <button onClick={() => setShowFlagModal(false)} className="p-1.5 hover:bg-cortex-surface-raised rounded-lg text-cortex-muted hover:text-cortex-text transition-colors">
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Reason *</label>
+              <textarea
+                value={flagReason}
+                onChange={e => setFlagReason(e.target.value)}
+                placeholder="Why should this ticket be reviewed by QA?…"
+                className="input min-h-[90px] resize-y text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleFlagSubmit}
+                disabled={!flagReason.trim() || flagging}
+                className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {flagging ? 'Flagging…' : 'Flag for QA'}
+              </button>
+              <button onClick={() => setShowFlagModal(false)} className="btn-secondary px-5">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* ── Escalation modal ── */}
     {showEscalateModal && (

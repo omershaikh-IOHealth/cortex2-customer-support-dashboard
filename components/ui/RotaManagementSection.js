@@ -2,9 +2,11 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, CalendarRange, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee, CheckCircle, Circle } from 'lucide-react'
+import { Calendar, CalendarRange, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee, CheckCircle, Circle, FileText, ArrowLeftRight } from 'lucide-react'
 import Modal from './Modal'
-import { getUsers, getRotas, createRota, updateRota, deleteRota, createBulkRota } from '@/lib/api'
+import { getUsers, getRotas, createRota, updateRota, deleteRota, createBulkRota, getLeaveRequests, reviewLeaveRequest, getShiftSwaps, reviewShiftSwap } from '@/lib/api'
+import toast from 'react-hot-toast'
+import NewBadge from './NewBadge'
 
 function getWeekDates(base) {
   const d = new Date(base)
@@ -30,12 +32,13 @@ function fmt(date) {
 
 export default function RotaManagementSection() {
   const qc = useQueryClient()
+  const [activeTab, setActiveTab] = useState('rota')
   const [weekBase, setWeekBase] = useState(new Date())
   const [modalOpen, setModalOpen] = useState(false)
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false)
   const [prefillDate, setPrefillDate] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null)
+  const [toastMsg, setToastMsg] = useState(null)
   const [dragOverDate, setDragOverDate] = useState(null)
   const dragShiftRef = useRef(null) // { id, shift_date }
 
@@ -55,9 +58,46 @@ export default function RotaManagementSection() {
     staleTime: 300000,
   })
 
+  const { data: allLeave = [] } = useQuery({
+    queryKey: ['admin-leave-requests'],
+    queryFn: () => getLeaveRequests(true),
+    enabled: activeTab === 'leave',
+    refetchInterval: 60000,
+  })
+
+  const { data: allSwaps = [] } = useQuery({
+    queryKey: ['admin-shift-swaps'],
+    queryFn: () => getShiftSwaps(true),
+    enabled: activeTab === 'swaps',
+    refetchInterval: 60000,
+  })
+
+  async function handleLeaveReview(id, status) {
+    try {
+      await reviewLeaveRequest(id, { status })
+      toast.success(`Leave ${status}`)
+      qc.invalidateQueries({ queryKey: ['admin-leave-requests'] })
+    } catch (e) {
+      toast.error(e.message || 'Failed')
+    }
+  }
+
+  async function handleSwapReview(id, decision) {
+    try {
+      await reviewShiftSwap(id, { decision })
+      toast.success(`Swap ${decision}`)
+      qc.invalidateQueries({ queryKey: ['admin-shift-swaps'] })
+    } catch (e) {
+      toast.error(e.message || 'Failed')
+    }
+  }
+
+  const pendingLeave = allLeave.filter(l => l.status === 'pending').length
+  const pendingSwapsCount = allSwaps.filter(s => s.status === 'awaiting_supervisor').length
+
   function showToast(msg, type = 'success') {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
+    setToastMsg({ msg, type })
+    setTimeout(() => setToastMsg(null), 3500)
   }
 
   async function handleSave(form) {
@@ -187,17 +227,149 @@ export default function RotaManagementSection() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 p-1 bg-cortex-surface rounded-xl border border-cortex-border w-fit">
+        <button
+          onClick={() => setActiveTab('rota')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === 'rota' ? 'bg-cortex-bg text-cortex-text shadow-sm' : 'text-cortex-muted hover:text-cortex-text'}`}
+        >
+          <Calendar className="w-3.5 h-3.5" /> Rota
+        </button>
+        <button
+          onClick={() => setActiveTab('leave')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === 'leave' ? 'bg-cortex-bg text-cortex-text shadow-sm' : 'text-cortex-muted hover:text-cortex-text'}`}
+        >
+          <FileText className="w-3.5 h-3.5" /> Leave Requests
+          <NewBadge description="New tab — review all agent leave requests. Approve or reject with one click." />
+          {pendingLeave > 0 && <span className="text-[9px] bg-cortex-warning/20 text-cortex-warning px-1.5 py-0.5 rounded font-mono">{pendingLeave}</span>}
+        </button>
+        <button
+          onClick={() => setActiveTab('swaps')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === 'swaps' ? 'bg-cortex-bg text-cortex-text shadow-sm' : 'text-cortex-muted hover:text-cortex-text'}`}
+        >
+          <ArrowLeftRight className="w-3.5 h-3.5" /> Shift Swaps
+          <NewBadge description="New tab — shift swap requests needing supervisor approval appear here." />
+          {pendingSwapsCount > 0 && <span className="text-[9px] bg-cortex-warning/20 text-cortex-warning px-1.5 py-0.5 rounded font-mono">{pendingSwapsCount}</span>}
+        </button>
+      </div>
+
       {/* Toast */}
-      {toast && (
+      {toastMsg && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg ${
-          toast.type === 'error' ? 'bg-cortex-danger text-white' : 'bg-cortex-success text-white'
+          toastMsg.type === 'error' ? 'bg-cortex-danger text-white' : 'bg-cortex-success text-white'
         }`}>
-          {toast.msg}
+          {toastMsg.msg}
+        </div>
+      )}
+
+      {/* Leave Requests tab */}
+      {activeTab === 'leave' && (
+        <div className="space-y-3">
+          {allLeave.length === 0 ? (
+            <p className="text-sm text-cortex-muted text-center py-10">No leave requests yet</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-cortex-border">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-cortex-border bg-cortex-bg">
+                    <th className="table-header">Agent</th>
+                    <th className="table-header">Dates</th>
+                    <th className="table-header">Type</th>
+                    <th className="table-header">Note</th>
+                    <th className="table-header">Status</th>
+                    <th className="table-header">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-cortex-border">
+                  {allLeave.map(lr => (
+                    <tr key={lr.id} className="hover:bg-cortex-surface-raised">
+                      <td className="table-cell">
+                        <p className="text-xs font-medium text-cortex-text">{lr.user_name}</p>
+                        <p className="text-[10px] text-cortex-muted">{lr.user_email?.split('@')[0]}</p>
+                      </td>
+                      <td className="table-cell text-xs font-mono">{lr.start_date} – {lr.end_date}</td>
+                      <td className="table-cell"><span className="badge bg-cortex-accent/10 text-cortex-accent capitalize">{lr.leave_type}</span></td>
+                      <td className="table-cell text-xs text-cortex-muted max-w-xs"><p className="line-clamp-2">{lr.note || '—'}</p></td>
+                      <td className="table-cell">
+                        <span className={`badge text-[10px] ${lr.status === 'approved' ? 'bg-cortex-success/15 text-cortex-success' : lr.status === 'rejected' ? 'bg-cortex-danger/10 text-cortex-danger' : 'bg-cortex-warning/15 text-cortex-warning'}`}>
+                          {lr.status}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        {lr.status === 'pending' && (
+                          <div className="flex gap-1.5">
+                            <button onClick={() => handleLeaveReview(lr.id, 'approved')} className="text-xs bg-cortex-success/15 text-cortex-success hover:bg-cortex-success/25 px-2.5 py-1 rounded-lg transition-colors font-medium">Approve</button>
+                            <button onClick={() => handleLeaveReview(lr.id, 'rejected')} className="text-xs bg-cortex-danger/10 text-cortex-danger hover:bg-cortex-danger/20 px-2.5 py-1 rounded-lg transition-colors font-medium">Reject</button>
+                          </div>
+                        )}
+                        {lr.status !== 'pending' && <span className="text-xs text-cortex-muted">by {lr.reviewer_name || '—'}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Shift Swaps tab */}
+      {activeTab === 'swaps' && (
+        <div className="space-y-3">
+          {allSwaps.length === 0 ? (
+            <p className="text-sm text-cortex-muted text-center py-10">No shift swap requests yet</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-cortex-border">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-cortex-border bg-cortex-bg">
+                    <th className="table-header">Requester</th>
+                    <th className="table-header">Their Shift</th>
+                    <th className="table-header">Target Agent</th>
+                    <th className="table-header">Target Shift</th>
+                    <th className="table-header">Status</th>
+                    <th className="table-header">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-cortex-border">
+                  {allSwaps.map(s => (
+                    <tr key={s.id} className="hover:bg-cortex-surface-raised">
+                      <td className="table-cell">
+                        <p className="text-xs font-medium text-cortex-text">{s.requester_name}</p>
+                      </td>
+                      <td className="table-cell text-xs font-mono">{s.requester_shift_date?.slice(0, 10)} {s.requester_start?.slice(0, 5)}–{s.requester_end?.slice(0, 5)}</td>
+                      <td className="table-cell text-xs text-cortex-text">{s.target_agent_name}</td>
+                      <td className="table-cell text-xs font-mono">{s.target_shift_date ? `${s.target_shift_date.slice(0, 10)} ${s.target_start?.slice(0, 5)}–${s.target_end?.slice(0, 5)}` : '—'}</td>
+                      <td className="table-cell">
+                        <span className={`badge text-[10px] ${
+                          s.status === 'approved' ? 'bg-cortex-success/15 text-cortex-success' :
+                          s.status === 'rejected' ? 'bg-cortex-danger/10 text-cortex-danger' :
+                          s.status === 'awaiting_supervisor' ? 'bg-cortex-accent/10 text-cortex-accent' :
+                          'bg-cortex-warning/15 text-cortex-warning'
+                        }`}>{s.status?.replace(/_/g, ' ')}</span>
+                      </td>
+                      <td className="table-cell">
+                        {s.status === 'awaiting_supervisor' && (
+                          <div className="flex gap-1.5">
+                            <button onClick={() => handleSwapReview(s.id, 'approved')} className="text-xs bg-cortex-success/15 text-cortex-success hover:bg-cortex-success/25 px-2.5 py-1 rounded-lg transition-colors font-medium">Approve</button>
+                            <button onClick={() => handleSwapReview(s.id, 'rejected')} className="text-xs bg-cortex-danger/10 text-cortex-danger hover:bg-cortex-danger/20 px-2.5 py-1 rounded-lg transition-colors font-medium">Reject</button>
+                          </div>
+                        )}
+                        {s.status !== 'awaiting_supervisor' && (
+                          <span className="text-xs text-cortex-muted capitalize">{s.target_response}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* Week grid */}
-      <div className="grid grid-cols-7 gap-1.5">
+      {activeTab === 'rota' && <div className="grid grid-cols-7 gap-1.5">
         {weekDates.map(date => {
           const key = fmt(date)
           const dayShifts = shiftsByDate[key] || []
@@ -300,7 +472,7 @@ export default function RotaManagementSection() {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       <ShiftModal
         isOpen={modalOpen}

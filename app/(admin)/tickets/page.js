@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote } from '@/lib/api'
+import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote, getUsers, getTicketTags, addTagToTicket, updateTicket } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, getStatusColor, formatRelativeTime, truncate, getSentimentEmoji } from '@/lib/utils'
-import { Search, ExternalLink, Bookmark, Trash2, PauseCircle, PlayCircle, Plus, X, Loader2, ChevronLeft, ChevronRight, ArrowUpCircle } from 'lucide-react'
+import { Search, ExternalLink, Bookmark, Trash2, PauseCircle, PlayCircle, Plus, X, Loader2, ChevronLeft, ChevronRight, ArrowUpCircle, CheckSquare, Square, Tag, UserCheck, RefreshCw } from 'lucide-react'
 import NewBadge from '@/components/ui/NewBadge'
 
 const PRESETS_KEY     = 'cortex_filter_presets'
@@ -36,6 +36,15 @@ export default function TicketsPage() {
   const [escalateReason, setEscalateReason] = useState('')
   const [escalating, setEscalating]         = useState(false)
 
+  // ── Bulk actions ─────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds]       = useState(new Set())
+  const [bulkAction, setBulkAction]         = useState('')   // 'status' | 'reassign' | 'tag'
+  const [bulkStatus, setBulkStatus]         = useState('')
+  const [bulkAgent, setBulkAgent]           = useState('')
+  const [bulkTag, setBulkTag]               = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState([])
+  const [bulkWorking, setBulkWorking]       = useState(false)
+
   useEffect(() => {
     setPresets(loadPresets())
     try {
@@ -63,6 +72,8 @@ export default function TicketsPage() {
   const { data: modules = [] }      = useQuery({ queryKey: ['modules'],       queryFn: () => getModules(),       staleTime: 300000 })
   const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: () => getRequestTypes(),  staleTime: 300000 })
   const { data: caseTypes = [] }    = useQuery({ queryKey: ['case-types'],    queryFn: () => getCaseTypes(),     staleTime: 300000 })
+  const { data: allUsers = [] }     = useQuery({ queryKey: ['users'],          queryFn: getUsers,                 staleTime: 300000 })
+  const { data: existingTags = [] } = useQuery({ queryKey: ['ticket-tags'],    queryFn: getTicketTags,            staleTime: 60000 })
 
   const createMutation = useMutation({
     mutationFn: createTicket,
@@ -93,6 +104,70 @@ export default function TicketsPage() {
     const term = searchTerm.toLowerCase()
     return t.title?.toLowerCase().includes(term) || t.clickup_task_id?.toLowerCase().includes(term) || t.poc_name?.toLowerCase().includes(term)
   })
+
+  const allOnPageSelected = filteredTickets?.length > 0 && filteredTickets.every(t => selectedIds.has(t.id))
+  const someSelected = selectedIds.size > 0
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (allOnPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        filteredTickets.forEach(t => next.delete(t.id))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        filteredTickets.forEach(t => next.add(t.id))
+        return next
+      })
+    }
+  }
+
+  const executeBulkAction = async () => {
+    if (!selectedIds.size) return
+    setBulkWorking(true)
+    const ids = [...selectedIds]
+    try {
+      if (bulkAction === 'status' && bulkStatus) {
+        await Promise.all(ids.map(id => updateTicket(id, { status: bulkStatus })))
+        toast.success(`Status updated for ${ids.length} ticket${ids.length !== 1 ? 's' : ''}`)
+      } else if (bulkAction === 'reassign' && bulkAgent) {
+        await Promise.all(ids.map(id =>
+          fetch(`/api/tickets/${id}/assign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignee_email: bulkAgent }),
+          })
+        ))
+        toast.success(`Reassigned ${ids.length} ticket${ids.length !== 1 ? 's' : ''}`)
+      } else if (bulkAction === 'tag' && bulkTag.trim()) {
+        await Promise.all(ids.map(id => addTagToTicket(id, bulkTag.trim())))
+        toast.success(`Tag added to ${ids.length} ticket${ids.length !== 1 ? 's' : ''}`)
+      } else {
+        toast.error('Please fill in the required field')
+        setBulkWorking(false)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      queryClient.invalidateQueries({ queryKey: ['ticket-tags'] })
+      setSelectedIds(new Set())
+      setBulkAction('')
+      setBulkStatus(''); setBulkAgent(''); setBulkTag('')
+    } catch (e) {
+      toast.error(e.message || 'Bulk action failed')
+    } finally {
+      setBulkWorking(false)
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -189,6 +264,13 @@ export default function TicketsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-cortex-border">
+                <th className="table-header w-10">
+                  <button onClick={toggleSelectAll} className="flex items-center justify-center w-full text-cortex-muted hover:text-cortex-accent transition-colors">
+                    {allOnPageSelected
+                      ? <CheckSquare className="w-4 h-4 text-cortex-accent" />
+                      : <Square className="w-4 h-4" />}
+                  </button>
+                </th>
                 <th className="table-header">
                   <div className="flex items-center gap-1.5">
                     Ticket
@@ -218,7 +300,7 @@ export default function TicketsPage() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    <td className="table-cell" colSpan="8">
+                    <td className="table-cell" colSpan="9">
                       <div className="h-14 bg-cortex-bg animate-pulse rounded-lg" />
                     </td>
                   </tr>
@@ -227,8 +309,16 @@ export default function TicketsPage() {
                 filteredTickets.map(ticket => {
                   const isPaused = !!ticket.sla_paused_at
                   const isActive = !['closed', 'resolved', 'complete', 'Closed', 'Resolved'].includes(ticket.status)
+                  const isSelected = selectedIds.has(ticket.id)
                   return (
-                    <tr key={ticket.id} className="hover:bg-cortex-surface-raised transition-colors group">
+                    <tr key={ticket.id} className={`hover:bg-cortex-surface-raised transition-colors group ${isSelected ? 'bg-cortex-accent/5' : ''}`}>
+                      <td className="table-cell w-10">
+                        <button onClick={() => toggleSelect(ticket.id)} className="flex items-center justify-center w-full text-cortex-muted hover:text-cortex-accent transition-colors">
+                          {isSelected
+                            ? <CheckSquare className="w-4 h-4 text-cortex-accent" />
+                            : <Square className="w-4 h-4" />}
+                        </button>
+                      </td>
                       <td className="table-cell">
                         <Link href={`/tickets/${ticket.id}`} className="block">
                           <div className="flex items-start gap-2">
@@ -329,7 +419,7 @@ export default function TicketsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="8" className="table-cell text-center py-14 text-cortex-muted">
+                  <td colSpan="9" className="table-cell text-center py-14 text-cortex-muted">
                     No tickets match the current filters
                   </td>
                 </tr>
@@ -462,6 +552,93 @@ export default function TicketsPage() {
                 <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary px-5">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action floating bar */}
+      {someSelected && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-slide-in">
+          <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 min-w-[560px]">
+            <span className="text-sm font-semibold text-cortex-text whitespace-nowrap">
+              {selectedIds.size} selected
+            </span>
+            <div className="h-5 w-px bg-cortex-border" />
+
+            {/* Action picker */}
+            <div className="flex items-center gap-2 flex-1">
+              <select
+                value={bulkAction}
+                onChange={e => { setBulkAction(e.target.value); setBulkStatus(''); setBulkAgent(''); setBulkTag('') }}
+                className="input text-sm py-1.5 h-8 w-36"
+              >
+                <option value="">Action…</option>
+                <option value="status">Change Status</option>
+                <option value="reassign">Reassign</option>
+                <option value="tag">Add Tag</option>
+              </select>
+
+              {bulkAction === 'status' && (
+                <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="input text-sm py-1.5 h-8 w-36">
+                  <option value="">Pick status…</option>
+                  <option>Open</option>
+                  <option>In Progress</option>
+                  <option>Waiting</option>
+                  <option>Resolved</option>
+                  <option>Closed</option>
+                </select>
+              )}
+
+              {bulkAction === 'reassign' && (
+                <select value={bulkAgent} onChange={e => setBulkAgent(e.target.value)} className="input text-sm py-1.5 h-8 w-44">
+                  <option value="">Pick agent…</option>
+                  {allUsers.filter(u => u.is_active !== false).map(u => (
+                    <option key={u.id} value={u.email}>{u.full_name || u.email}</option>
+                  ))}
+                </select>
+              )}
+
+              {bulkAction === 'tag' && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Tag name…"
+                    value={bulkTag}
+                    onChange={e => {
+                      setBulkTag(e.target.value)
+                      const q = e.target.value.toLowerCase()
+                      setTagSuggestions(q ? existingTags.filter(t => t.includes(q)).slice(0, 5) : [])
+                    }}
+                    className="input text-sm py-1.5 h-8 w-36"
+                    list="tag-suggestions"
+                  />
+                  <datalist id="tag-suggestions">
+                    {tagSuggestions.map(t => <option key={t} value={t} />)}
+                  </datalist>
+                </div>
+              )}
+
+              <button
+                onClick={executeBulkAction}
+                disabled={bulkWorking || !bulkAction}
+                className="btn-primary text-sm py-1.5 px-4 h-8 disabled:opacity-40 flex items-center gap-1.5"
+              >
+                {bulkWorking
+                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Working…</>
+                  : bulkAction === 'status' ? <><Tag className="w-3.5 h-3.5" /> Apply</>
+                  : bulkAction === 'reassign' ? <><UserCheck className="w-3.5 h-3.5" /> Assign</>
+                  : bulkAction === 'tag' ? <><Tag className="w-3.5 h-3.5" /> Add Tag</>
+                  : 'Apply'}
+              </button>
+            </div>
+
+            <button
+              onClick={() => { setSelectedIds(new Set()); setBulkAction('') }}
+              className="p-1 text-cortex-muted hover:text-cortex-text transition-colors"
+              title="Clear selection"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

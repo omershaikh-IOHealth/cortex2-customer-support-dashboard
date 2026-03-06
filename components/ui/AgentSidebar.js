@@ -18,6 +18,7 @@ import {
   RadioTower,
   Clock,
   Bell,
+  ListTodo,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -25,8 +26,9 @@ import { getNotifications } from '@/lib/api'
 import NewBadge from './NewBadge'
 
 const navigation = [
-  { name: 'Briefing',       href: '/briefing',        icon: BookOpen },
+  { name: 'Briefing',       href: '/briefing',        icon: BookOpen,  isNew: true, newDesc: 'New — Request leave and shift swaps from the Briefing page. Accept or decline incoming swap requests from teammates.' },
   { name: 'My Tickets',     href: '/my-tickets',      icon: Ticket },
+  { name: 'My Tasks',       href: '/tasks',            icon: ListTodo,  isNew: true, newDesc: 'New page — connect your ClickUp account to view and manage your assigned tasks. Mark tasks complete directly from Cortex.' },
   { name: 'My Dashboard',   href: '/agent-dashboard', icon: BarChart2 },
   { name: 'Customers',      href: '/pocs',            icon: Users,    isNew: true, newDesc: 'New Customers page — search and view all contacts, see their linked tickets and company.' },
   { name: 'Knowledge Base', href: '/knowledge-base',  icon: BookOpen },

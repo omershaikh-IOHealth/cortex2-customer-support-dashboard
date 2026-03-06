@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTicket, getSimilarTickets, addTicketNote, holdTicket, getUsers } from '@/lib/api'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import {
@@ -110,7 +110,13 @@ function SLACountdown({ dueDate }) {
 export default function AgentTicketDetailPage() {
   const params = useParams()
   const ticketId = params.id
+  const router = useRouter()
   const queryClient = useQueryClient()
+
+  // Redirect to 3-panel inbox view
+  useEffect(() => {
+    router.replace(`/my-tickets?selected=${ticketId}`)
+  }, [ticketId, router])
 
   const [noteContent, setNoteContent] = useState('')
   const [addingNote, setAddingNote] = useState(false)

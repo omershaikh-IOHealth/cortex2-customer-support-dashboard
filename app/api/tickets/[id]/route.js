@@ -65,7 +65,29 @@ export async function GET(request, { params }) {
     const [ticketResult, threadsResult, alertsResult] = await Promise.all([
       pool.query(`
         SELECT t.*, p.name as poc_name, p.email as poc_email, p.phone as poc_phone, p.is_vip as poc_is_vip,
-               c.company_name, c.company_code, s.solution_name, s.solution_code
+               c.company_name, c.company_code, s.solution_name, s.solution_code,
+               (
+                 SELECT COUNT(*)::int FROM main.tickets t2
+                 WHERE t2.poc_id = t.poc_id
+                   AND t2.poc_id IS NOT NULL
+                   AND t2.id != t.id
+                   AND t2.status NOT IN ('Resolved', 'Closed', 'complete')
+                   AND (t2.is_deleted = false OR t2.is_deleted IS NULL)
+               ) AS poc_open_ticket_count,
+               (
+                 SELECT json_agg(th ORDER BY th.created_at DESC)
+                 FROM (
+                   SELECT th2.action_type, th2.raw_content, th2.new_value, th2.created_at, th2.actor_name, th2.ticket_id
+                   FROM main.threads th2
+                   WHERE th2.ticket_id IN (
+                     SELECT id FROM main.tickets t3
+                     WHERE t3.poc_id = t.poc_id AND t3.poc_id IS NOT NULL
+                       AND (t3.is_deleted = false OR t3.is_deleted IS NULL)
+                   )
+                   ORDER BY th2.created_at DESC
+                   LIMIT 3
+                 ) th
+               ) AS poc_recent_threads
         FROM main.tickets t
         LEFT JOIN main.pocs p ON t.poc_id = p.id
         LEFT JOIN main.companies c ON t.company_id = c.id

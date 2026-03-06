@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, X, Check, CheckCheck, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info } from 'lucide-react'
+import { Bell, X, Check, CheckCheck, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info, FileText, ArrowLeftRight } from 'lucide-react'
 import Link from 'next/link'
 import { formatRelativeTime } from '@/lib/utils'
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/api'
@@ -11,8 +11,10 @@ const TYPE_CONFIG = {
   sla_alert:       { icon: AlertTriangle, color: 'text-cortex-danger' },
   escalation:      { icon: ArrowUpCircle, color: 'text-cortex-warning' },
   break_exceeded:  { icon: Coffee,        color: 'text-blue-400' },
-  assignment:      { icon: Ticket,        color: 'text-cortex-accent' },
-  system:          { icon: Info,          color: 'text-cortex-muted' },
+  assignment:      { icon: Ticket,          color: 'text-cortex-accent' },
+  leave_request:   { icon: FileText,        color: 'text-cortex-warning' },
+  shift_swap:      { icon: ArrowLeftRight,  color: 'text-cortex-accent' },
+  system:          { icon: Info,            color: 'text-cortex-muted' },
 }
 
 export default function NotificationBell() {

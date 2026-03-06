@@ -144,7 +144,8 @@ ALTER TABLE main.users
 
 ALTER TABLE main.tickets
   ADD COLUMN IF NOT EXISTS assigned_to_id    INT REFERENCES main.users(id),
-  ADD COLUMN IF NOT EXISTS assigned_to_email VARCHAR(255);
+  ADD COLUMN IF NOT EXISTS assigned_to_email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS zoho_ticket_id    VARCHAR(100);
 
 CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON main.tickets(assigned_to_email);
 

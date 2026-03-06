@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Bell, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info, CheckCheck } from 'lucide-react'
+import { Bell, AlertTriangle, ArrowUpCircle, Coffee, Ticket, Info, CheckCheck, FileText, ArrowLeftRight } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/api'
 
@@ -11,16 +11,20 @@ const TYPE_CONFIG = {
   sla_alert:      { icon: AlertTriangle, color: 'text-cortex-danger' },
   escalation:     { icon: ArrowUpCircle, color: 'text-cortex-warning' },
   break_exceeded: { icon: Coffee,        color: 'text-blue-400' },
-  assignment:     { icon: Ticket,        color: 'text-cortex-accent' },
-  system:         { icon: Info,          color: 'text-cortex-muted' },
+  assignment:     { icon: Ticket,          color: 'text-cortex-accent' },
+  leave_request:  { icon: FileText,        color: 'text-cortex-warning' },
+  shift_swap:     { icon: ArrowLeftRight,  color: 'text-cortex-accent' },
+  system:         { icon: Info,            color: 'text-cortex-muted' },
 }
 
 const TABS = [
-  { key: 'all',        label: 'All' },
-  { key: 'unread',     label: 'Unread' },
-  { key: 'escalation', label: 'Escalations' },
-  { key: 'sla_alert',  label: 'SLA Alerts' },
-  { key: 'system',     label: 'System' },
+  { key: 'all',          label: 'All' },
+  { key: 'unread',       label: 'Unread' },
+  { key: 'escalation',   label: 'Escalations' },
+  { key: 'sla_alert',    label: 'SLA Alerts' },
+  { key: 'leave_request',label: 'Leave' },
+  { key: 'shift_swap',   label: 'Shift Swaps' },
+  { key: 'system',       label: 'System' },
 ]
 
 export default function NotificationsPageContent() {

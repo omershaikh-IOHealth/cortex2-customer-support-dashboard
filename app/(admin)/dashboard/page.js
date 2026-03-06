@@ -1,9 +1,9 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets, getAHTMetrics, getFCRMetrics } from '@/lib/api'
+import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets, getAHTMetrics, getFCRMetrics, getQueueStats } from '@/lib/api'
 import MetricCard from '@/components/ui/MetricCard'
-import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target } from 'lucide-react'
+import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target, Phone, Users, Timer, PhoneMissed } from 'lucide-react'
 import NewBadge from '@/components/ui/NewBadge'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime } from '@/lib/utils'
@@ -71,6 +71,12 @@ export default function DashboardPage() {
     queryKey: ['fcr-metrics'],
     queryFn: getFCRMetrics,
     refetchInterval: 300000,
+  })
+  const { data: queueStats, isLoading: queueLoading } = useQuery({
+    queryKey: ['queue-stats'],
+    queryFn: getQueueStats,
+    refetchInterval: 30000,
+    retry: false,
   })
 
   const systemChecks = [
@@ -179,6 +185,69 @@ export default function DashboardPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Queue Health */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Phone className="w-4 h-4 text-cortex-accent" />
+            <h2 className="font-display font-bold text-cortex-text">Queue Health</h2>
+            <span className="text-[10px] text-cortex-muted font-mono">Today · live</span>
+          </div>
+          <NewBadge description="Live ZIWO queue stats for today — refreshes every 30 seconds. Shows agent availability, inbound call volume, average wait time, and abandoned calls." />
+        </div>
+        {queueStats?.error ? (
+          <p className="text-xs text-cortex-muted text-center py-4">{queueStats.error}</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              {
+                label: 'Available Agents',
+                value: queueLoading ? '—' : (queueStats?.available_agents ?? '—'),
+                sub: queueStats?.total_agents != null ? `of ${queueStats.total_agents} total` : 'agents',
+                icon: Users,
+                color: 'text-cortex-success',
+                bg: 'bg-cortex-success/10',
+              },
+              {
+                label: 'Inbound Today',
+                value: queueLoading ? '—' : (queueStats?.total_inbound ?? '—'),
+                sub: 'calls received',
+                icon: Phone,
+                color: 'text-cortex-accent',
+                bg: 'bg-cortex-accent/10',
+              },
+              {
+                label: 'Avg Wait Time',
+                value: queueLoading ? '—' : (queueStats?.avg_wait_secs != null ? `${Math.round(queueStats.avg_wait_secs)}s` : '—'),
+                sub: 'seconds per call',
+                icon: Timer,
+                color: 'text-cortex-warning',
+                bg: 'bg-cortex-warning/10',
+              },
+              {
+                label: 'Abandoned',
+                value: queueLoading ? '—' : (queueStats?.total_abandoned ?? '—'),
+                sub: 'calls dropped',
+                icon: PhoneMissed,
+                color: 'text-cortex-danger',
+                bg: 'bg-cortex-danger/10',
+              },
+            ].map(({ label, value, sub, icon: Icon, color, bg }) => (
+              <div key={label} className="flex items-center gap-3 p-3 rounded-xl border border-cortex-border bg-cortex-bg">
+                <div className={`p-2 rounded-lg flex-shrink-0 ${bg}`}>
+                  <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-2xl font-display font-bold ${color}`}>{value}</p>
+                  <p className="text-[10px] text-cortex-muted leading-tight">{label}</p>
+                  <p className="text-[10px] text-cortex-muted/60 leading-tight">{sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Critical SLA */}
