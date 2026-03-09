@@ -104,7 +104,7 @@ const SEED_USERS = [
     full_name: 'Ann Shruthy',
     role: 'admin',
     ziwo_email: 'ann.shruthy@iohealth.com',
-    ziwo_password: null,
+    ziwo_password: process.env.SEED_ADMIN_ZIWO_PASSWORD || null,
   },
   {
     email: 'asif.k@iohealth.com',
