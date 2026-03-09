@@ -7,10 +7,11 @@ export default auth(function middleware(req) {
   const { pathname } = req.nextUrl
   const session = req.auth
 
-  // Always allow: auth API, setup endpoint, static assets
+  // Always allow: auth API, setup endpoint, seed endpoint, static assets
   if (
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/setup') ||
+    pathname.startsWith('/api/seed') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {
