@@ -276,12 +276,15 @@ ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200);
         `INSERT INTO main.users (email, password_hash, full_name, role, ziwo_email, ziwo_password)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE SET
-           password_hash = EXCLUDED.password_hash,
-           full_name     = EXCLUDED.full_name,
-           role          = EXCLUDED.role,
-           ziwo_email    = EXCLUDED.ziwo_email,
-           ziwo_password = EXCLUDED.ziwo_password,
-           updated_at    = NOW()
+           password_hash  = EXCLUDED.password_hash,
+           full_name      = EXCLUDED.full_name,
+           role           = EXCLUDED.role,
+           ziwo_email     = EXCLUDED.ziwo_email,
+           ziwo_password  = EXCLUDED.ziwo_password,
+           login_attempts = 0,
+           locked_until   = NULL,
+           is_active      = true,
+           updated_at     = NOW()
          RETURNING id, email, role`,
         [u.email, hash, u.full_name, u.role, u.ziwo_email, u.ziwo_password]
       )
