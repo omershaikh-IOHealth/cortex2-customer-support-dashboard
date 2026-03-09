@@ -12,6 +12,7 @@ export default auth(function middleware(req) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/setup') ||
     pathname.startsWith('/api/seed') ||
+    pathname.startsWith('/api/debug-login') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {
