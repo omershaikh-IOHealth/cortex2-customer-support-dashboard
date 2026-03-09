@@ -1,6 +1,12 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE main.agent_categories (
+  id integer NOT NULL DEFAULT nextval('main.agent_categories_id_seq'::regclass),
+  name character varying NOT NULL,
+  company_code character varying DEFAULT 'medgulf'::character varying,
+  CONSTRAINT agent_categories_pkey PRIMARY KEY (id)
+);
 CREATE TABLE main.agent_status (
   id integer NOT NULL DEFAULT nextval('main.agent_status_id_seq'::regclass),
   user_id integer UNIQUE,
@@ -9,6 +15,15 @@ CREATE TABLE main.agent_status (
   set_at timestamp without time zone DEFAULT now(),
   CONSTRAINT agent_status_pkey PRIMARY KEY (id),
   CONSTRAINT agent_status_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
+);
+CREATE TABLE main.agent_status_history (
+  id integer NOT NULL DEFAULT nextval('main.agent_status_history_id_seq'::regclass),
+  user_id integer,
+  status character varying,
+  started_at timestamp with time zone DEFAULT now(),
+  ended_at timestamp with time zone,
+  CONSTRAINT agent_status_history_pkey PRIMARY KEY (id),
+  CONSTRAINT agent_status_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
 );
 CREATE TABLE main.ai_companion_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -43,6 +58,20 @@ CREATE TABLE main.auth_logs (
   CONSTRAINT auth_logs_pkey PRIMARY KEY (id),
   CONSTRAINT auth_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
 );
+CREATE TABLE main.break_requests (
+  id integer NOT NULL DEFAULT nextval('main.break_requests_id_seq'::regclass),
+  user_id integer,
+  shift_id integer,
+  requested_at timestamp with time zone DEFAULT now(),
+  duration_mins integer,
+  status character varying DEFAULT 'pending'::character varying,
+  reviewed_by integer,
+  reviewed_at timestamp with time zone,
+  CONSTRAINT break_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT break_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES main.users(id),
+  CONSTRAINT break_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
+  CONSTRAINT break_requests_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES main.shift_rotas(id)
+);
 CREATE TABLE main.briefing_acks (
   id integer NOT NULL DEFAULT nextval('main.briefing_acks_id_seq'::regclass),
   user_id integer NOT NULL,
@@ -51,6 +80,15 @@ CREATE TABLE main.briefing_acks (
   CONSTRAINT briefing_acks_pkey PRIMARY KEY (id),
   CONSTRAINT briefing_acks_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
   CONSTRAINT briefing_acks_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES main.shift_rotas(id)
+);
+CREATE TABLE main.call_dispositions (
+  id integer NOT NULL DEFAULT nextval('main.call_dispositions_id_seq'::regclass),
+  name character varying NOT NULL,
+  company_code character varying DEFAULT 'medgulf'::character varying,
+  created_by integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT call_dispositions_pkey PRIMARY KEY (id),
+  CONSTRAINT call_dispositions_created_by_fkey FOREIGN KEY (created_by) REFERENCES main.users(id)
 );
 CREATE TABLE main.call_logs (
   id integer NOT NULL DEFAULT nextval('main.call_logs_id_seq'::regclass),
@@ -72,9 +110,12 @@ CREATE TABLE main.call_logs (
   answered_at timestamp without time zone,
   ended_at timestamp without time zone,
   created_at timestamp without time zone DEFAULT now(),
+  disposition_id integer,
+  customer_name character varying,
   CONSTRAINT call_logs_pkey PRIMARY KEY (id),
   CONSTRAINT call_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES main.users(id),
-  CONSTRAINT call_logs_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id)
+  CONSTRAINT call_logs_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id),
+  CONSTRAINT call_logs_disposition_id_fkey FOREIGN KEY (disposition_id) REFERENCES main.call_dispositions(id)
 );
 CREATE TABLE main.case_types (
   id integer NOT NULL DEFAULT nextval('main.case_types_id_seq'::regclass),
@@ -86,6 +127,15 @@ CREATE TABLE main.case_types (
   CONSTRAINT case_types_pkey PRIMARY KEY (id),
   CONSTRAINT case_types_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id),
   CONSTRAINT case_types_request_type_id_fkey FOREIGN KEY (request_type_id) REFERENCES main.request_types(id)
+);
+CREATE TABLE main.circular_acks (
+  id integer NOT NULL DEFAULT nextval('main.circular_acks_id_seq'::regclass),
+  circular_id integer,
+  user_id integer,
+  acked_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT circular_acks_pkey PRIMARY KEY (id),
+  CONSTRAINT circular_acks_circular_id_fkey FOREIGN KEY (circular_id) REFERENCES main.circulars(id),
+  CONSTRAINT circular_acks_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
 );
 CREATE TABLE main.circular_versions (
   id integer NOT NULL DEFAULT nextval('main.circular_versions_id_seq'::regclass),
@@ -148,6 +198,24 @@ CREATE TABLE main.kpi_configs (
   report_frequency character varying,
   CONSTRAINT kpi_configs_pkey PRIMARY KEY (id),
   CONSTRAINT kpi_configs_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.leave_requests (
+  id integer NOT NULL DEFAULT nextval('main.leave_requests_id_seq'::regclass),
+  user_id integer NOT NULL,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  leave_type character varying NOT NULL CHECK (leave_type::text = ANY (ARRAY['annual'::character varying, 'sick'::character varying, 'other'::character varying]::text[])),
+  note text,
+  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  reviewed_by integer,
+  review_note text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  start_time time without time zone,
+  end_time time without time zone,
+  CONSTRAINT leave_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT leave_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
+  CONSTRAINT leave_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES main.users(id)
 );
 CREATE TABLE main.modules (
   id integer NOT NULL DEFAULT nextval('main.modules_id_seq'::regclass),
@@ -215,6 +283,29 @@ CREATE TABLE main.processing_logs (
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT processing_logs_pkey PRIMARY KEY (id)
 );
+CREATE TABLE main.qa_scores (
+  id bigint NOT NULL DEFAULT nextval('main.qa_scores_id_seq'::regclass),
+  ticket_id integer NOT NULL,
+  agent_id integer NOT NULL,
+  reviewer_id integer NOT NULL,
+  company_code text NOT NULL DEFAULT 'medgulf'::text,
+  scores jsonb NOT NULL DEFAULT '{}'::jsonb,
+  critical_flags jsonb NOT NULL DEFAULT '{}'::jsonb,
+  coaching_notes text,
+  follow_up_action text,
+  follow_up_date date,
+  supervisor_id integer,
+  improvement_themes jsonb DEFAULT '[]'::jsonb,
+  total_score integer,
+  result text CHECK (result = ANY (ARRAY['pass'::text, 'borderline'::text, 'coaching_required'::text, 'fail'::text, 'critical_fail'::text])),
+  reviewed_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_scores_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_scores_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id),
+  CONSTRAINT qa_scores_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES main.users(id),
+  CONSTRAINT qa_scores_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES main.users(id),
+  CONSTRAINT qa_scores_supervisor_id_fkey FOREIGN KEY (supervisor_id) REFERENCES main.users(id)
+);
 CREATE TABLE main.request_types (
   id integer NOT NULL DEFAULT nextval('main.request_types_id_seq'::regclass),
   solution_id integer,
@@ -244,9 +335,38 @@ CREATE TABLE main.shift_rotas (
   notes text,
   created_by integer,
   created_at timestamp without time zone DEFAULT now(),
+  agent_type character varying,
   CONSTRAINT shift_rotas_pkey PRIMARY KEY (id),
   CONSTRAINT shift_rotas_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
   CONSTRAINT shift_rotas_created_by_fkey FOREIGN KEY (created_by) REFERENCES main.users(id)
+);
+CREATE TABLE main.shift_swaps (
+  id integer NOT NULL DEFAULT nextval('main.shift_swaps_id_seq'::regclass),
+  requester_id integer NOT NULL,
+  requester_shift_id integer NOT NULL,
+  target_agent_id integer NOT NULL,
+  target_shift_id integer,
+  target_response character varying DEFAULT 'pending'::character varying CHECK (target_response::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'declined'::character varying]::text[])),
+  supervisor_response character varying DEFAULT 'pending'::character varying CHECK (supervisor_response::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  supervisor_id integer,
+  supervisor_note text,
+  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'awaiting_supervisor'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT shift_swaps_pkey PRIMARY KEY (id),
+  CONSTRAINT shift_swaps_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES main.users(id),
+  CONSTRAINT shift_swaps_requester_shift_id_fkey FOREIGN KEY (requester_shift_id) REFERENCES main.shift_rotas(id),
+  CONSTRAINT shift_swaps_target_agent_id_fkey FOREIGN KEY (target_agent_id) REFERENCES main.users(id),
+  CONSTRAINT shift_swaps_target_shift_id_fkey FOREIGN KEY (target_shift_id) REFERENCES main.shift_rotas(id),
+  CONSTRAINT shift_swaps_supervisor_id_fkey FOREIGN KEY (supervisor_id) REFERENCES main.users(id)
+);
+CREATE TABLE main.shift_type_minimums (
+  id integer NOT NULL DEFAULT nextval('main.shift_type_minimums_id_seq'::regclass),
+  shift_slot character varying,
+  agent_type character varying,
+  min_count integer DEFAULT 1,
+  company_code character varying DEFAULT 'medgulf'::character varying,
+  CONSTRAINT shift_type_minimums_pkey PRIMARY KEY (id)
 );
 CREATE TABLE main.sla_alerts (
   id integer NOT NULL DEFAULT nextval('main.sla_alerts_id_seq'::regclass),
@@ -291,6 +411,14 @@ CREATE TABLE main.solutions (
   updated_at timestamp without time zone DEFAULT now(),
   CONSTRAINT solutions_pkey PRIMARY KEY (id),
   CONSTRAINT solutions_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id)
+);
+CREATE TABLE main.system_settings (
+  key character varying NOT NULL,
+  value text,
+  updated_by integer,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT system_settings_pkey PRIMARY KEY (key),
+  CONSTRAINT system_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES main.users(id)
 );
 CREATE TABLE main.threads (
   id integer NOT NULL DEFAULT nextval('main.threads_id_seq'::regclass),
@@ -348,11 +476,19 @@ CREATE TABLE main.tickets (
   resolved_at timestamp without time zone,
   closed_at timestamp without time zone,
   channel character varying DEFAULT 'email'::character varying,
+  flag_for_qa boolean DEFAULT false,
+  qa_flag_reason text,
+  qa_flagged_by integer,
+  qa_flagged_at timestamp with time zone,
+  zoho_ticket_id character varying,
+  assigned_to_name character varying,
+  qa_flagged boolean DEFAULT false,
   CONSTRAINT tickets_pkey PRIMARY KEY (id),
   CONSTRAINT tickets_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id),
   CONSTRAINT tickets_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id),
   CONSTRAINT tickets_poc_id_fkey FOREIGN KEY (poc_id) REFERENCES main.pocs(id),
-  CONSTRAINT tickets_assigned_to_id_fkey FOREIGN KEY (assigned_to_id) REFERENCES main.users(id)
+  CONSTRAINT tickets_assigned_to_id_fkey FOREIGN KEY (assigned_to_id) REFERENCES main.users(id),
+  CONSTRAINT tickets_qa_flagged_by_fkey FOREIGN KEY (qa_flagged_by) REFERENCES main.users(id)
 );
 CREATE TABLE main.users (
   id integer NOT NULL DEFAULT nextval('main.users_id_seq'::regclass),
@@ -369,91 +505,6 @@ CREATE TABLE main.users (
   current_session_tok character varying,
   created_at timestamp without time zone DEFAULT now(),
   updated_at timestamp without time zone DEFAULT now(),
+  clickup_token_enc text,
   CONSTRAINT users_pkey PRIMARY KEY (id)
 );
-
--- =====================================================================
--- MIGRATION: Phase 2 enhancements (run once)
--- =====================================================================
-
--- Circular acknowledgments
-CREATE TABLE IF NOT EXISTS main.circular_acks (
-  id SERIAL PRIMARY KEY,
-  circular_id INTEGER REFERENCES main.circulars(id) ON DELETE CASCADE,
-  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
-  acked_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(circular_id, user_id)
-);
-
--- Agent status history (for live timeline)
-CREATE TABLE IF NOT EXISTS main.agent_status_history (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
-  status VARCHAR(50),
-  started_at TIMESTAMPTZ DEFAULT NOW(),
-  ended_at TIMESTAMPTZ
-);
-
--- Break requests (agent applies, admin approves)
-CREATE TABLE IF NOT EXISTS main.break_requests (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
-  shift_id INTEGER REFERENCES main.shift_rotas(id) ON DELETE SET NULL,
-  requested_at TIMESTAMPTZ DEFAULT NOW(),
-  duration_mins INTEGER,
-  note TEXT,
-  status VARCHAR(20) DEFAULT 'pending',
-  reviewed_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
-  reviewed_at TIMESTAMPTZ
-);
-
--- Admin-defined agent categories (inbound, outbound, etc.)
-CREATE TABLE IF NOT EXISTS main.agent_categories (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(50) NOT NULL,
-  company_code VARCHAR(20) DEFAULT 'medgulf',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-INSERT INTO main.agent_categories (name) VALUES ('inbound'), ('outbound')
-  ON CONFLICT DO NOTHING;
-
--- Minimum agents per shift slot and category
-CREATE TABLE IF NOT EXISTS main.shift_type_minimums (
-  id SERIAL PRIMARY KEY,
-  shift_slot VARCHAR(50),
-  agent_type VARCHAR(50),
-  min_count INTEGER DEFAULT 1,
-  company_code VARCHAR(20) DEFAULT 'medgulf',
-  UNIQUE(shift_slot, agent_type, company_code)
-);
-
--- System-wide settings (key-value)
-CREATE TABLE IF NOT EXISTS main.system_settings (
-  key VARCHAR(100) PRIMARY KEY,
-  value TEXT,
-  updated_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-INSERT INTO main.system_settings (key, value) VALUES
-  ('auto_logoff_enabled', 'true'),
-  ('auto_logoff_minutes', '10')
-ON CONFLICT (key) DO NOTHING;
-
--- Call dispositions / tags (admin-managed)
-CREATE TABLE IF NOT EXISTS main.call_dispositions (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  company_code VARCHAR(20) DEFAULT 'medgulf',
-  created_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-INSERT INTO main.call_dispositions (name) VALUES
-  ('Call back'), ('Appointment'), ('Insurance'), ('Radiology'), ('Physiotherapy'), ('Complaint')
-ON CONFLICT DO NOTHING;
-
--- Alter existing tables
-ALTER TABLE main.shift_rotas ADD COLUMN IF NOT EXISTS agent_type VARCHAR(50);
-ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS start_time TIME;
-ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS end_time TIME;
-ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS disposition_id INTEGER REFERENCES main.call_dispositions(id) ON DELETE SET NULL;
-ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200);
