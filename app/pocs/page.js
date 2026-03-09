@@ -1,6 +1,6 @@
 import POCsManager from '@/components/ui/POCsManager'
 
-export const metadata = { title: 'Customers — Cortex 2.0' }
+export const metadata = { title: 'Customers — Apex' }
 
 export default function POCsPage() {
   return <POCsManager />

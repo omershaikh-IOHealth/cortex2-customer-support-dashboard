@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import PersistentAgentWidgets from '@/components/ui/PersistentAgentWidgets'
 
 export const metadata = {
-  title: 'Cortex 2.0 | Support Center Operations',
+  title: 'Apex | Support Center Operations',
   description: 'Real-time monitoring and intelligence for MedGulf support operations',
 }
 

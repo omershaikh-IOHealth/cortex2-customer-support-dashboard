@@ -182,7 +182,7 @@ export default function AgentSidebar() {
         </div>
         <div>
           <h1 className="text-sm font-display font-bold tracking-tight text-cortex-text leading-none">
-            Cortex <span className="text-cortex-accent">2.0</span>
+            Apex
           </h1>
           <p className="text-[10px] text-cortex-muted mt-0.5 font-mono tracking-wider uppercase">
             Agent

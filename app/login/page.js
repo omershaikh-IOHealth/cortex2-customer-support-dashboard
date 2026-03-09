@@ -74,7 +74,7 @@ export default function LoginPage() {
             <RadioTower className="w-6 h-6" />
           </div>
           <h1 className="text-3xl font-display font-bold text-cortex-text tracking-tight">
-            Cortex <span className="text-cortex-accent">2.0</span>
+            Apex
           </h1>
           <p className="text-cortex-muted mt-1.5 text-sm">
             Support Center Operations · io Health
@@ -161,7 +161,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-cortex-muted text-xs mt-6 font-mono">
-          Cortex 2.0 · io Health · {new Date().getFullYear()}
+          Apex · io Health · {new Date().getFullYear()}
         </p>
       </div>
     </div>

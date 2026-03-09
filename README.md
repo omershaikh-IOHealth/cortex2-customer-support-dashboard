@@ -1,4 +1,4 @@
-# Cortex 2.0
+# Apex
 
 Real-time support center operations dashboard for MedGulf. Monitors tickets, SLA compliance, escalations, and agent operations — with a built-in AI companion, ZIWO phone widget, and ClickUp sync.
 

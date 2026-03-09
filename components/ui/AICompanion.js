@@ -214,7 +214,7 @@ export default function AICompanion() {
             onMouseDown={startDrag}
             onClick={() => { if (!wasDragged.current) setIsOpen(true); }}
             className="relative w-14 h-14 bg-cortex-accent hover:bg-cortex-accent/90 rounded-2xl shadow-accent flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-grab active:cursor-grabbing"
-            title="Cortex AI — drag to reposition"
+            title="Apex AI — drag to reposition"
           >
             <Bot className="w-6 h-6 text-white" />
             {criticalAlerts.length > 0 && (
@@ -238,7 +238,7 @@ export default function AICompanion() {
                   <Bot className="w-5 h-5 text-cortex-accent" />
                 </div>
                 <div>
-                  <div className="font-semibold text-cortex-text">Cortex AI</div>
+                  <div className="font-semibold text-cortex-text">Apex AI</div>
                   <div className="text-xs text-cortex-muted">
                     {isAgent ? 'Agent Assistant' : 'Support Operations'}
                   </div>
