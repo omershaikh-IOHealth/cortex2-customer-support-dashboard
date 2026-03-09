@@ -249,7 +249,7 @@ export default function QAScorecardPanel({ row, onClose }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Save (insert new or update existing) ──────────────────────────────────
   const handleSave = async () => {
     if (!ticketId || !agentId) {
       toast.error('Ticket ID and agent are required')
@@ -264,6 +264,7 @@ export default function QAScorecardPanel({ row, onClose }) {
     setSaving(true)
     try {
       await createQAReview({
+        review_id:         row?.review_id || null,
         ticket_id:         ticketId,
         agent_id:          agentId,
         scores,
@@ -275,7 +276,7 @@ export default function QAScorecardPanel({ row, onClose }) {
         total_score:       totalScore,
         result,
       })
-      toast.success('Scorecard saved successfully')
+      toast.success(isNew ? 'Scorecard saved' : 'Scorecard updated')
       queryClient.invalidateQueries({ queryKey: ['qa-reviews-queue'] })
       queryClient.invalidateQueries({ queryKey: ['qa-reviews-strip'] })
       queryClient.invalidateQueries({ queryKey: ['qa-agent-perf'] })
@@ -522,22 +523,20 @@ export default function QAScorecardPanel({ row, onClose }) {
             <button onClick={onClose} className="btn-secondary text-sm px-4 py-2">
               Close
             </button>
-            {isNew && (
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-primary flex items-center gap-2 text-sm px-5 py-2"
-              >
-                {saving ? (
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="60 40" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {saving ? 'Saving…' : 'Save Scorecard'}
-              </button>
-            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn-primary flex items-center gap-2 text-sm px-5 py-2"
+            >
+              {saving ? (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="60 40" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {saving ? 'Saving…' : isNew ? 'Save Scorecard' : 'Update Scorecard'}
+            </button>
           </div>
         </div>
       </div>

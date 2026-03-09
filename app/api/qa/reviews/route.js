@@ -74,6 +74,7 @@ export async function POST(request) {
 
     const body = await request.json()
     const {
+      review_id,
       ticket_id,
       agent_id,
       scores,
@@ -93,31 +94,58 @@ export async function POST(request) {
 
     const reviewer_id = session.user.id
 
-    const insertResult = await pool.query(`
-      INSERT INTO main.qa_scores (
-        ticket_id, agent_id, reviewer_id, company_code,
-        scores, critical_flags, coaching_notes, follow_up_action, follow_up_date,
-        supervisor_id, improvement_themes, total_score, result, reviewed_at
-      ) VALUES (
-        $1, $2, $3, 'medgulf',
-        $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, NOW()
-      )
-      RETURNING id, total_score, result, reviewed_at
-    `, [
-      ticket_id, agent_id, reviewer_id,
-      JSON.stringify(scores || {}),
-      JSON.stringify(critical_flags || {}),
-      coaching_notes || null,
-      follow_up_action || null,
-      follow_up_date || null,
-      supervisor_id || null,
-      JSON.stringify(improvement_themes || []),
-      total_score,
-      result,
-    ])
+    let queryResult
+    if (review_id) {
+      // UPDATE existing review
+      queryResult = await pool.query(`
+        UPDATE main.qa_scores SET
+          scores = $1, critical_flags = $2, coaching_notes = $3,
+          follow_up_action = $4, follow_up_date = $5, supervisor_id = $6,
+          improvement_themes = $7, total_score = $8, result = $9,
+          reviewer_id = $10, reviewed_at = NOW()
+        WHERE id = $11 AND company_code = 'medgulf'
+        RETURNING id, total_score, result, reviewed_at
+      `, [
+        JSON.stringify(scores || {}),
+        JSON.stringify(critical_flags || {}),
+        coaching_notes || null,
+        follow_up_action || null,
+        follow_up_date || null,
+        supervisor_id || null,
+        JSON.stringify(improvement_themes || []),
+        total_score,
+        result,
+        reviewer_id,
+        review_id,
+      ])
+    } else {
+      // INSERT new review
+      queryResult = await pool.query(`
+        INSERT INTO main.qa_scores (
+          ticket_id, agent_id, reviewer_id, company_code,
+          scores, critical_flags, coaching_notes, follow_up_action, follow_up_date,
+          supervisor_id, improvement_themes, total_score, result, reviewed_at
+        ) VALUES (
+          $1, $2, $3, 'medgulf',
+          $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, NOW()
+        )
+        RETURNING id, total_score, result, reviewed_at
+      `, [
+        ticket_id, agent_id, reviewer_id,
+        JSON.stringify(scores || {}),
+        JSON.stringify(critical_flags || {}),
+        coaching_notes || null,
+        follow_up_action || null,
+        follow_up_date || null,
+        supervisor_id || null,
+        JSON.stringify(improvement_themes || []),
+        total_score,
+        result,
+      ])
+    }
 
-    return NextResponse.json(insertResult.rows[0])
+    return NextResponse.json(queryResult.rows[0])
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

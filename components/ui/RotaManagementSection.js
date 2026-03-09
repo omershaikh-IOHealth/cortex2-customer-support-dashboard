@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, CalendarRange, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Coffee, CheckCircle, Circle, FileText, ArrowLeftRight, Umbrella } from 'lucide-react'
+import { Calendar, CalendarRange, Plus, Trash2, Pencil, ChevronLeft, ChevronRight, Clock, Coffee, CheckCircle, Circle, FileText, ArrowLeftRight, Umbrella } from 'lucide-react'
 import Modal from './Modal'
 import { getUsers, getRotas, createRota, updateRota, deleteRota, createBulkRota, getLeaveRequests, reviewLeaveRequest, getShiftSwaps, reviewShiftSwap } from '@/lib/api'
 import toast from 'react-hot-toast'
@@ -42,6 +42,8 @@ export default function RotaManagementSection() {
   const [dragOverCell, setDragOverCell] = useState(null) // `${agentId}-${date}`
   const dragShiftRef = useRef(null) // { id, shift_date }
   const [prefillUserId, setPrefillUserId] = useState(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editShift, setEditShift] = useState(null)
 
   // Leave tab filters
   const [leaveAgentFilter, setLeaveAgentFilter] = useState('')
@@ -144,6 +146,34 @@ export default function RotaManagementSection() {
       showToast('Shift removed')
     } catch (err) {
       showToast(err.message, 'error')
+    }
+  }
+
+  async function handleEditSave(id, form, scope) {
+    setSaving(true)
+    try {
+      if (scope === 'week') {
+        const agentShifts = shifts.filter(s => String(s.user_id) === String(editShift.user_id))
+        await Promise.all(agentShifts.map(s => updateRota(s.id, {
+          start_time: form.start_time,
+          end_time:   form.end_time,
+          shift_type: form.shift_type,
+          agent_type: form.agent_type,
+          notes:      form.notes,
+          breaks:     form.breaks,
+        })))
+        showToast(`Updated ${agentShifts.length} shift${agentShifts.length !== 1 ? 's' : ''} this week`)
+      } else {
+        await updateRota(id, form)
+        showToast('Shift updated')
+      }
+      await qc.invalidateQueries({ queryKey: ['admin-rota'] })
+      setEditModalOpen(false)
+      setEditShift(null)
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -523,7 +553,13 @@ export default function RotaManagementSection() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                      {s.agent_type && <span className="text-[9px] px-1 py-0.5 rounded bg-cortex-accent/10 text-cortex-accent capitalize">{s.agent_type}</span>}
+                                      {s.agent_type && (
+                                        <span className={`text-[9px] px-1 py-0.5 rounded capitalize font-medium ${
+                                          s.agent_type === 'inbound'  ? 'bg-blue-400/15 text-blue-400' :
+                                          s.agent_type === 'outbound' ? 'bg-orange-400/15 text-orange-400' :
+                                          'bg-cortex-accent/10 text-cortex-accent'
+                                        }`}>{s.agent_type}</span>
+                                      )}
                                       {s.shift_type !== 'regular' && (
                                         <span className={`text-[9px] px-1 py-0.5 rounded capitalize ${s.shift_type === 'overtime' ? 'bg-cortex-warning/15 text-cortex-warning' : 'bg-purple-400/15 text-purple-400'}`}>
                                           {s.shift_type}
@@ -536,8 +572,16 @@ export default function RotaManagementSection() {
                                       )}
                                     </div>
                                     <button
+                                      onClick={e => { e.stopPropagation(); setEditShift(s); setEditModalOpen(true) }}
+                                      className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-cortex-muted hover:text-cortex-accent transition-all"
+                                      title="Edit shift"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                    <button
                                       onClick={() => handleDelete(s.id)}
                                       className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-cortex-muted hover:text-cortex-danger transition-all"
+                                      title="Delete shift"
                                     >
                                       <Trash2 className="w-3 h-3" />
                                     </button>
@@ -583,6 +627,16 @@ export default function RotaManagementSection() {
         saving={saving}
         agents={agents}
         initialWeekBase={weekBase}
+      />
+
+      <EditShiftModal
+        isOpen={editModalOpen}
+        onClose={() => { setEditModalOpen(false); setEditShift(null) }}
+        onSave={handleEditSave}
+        saving={saving}
+        shift={editShift}
+        weekShifts={editShift ? shifts.filter(s => String(s.user_id) === String(editShift.user_id)) : []}
+        agentName={editShift ? agents.find(a => String(a.id) === String(editShift.user_id))?.full_name : ''}
       />
     </div>
   )
@@ -754,6 +808,168 @@ function ShiftModal({ isOpen, onClose, onSave, saving, agents, prefillDate, pref
           <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
           <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
             {saving ? 'Saving…' : 'Create Shift'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Edit shift modal ─────────────────────────────────────────────────────────
+function EditShiftModal({ isOpen, onClose, onSave, saving, shift, weekShifts, agentName }) {
+  const [form, setForm] = useState({
+    start_time: '09:00', end_time: '18:00', shift_type: 'regular',
+    agent_type: '', notes: '', breaks: [],
+  })
+  const [scope, setScope] = useState('day')
+
+  useEffect(() => {
+    if (shift && isOpen) {
+      const dateStr = shift.shift_date
+        ? (typeof shift.shift_date === 'string' ? shift.shift_date.slice(0, 10) : fmt(new Date(shift.shift_date)))
+        : ''
+      setForm({
+        start_time: shift.start_time?.slice(0, 5) || '09:00',
+        end_time:   shift.end_time?.slice(0, 5)   || '18:00',
+        shift_type: shift.shift_type || 'regular',
+        agent_type: shift.agent_type || '',
+        notes:      shift.notes || '',
+        breaks:     (shift.breaks || []).map(b => ({
+          break_start: b.break_start?.slice(0, 5) || '13:00',
+          break_end:   b.break_end?.slice(0, 5)   || '13:30',
+          break_type:  b.break_type || 'scheduled',
+        })),
+        _dateStr: dateStr,
+      })
+      setScope('day')
+    }
+  }, [shift, isOpen])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function addBreak() {
+    setForm(f => ({ ...f, breaks: [...f.breaks, { break_start: '13:00', break_end: '13:30', break_type: 'lunch' }] }))
+  }
+  function updateBreak(i, k, v) {
+    setForm(f => { const breaks = [...f.breaks]; breaks[i] = { ...breaks[i], [k]: v }; return { ...f, breaks } })
+  }
+  function removeBreak(i) {
+    setForm(f => ({ ...f, breaks: f.breaks.filter((_, j) => j !== i) }))
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave(shift.id, form, scope)
+  }
+
+  const shiftDateLabel = form._dateStr
+    ? new Date(form._dateStr + 'T00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+    : ''
+  const weekShiftCount = weekShifts?.length ?? 0
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Shift">
+      <form onSubmit={handleSubmit} className="space-y-4">
+
+        {/* Scope selector */}
+        <div className="p-3 bg-cortex-bg border border-cortex-border rounded-xl space-y-2.5">
+          <p className="text-xs font-semibold text-cortex-text uppercase tracking-wide">Apply changes to</p>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio" name="edit-scope" value="day"
+              checked={scope === 'day'} onChange={() => setScope('day')}
+              className="mt-0.5"
+            />
+            <div>
+              <p className="text-sm font-medium text-cortex-text">This day only</p>
+              <p className="text-xs text-cortex-muted">{shiftDateLabel}</p>
+            </div>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio" name="edit-scope" value="week"
+              checked={scope === 'week'} onChange={() => setScope('week')}
+              className="mt-0.5"
+            />
+            <div>
+              <p className="text-sm font-medium text-cortex-text">All shifts this week</p>
+              <p className="text-xs text-cortex-muted">
+                {weekShiftCount} shift{weekShiftCount !== 1 ? 's' : ''} for {agentName || 'this agent'} will be updated
+              </p>
+            </div>
+          </label>
+        </div>
+
+        {/* Times */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Start *</label>
+            <input type="time" value={form.start_time} onChange={e => set('start_time', e.target.value)} className="input w-full" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">End *</label>
+            <input type="time" value={form.end_time} onChange={e => set('end_time', e.target.value)} className="input w-full" required />
+          </div>
+        </div>
+
+        {/* Shift type + agent role */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Shift Type</label>
+            <select value={form.shift_type} onChange={e => set('shift_type', e.target.value)} className="input w-full">
+              <option value="regular">Regular</option>
+              <option value="overtime">Overtime</option>
+              <option value="on_call">On Call</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Agent Role</label>
+            <select value={form.agent_type} onChange={e => set('agent_type', e.target.value)} className="input w-full">
+              <option value="">— Not specified —</option>
+              <option value="inbound">Inbound</option>
+              <option value="outbound">Outbound</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Breaks */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium">Scheduled Breaks</label>
+            <button type="button" onClick={addBreak} className="text-xs text-cortex-accent hover:underline flex items-center gap-1">
+              <Plus className="w-3 h-3" /> Add Break
+            </button>
+          </div>
+          {form.breaks.length === 0 && (
+            <p className="text-xs text-cortex-muted">No breaks scheduled.</p>
+          )}
+          {form.breaks.map((b, i) => (
+            <div key={i} className="grid grid-cols-3 gap-2 mb-2 items-center">
+              <input type="time" value={b.break_start} onChange={e => updateBreak(i, 'break_start', e.target.value)} className="input text-sm" />
+              <input type="time" value={b.break_end} onChange={e => updateBreak(i, 'break_end', e.target.value)} className="input text-sm" />
+              <div className="flex gap-1">
+                <select value={b.break_type} onChange={e => updateBreak(i, 'break_type', e.target.value)} className="input text-sm flex-1">
+                  <option value="scheduled">Scheduled</option>
+                  <option value="lunch">Lunch</option>
+                </select>
+                <button type="button" onClick={() => removeBreak(i)} className="text-cortex-muted hover:text-cortex-danger">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Notes</label>
+          <input value={form.notes} onChange={e => set('notes', e.target.value)} className="input w-full" placeholder="Optional note…" />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+          <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
+            {saving ? 'Saving…' : scope === 'week' ? `Update ${weekShiftCount} Shift${weekShiftCount !== 1 ? 's' : ''}` : 'Update Shift'}
           </button>
         </div>
       </form>

@@ -378,6 +378,7 @@ export default function QAPage() {
       {/* NEW: QA Scorecard Slide Panel */}
       {scorecardRow && (
         <QAScorecardPanel
+          key={scorecardRow._key || scorecardRow.ticket_id}
           row={scorecardRow}
           onClose={() => setScorecardRow(null)}
         />
