@@ -190,7 +190,86 @@ CREATE INDEX IF NOT EXISTS idx_shift_breaks_shift_id ON main.shift_breaks(shift_
     await pool.query(MIGRATION_002)
     log.push('✓ Migration 002 complete (auth hardening, notifications, shift_breaks, ticket assignment)')
 
-    // 3. Seed users
+    // 3. Run migration 003 (phase 2 enhancements)
+    const MIGRATION_003 = `
+CREATE TABLE IF NOT EXISTS main.circular_acks (
+  id          SERIAL PRIMARY KEY,
+  circular_id INT REFERENCES main.circulars(id) ON DELETE CASCADE,
+  user_id     INT REFERENCES main.users(id) ON DELETE CASCADE,
+  acked_at    TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(circular_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS main.agent_status_history (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT REFERENCES main.users(id) ON DELETE CASCADE,
+  status     VARCHAR(50),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_agent_status_history_user ON main.agent_status_history(user_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS main.break_requests (
+  id            SERIAL PRIMARY KEY,
+  user_id       INT REFERENCES main.users(id) ON DELETE CASCADE,
+  shift_id      INT REFERENCES main.shift_rotas(id) ON DELETE SET NULL,
+  requested_at  TIMESTAMPTZ DEFAULT NOW(),
+  duration_mins INT,
+  note          TEXT,
+  status        VARCHAR(20) DEFAULT 'pending',
+  reviewed_by   INT REFERENCES main.users(id) ON DELETE SET NULL,
+  reviewed_at   TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS main.agent_categories (
+  id           SERIAL PRIMARY KEY,
+  name         VARCHAR(50) NOT NULL,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.agent_categories (name) VALUES ('inbound'), ('outbound') ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS main.shift_type_minimums (
+  id           SERIAL PRIMARY KEY,
+  shift_slot   VARCHAR(50),
+  agent_type   VARCHAR(50),
+  min_count    INT DEFAULT 1,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  UNIQUE(shift_slot, agent_type, company_code)
+);
+
+CREATE TABLE IF NOT EXISTS main.system_settings (
+  key        VARCHAR(100) PRIMARY KEY,
+  value      TEXT,
+  updated_by INT REFERENCES main.users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.system_settings (key, value) VALUES
+  ('auto_logoff_enabled', 'true'),
+  ('auto_logoff_minutes', '10')
+ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS main.call_dispositions (
+  id           SERIAL PRIMARY KEY,
+  name         VARCHAR(100) NOT NULL,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  created_by   INT REFERENCES main.users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.call_dispositions (name) VALUES
+  ('Call back'), ('Appointment'), ('Insurance'), ('Radiology'), ('Physiotherapy'), ('Complaint')
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE main.shift_rotas ADD COLUMN IF NOT EXISTS agent_type VARCHAR(50);
+ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS start_time TIME;
+ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS end_time TIME;
+ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS disposition_id INT REFERENCES main.call_dispositions(id) ON DELETE SET NULL;
+ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200);
+`
+    await pool.query(MIGRATION_003)
+    log.push('✓ Migration 003 complete (circular acks, status history, break requests, agent categories, system settings, call dispositions)')
+
+    // 4. Seed users
     for (const u of SEED_USERS) {
       const hash = await bcrypt.hash(u.password, 10)
       const result = await pool.query(

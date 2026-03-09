@@ -1,5 +1,4 @@
 {
-  "name": "clickup-cortex-sync",
   "nodes": [
     {
       "parameters": {},
@@ -620,7 +619,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===== INSERT NEW THREADS (Comments + Field Changes) =====\nconst ticketData = $('Parse Summary + SLA Impact').first().json;\nconst updateResult = $('Update Existing Ticket').first().json;\nconst ticketId = updateResult.ticket_id;\n\nconst threads = [];\n\n// 1. Insert comment threads\nconst newComments = ticketData._new_comments || [];\nfor (const c of newComments) {\n  const author = c.user?.username || c.user?.email || 'Unknown';\n  const authorEmail = c.user?.email || null;\n  const commentText = c.comment_text || (c.comment || []).map(p => p.text || '').join(' ');\n  \n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: String(c.id),\n      action_type: 'comment',\n      actor_email: authorEmail,\n      actor_name: author,\n      raw_content: commentText.substring(0, 5000),\n      ai_summary: null,\n      has_attachments: (c.attachments || []).length > 0,\n      created_at: c.date ? new Date(parseInt(c.date)).toISOString() : new Date().toISOString()\n    }\n  });\n}\n\n// 2. Insert field change threads\nconst changedFields = ticketData._changed_fields || [];\nif (changedFields.length > 0 && changedFields.some(f => f !== 'updated_at')) {\n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: null,\n      action_type: 'field_change',\n      actor_email: null,\n      actor_name: 'system',\n      raw_content: `Fields changed: ${changedFields.join(', ')}`,\n      ai_summary: ticketData._action_summary,\n      new_value: JSON.stringify({ status: ticketData.status, priority: ticketData.priority }),\n      has_attachments: false,\n      created_at: new Date().toISOString()\n    }\n  });\n}\n\nif (threads.length === 0) {\n  return [{ json: { _done: true, _no_threads: true, ticket_id: ticketId } }];\n}\n\nreturn threads;"
+        "jsCode": "// ===== INSERT NEW THREADS (Comments + Field Changes) =====\nconst ticketData = $('Parse Summary + SLA Impact').first().json;\nconst updateResult = $('Update Existing Ticket').first().json;\nconst ticketId = updateResult.ticket_id;\n\nconst threads = [];\n\n// 1. Insert comment threads\nconst newComments = ticketData._new_comments || [];\nfor (const c of newComments) {\n  const author = c.user?.username || c.user?.email || 'Unknown';\n  const authorEmail = c.user?.email || null;\n  const commentText = c.comment_text || (c.comment || []).map(p => p.text || '').join(' ');\n  \n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: String(c.id),\n      action_type: 'comment',\n      actor_email: authorEmail,\n      actor_name: author,\n      raw_content: commentText.substring(0, 5000),\n      ai_summary: null,\n      has_attachments: (c.attachments || []).length > 0,\n      created_at: c.date ? new Date(parseInt(c.date)).toISOString() : new Date().toISOString()\n    }\n  });\n}\n\n// 2. Insert field change threads\nconst changedFields = ticketData._changed_fields || [];\nif (changedFields.length > 0 && changedFields.some(f => f !== 'updated_at')) {\n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: null,\n      action_type: 'field_change',\n      actor_email: null,\n      actor_name: 'system',\n      raw_content: `Fields changed: ${changedFields.join(', ')}`,\n      ai_summary: ticketData._action_summary,\n      new_value: JSON.stringify({ status: ticketData.status, priority: ticketData.priority }),\n      has_attachments: false,\n      created_at: new Date().toISOString()\n    }\n  });\n}\n\nif (threads.length === 0) {\n  return [{ json: { \n    _done: true, \n    _no_threads: true, \n    _sync_action: 'EXISTS', \n    clickup_task_id: ticketData.clickup_task_id,\n    ticket_id: ticketId \n  } }];\n}\n\nreturn threads;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1484,7 +1483,6 @@
       }
     }
   ],
-  "pinData": {},
   "connections": {
     "Manual Trigger": {
       "main": [
@@ -1997,6 +1995,17 @@
         ]
       ]
     },
+    "Log Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Merge Configs": {
       "main": [
         [
@@ -2036,17 +2045,6 @@
         [
           {
             "node": "Fetch Active Tickets for SLA",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Log Workflow Run": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
@@ -2261,15 +2259,9 @@
       ]
     }
   },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "c7eb524c-c5b0-4401-afe2-2cede879da57",
+  "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "e55337cd04f1eaeb9d80b3109da0b9a0ef8db1dfc622debb9291d0d8019d0fb5"
-  },
-  "id": "HzLpGcq3LQ5v95b8",
-  "tags": []
+  }
 }

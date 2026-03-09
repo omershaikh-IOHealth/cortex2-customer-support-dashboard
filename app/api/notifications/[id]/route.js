@@ -7,11 +7,28 @@ export async function PUT(request, { params }) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id } = params
+  const { id } = await params
   try {
     await pool.query(
       `UPDATE main.notifications SET is_read = true
        WHERE id = $1 AND user_id = $2`,
+      [id, session.user.id]
+    )
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+// DELETE — permanently delete a single notification
+export async function DELETE(request, { params }) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  try {
+    await pool.query(
+      `DELETE FROM main.notifications WHERE id = $1 AND user_id = $2`,
       [id, session.user.id]
     )
     return NextResponse.json({ ok: true })

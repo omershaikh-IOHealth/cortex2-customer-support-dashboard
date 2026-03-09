@@ -26,7 +26,7 @@ export async function GET(request) {
       `SELECT sr.id, sr.user_id,
               TO_CHAR(sr.shift_date, 'YYYY-MM-DD') AS shift_date,
               sr.start_time, sr.end_time,
-              sr.shift_type, sr.notes,
+              sr.shift_type, sr.agent_type, sr.notes,
               u.full_name AS agent_name, u.email AS agent_email,
               COALESCE(
                 json_agg(
@@ -58,7 +58,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { user_id, shift_date, start_time, end_time, shift_type = 'regular', notes = null, breaks = [] } = body
+  const { user_id, shift_date, start_time, end_time, shift_type = 'regular', agent_type = null, notes = null, breaks = [] } = body
 
   if (!user_id || !shift_date || !start_time || !end_time)
     return NextResponse.json({ error: 'user_id, shift_date, start_time, end_time are required' }, { status: 400 })
@@ -68,10 +68,10 @@ export async function POST(request) {
     await client.query('BEGIN')
 
     const shiftRes = await client.query(
-      `INSERT INTO main.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO main.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, agent_type, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [user_id, shift_date, start_time, end_time, shift_type, notes, session.user.id]
+      [user_id, shift_date, start_time, end_time, shift_type, agent_type || null, notes, session.user.id]
     )
     const shift = shiftRes.rows[0]
 

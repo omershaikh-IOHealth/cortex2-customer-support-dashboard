@@ -1095,11 +1095,12 @@ export default function TicketDetailPage() {
                   <span className="text-xs text-cortex-muted">Resolution due</span>
                   <div className="text-right">
                     <p className="text-xs font-mono">{formatDate(ticket.sla_resolution_due)}</p>
-                    {!isPaused && <SLACountdown dueDate={ticket.sla_resolution_due} label="" />}
+                    {!isPaused && isActive && <SLACountdown dueDate={ticket.sla_resolution_due} label="" />}
+                    {!isPaused && !isActive && <span className="text-xs font-mono text-cortex-success">Completed</span>}
                   </div>
                 </div>
               )}
-              {ticket.sla_response_due && !isPaused && (
+              {ticket.sla_response_due && !isPaused && isActive && (
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-xs text-cortex-muted">Response due</span>
                   <SLACountdown dueDate={ticket.sla_response_due} label="" />

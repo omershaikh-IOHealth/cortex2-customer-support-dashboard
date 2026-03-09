@@ -44,7 +44,12 @@ import {
   deleteCaseType,
   createKPI,
   updateKPI,
-  deleteKPI
+  deleteKPI,
+  getSystemSettings,
+  updateSystemSettings,
+  getDispositions,
+  createDisposition,
+  deleteDisposition,
 } from '@/lib/api'
 import Modal from '@/components/ui/Modal'
 import UserManagementSection from '@/components/ui/UserManagementSection'
@@ -64,7 +69,9 @@ import {
   Grid3x3,
   FileText,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  Phone,
+  X,
 } from 'lucide-react'
 
 export default function AdminPage() {
@@ -90,6 +97,71 @@ export default function AdminPage() {
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // Call dispositions (Item 24)
+  const { data: dispositions = [], refetch: refetchDispositions } = useQuery({
+    queryKey: ['admin-dispositions'],
+    queryFn: getDispositions,
+    staleTime: 60000,
+  })
+  const [newDispName, setNewDispName] = useState('')
+  const [addingDisp, setAddingDisp] = useState(false)
+  async function handleAddDisposition() {
+    if (!newDispName.trim()) return
+    setAddingDisp(true)
+    try {
+      await createDisposition(newDispName.trim())
+      setNewDispName('')
+      refetchDispositions()
+    } catch (e) {
+      showToast(e.message || 'Failed', 'error')
+    } finally {
+      setAddingDisp(false)
+    }
+  }
+  async function handleDeleteDisposition(id) {
+    if (!confirm('Delete this disposition?')) return
+    try {
+      await deleteDisposition(id)
+      refetchDispositions()
+    } catch (e) {
+      showToast(e.message || 'Failed', 'error')
+    }
+  }
+
+  // System settings (auto-logoff)
+  const { data: systemSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: getSystemSettings,
+    staleTime: 60000,
+  })
+  const [settingsForm, setSettingsForm] = useState(null)
+  const [savingSettings, setSavingSettings] = useState(false)
+  useEffect(() => {
+    if (systemSettings && !settingsForm) {
+      setSettingsForm({
+        auto_logoff_enabled: systemSettings.auto_logoff_enabled !== 'false',
+        auto_logoff_minutes: parseInt(systemSettings.auto_logoff_minutes) || 10,
+      })
+    }
+  }, [systemSettings]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveSettings() {
+    if (!settingsForm) return
+    setSavingSettings(true)
+    try {
+      await updateSystemSettings({
+        auto_logoff_enabled: String(settingsForm.auto_logoff_enabled),
+        auto_logoff_minutes: String(settingsForm.auto_logoff_minutes),
+      })
+      showToast('Settings saved')
+      refetchSettings()
+    } catch (e) {
+      showToast(e.message || 'Failed to save', 'error')
+    } finally {
+      setSavingSettings(false)
+    }
   }
 
   // Force sync
@@ -207,6 +279,90 @@ export default function AdminPage() {
             Add Company
           </button>
         </div>
+      </div>
+
+      {/* System Settings (Item 17) */}
+      {settingsForm && (
+        <div className="card">
+          <h2 className="font-semibold text-cortex-text text-sm mb-4 flex items-center gap-2">
+            ⚙ System Settings
+          </h2>
+          <div className="flex flex-wrap items-center gap-6">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settingsForm.auto_logoff_enabled}
+                onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_enabled: e.target.checked }))}
+                className="rounded"
+              />
+              <span className="text-sm text-cortex-text">Enable auto-logoff for idle agents</span>
+            </label>
+            {settingsForm.auto_logoff_enabled && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-cortex-muted">Idle timeout:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={settingsForm.auto_logoff_minutes}
+                  onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_minutes: parseInt(e.target.value) || 10 }))}
+                  className="input w-20 text-center"
+                />
+                <span className="text-sm text-cortex-muted">minutes</span>
+              </div>
+            )}
+            <button
+              onClick={saveSettings}
+              disabled={savingSettings}
+              className="btn-primary text-sm disabled:opacity-50"
+            >
+              {savingSettings ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Call Dispositions (Item 24) */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h2 className="font-semibold text-cortex-text text-sm flex items-center gap-2">
+            <Phone className="w-4 h-4 text-cortex-accent" /> Call Dispositions
+          </h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newDispName}
+              onChange={e => setNewDispName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddDisposition()}
+              placeholder="New disposition…"
+              className="input text-xs py-1.5 w-44"
+            />
+            <button
+              onClick={handleAddDisposition}
+              disabled={addingDisp || !newDispName.trim()}
+              className="btn-primary text-xs py-1.5 px-3 disabled:opacity-40 flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
+        </div>
+        {dispositions.length === 0 ? (
+          <p className="text-xs text-cortex-muted">No dispositions yet. Add some above.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {dispositions.map(d => (
+              <span key={d.id} className="flex items-center gap-1.5 bg-cortex-accent/10 text-cortex-accent border border-cortex-accent/20 rounded-lg px-3 py-1.5 text-xs font-medium">
+                {d.name}
+                <button
+                  onClick={() => handleDeleteDisposition(d.id)}
+                  className="text-cortex-accent/50 hover:text-cortex-danger transition-colors ml-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Companies List */}

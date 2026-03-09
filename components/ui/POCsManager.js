@@ -13,8 +13,10 @@ import {
   X,
   ChevronRight,
   Save,
+  UserPlus,
 } from 'lucide-react'
 import { getPriorityColor, cn } from '@/lib/utils'
+import toast from 'react-hot-toast'
 
 function fetchPOCs(search) {
   const qs = new URLSearchParams()
@@ -45,6 +47,11 @@ export default function POCsManager() {
   const [editForm, setEditForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Add customer (Item 25)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', phoneNumber: '', countryCode: '+971', email: '', company_id: '' })
+  const [addSaving, setAddSaving] = useState(false)
 
   // Debounce search input
   useEffect(() => {
@@ -84,6 +91,41 @@ export default function POCsManager() {
       })
     }
   }, [selectedPOC])
+
+  async function handleAddCustomer(e) {
+    e.preventDefault()
+    if (!addForm.name.trim()) return
+    setAddSaving(true)
+    try {
+      let phone = addForm.phoneNumber.trim()
+      if (phone) {
+        if (addForm.countryCode === '+971' && phone.startsWith('0')) {
+          phone = '00971' + phone.slice(1)
+        } else {
+          phone = addForm.countryCode.replace('+', '00') + phone
+        }
+      }
+      const res = await fetch('/api/admin/pocs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: addForm.name.trim(),
+          phone: phone || undefined,
+          email: addForm.email.trim() || undefined,
+          company_id: addForm.company_id || undefined,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to add customer')
+      toast.success('Customer added')
+      setShowAddModal(false)
+      setAddForm({ name: '', phoneNumber: '', countryCode: '+971', email: '', company_id: '' })
+      queryClient.invalidateQueries({ queryKey: ['pocs-manager'] })
+    } catch (err) {
+      toast.error(err.message || 'Failed to add customer')
+    } finally {
+      setAddSaving(false)
+    }
+  }
 
   async function handleSave() {
     if (!editForm || !selectedId) return
@@ -128,15 +170,23 @@ export default function POCsManager() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cortex-muted" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, email, phone, or company…"
-            className="input pl-9 w-full max-w-sm"
-          />
+        {/* Search + Add */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cortex-muted" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, email, phone, or company…"
+              className="input pl-9 w-full"
+            />
+          </div>
+          <button
+            onClick={() => { setAddForm({ name: '', phoneNumber: '', countryCode: '+971', email: '', company_id: '' }); setShowAddModal(true) }}
+            className="btn-primary flex items-center gap-1.5 text-sm whitespace-nowrap"
+          >
+            <UserPlus className="w-4 h-4" /> Add Customer
+          </button>
         </div>
 
         {/* POC list */}
@@ -218,6 +268,76 @@ export default function POCsManager() {
         )}
       </div>
 
+      {/* Add Customer modal (Item 25) */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border">
+              <h2 className="font-display font-bold text-cortex-text text-sm flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-cortex-accent" /> Add Customer
+              </h2>
+              <button onClick={() => setShowAddModal(false)} className="p-1.5 hover:bg-cortex-surface-raised rounded-lg text-cortex-muted">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAddCustomer} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Name *</label>
+                <input required value={addForm.name}
+                  onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  className="input w-full" placeholder="Full name" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Phone</label>
+                <div className="flex gap-2">
+                  <select value={addForm.countryCode}
+                    onChange={e => setAddForm(f => ({ ...f, countryCode: e.target.value }))}
+                    className="input w-28 flex-shrink-0 text-xs">
+                    <option value="+971">🇦🇪 +971</option>
+                    <option value="+966">🇸🇦 +966</option>
+                    <option value="+974">🇶🇦 +974</option>
+                    <option value="+965">🇰🇼 +965</option>
+                    <option value="+973">🇧🇭 +973</option>
+                    <option value="+968">🇴🇲 +968</option>
+                    <option value="+1">🇺🇸 +1</option>
+                    <option value="+44">🇬🇧 +44</option>
+                  </select>
+                  <input type="tel" value={addForm.phoneNumber}
+                    onChange={e => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                    className="input flex-1" placeholder="501234567" />
+                </div>
+                {addForm.countryCode === '+971' && addForm.phoneNumber.startsWith('0') && (
+                  <p className="text-[10px] text-cortex-accent mt-1">Will be saved as 00971{addForm.phoneNumber.slice(1)}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Email</label>
+                <input type="email" value={addForm.email}
+                  onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                  className="input w-full" placeholder="email@example.com" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Company</label>
+                <select value={addForm.company_id}
+                  onChange={e => setAddForm(f => ({ ...f, company_id: e.target.value }))}
+                  className="input w-full">
+                  <option value="">— None —</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="submit" disabled={addSaving} className="btn-primary flex-1 disabled:opacity-40">
+                  {addSaving ? 'Adding…' : 'Add Customer'}
+                </button>
+                <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary px-5">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Detail / edit panel */}
       {selectedId && (
         <div className="w-80 flex-shrink-0 space-y-4 animate-fade-in">
@@ -290,25 +410,21 @@ export default function POCsManager() {
                   </select>
                 </div>
 
-                <div className="flex gap-5 pt-1">
-                  <label className="flex items-center gap-2 text-sm text-cortex-muted cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editForm.is_primary}
-                      onChange={e => setEditForm(f => ({ ...f, is_primary: e.target.checked }))}
-                      className="rounded"
-                    />
-                    Primary
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-cortex-muted cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editForm.is_vip}
-                      onChange={e => setEditForm(f => ({ ...f, is_vip: e.target.checked }))}
-                      className="rounded"
-                    />
-                    VIP ⭐
-                  </label>
+                <div>
+                  <label className="text-xs text-cortex-muted mb-1 block">Contact Type</label>
+                  <select
+                    className="input w-full"
+                    value={editForm.is_vip ? 'vip' : editForm.is_primary ? 'primary' : 'none'}
+                    onChange={e => setEditForm(f => ({
+                      ...f,
+                      is_primary: e.target.value === 'primary',
+                      is_vip: e.target.value === 'vip',
+                    }))}
+                  >
+                    <option value="none">— None —</option>
+                    <option value="primary">Primary</option>
+                    <option value="vip">VIP ⭐</option>
+                  </select>
                 </div>
 
                 <button
@@ -342,7 +458,7 @@ export default function POCsManager() {
                   {selectedPOC.tickets.map(t => (
                     <Link
                       key={t.id}
-                      href={`/tickets/${t.id}`}
+                      href={isAdmin ? `/tickets/${t.id}` : `/my-tickets?selected=${t.id}`}
                       className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-cortex-surface-raised transition-colors group"
                     >
                       <span className="text-xs font-mono text-cortex-muted w-10 shrink-0">#{t.id}</span>

@@ -12,9 +12,21 @@ export async function GET() {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.full_name, u.role, u.ziwo_email, u.is_active, u.created_at,
-              s.status as agent_status, s.status_note, s.set_at as status_set_at
+              s.status as agent_status, s.status_note, s.set_at as status_set_at,
+              -- Is agent currently on an active shift?
+              CASE WHEN sr.id IS NOT NULL THEN true ELSE false END as is_on_shift,
+              sr.id as shift_id, sr.start_time as shift_start, sr.end_time as shift_end,
+              sr.agent_type as shift_agent_type,
+              -- Has approved leave today?
+              CASE WHEN lr.id IS NOT NULL THEN true ELSE false END as has_leave_today
        FROM main.users u
        LEFT JOIN main.agent_status s ON s.user_id = u.id
+       LEFT JOIN main.shift_rotas sr ON sr.user_id = u.id
+         AND sr.shift_date = CURRENT_DATE
+         AND CURRENT_TIME BETWEEN sr.start_time AND sr.end_time
+       LEFT JOIN main.leave_requests lr ON lr.user_id = u.id
+         AND lr.status = 'approved'
+         AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date
        ORDER BY u.role, u.full_name`
     )
     return NextResponse.json(result.rows)

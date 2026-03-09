@@ -36,3 +36,5 @@ scripts/seed-users.js
 # local IDE / tooling
 .claude/settings.local.json
 .vercel
+
+cortex-test-accounts.txt

@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { BookOpen, Search, Plus, Edit, Trash2, History, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { BookOpen, Search, Plus, Edit, Trash2, History, Tag, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { formatRelativeTime } from '@/lib/utils'
+import { getCircularAcks, acknowledgeCirculars } from '@/lib/api'
 
 export default function KnowledgeBasePage() {
   const { data: session } = useSession()
@@ -25,6 +26,23 @@ export default function KnowledgeBasePage() {
     queryFn: () => fetch(isAdmin ? '/api/circulars?all=true' : '/api/circulars').then(r => r.ok ? r.json() : []),
     refetchInterval: 60000,
   })
+
+  const { data: circularAcks } = useQuery({
+    queryKey: ['circular-acks'],
+    queryFn: getCircularAcks,
+    refetchInterval: 300000,
+  })
+  const ackedIds = new Set(Object.keys(circularAcks || {}).map(Number))
+
+  async function handleAck(id) {
+    try {
+      await acknowledgeCirculars([id])
+      qc.invalidateQueries({ queryKey: ['circular-acks'] })
+      showToast('Acknowledged')
+    } catch {
+      showToast('Failed to acknowledge', 'error')
+    }
+  }
 
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
@@ -152,10 +170,12 @@ export default function KnowledgeBasePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(c => (
+          {filtered.map(c => {
+            const isAcked = ackedIds.has(c.id)
+            return (
             <div
               key={c.id}
-              className={`card transition-all ${!c.is_active ? 'opacity-60 border-dashed' : 'hover:border-cortex-accent/30'}`}
+              className={`card transition-all ${!c.is_active ? 'opacity-60 border-dashed' : isAcked ? 'border-cortex-success/20' : 'hover:border-cortex-accent/30'}`}
             >
               {/* Circular header */}
               <div className="flex items-start gap-3">
@@ -220,12 +240,28 @@ export default function KnowledgeBasePage() {
                 >
                   {expandedId === c.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
+
+                {/* Acknowledge button (agents + admins) */}
+                {c.is_active && (
+                  <button
+                    onClick={() => handleAck(c.id)}
+                    disabled={isAcked}
+                    title={isAcked ? 'Already acknowledged' : 'Mark as read'}
+                    className={`p-1.5 rounded transition-colors shrink-0 ${
+                      isAcked
+                        ? 'text-cortex-success cursor-default'
+                        : 'text-cortex-muted hover:text-cortex-success'
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               {/* Version history */}
               {historyId === c.id && <VersionHistory circularId={c.id} />}
             </div>
-          ))}
+          )})}
         </div>
       )}
 

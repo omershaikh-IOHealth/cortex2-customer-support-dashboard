@@ -23,6 +23,19 @@ export async function GET() {
   }
 }
 
+// DELETE — permanently clear all notifications for the current user
+export async function DELETE() {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    await pool.query(`DELETE FROM main.notifications WHERE user_id = $1`, [session.user.id])
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
 // POST — mark all as read OR create a system notification (admin only)
 export async function POST(request) {
   const session = await auth()

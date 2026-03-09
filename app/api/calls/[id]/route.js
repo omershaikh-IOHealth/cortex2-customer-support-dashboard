@@ -8,12 +8,23 @@ export async function PATCH(request, { params }) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { ticket_id } = await request.json()
-    if (!ticket_id) return NextResponse.json({ error: 'ticket_id is required' }, { status: 400 })
+    const body = await request.json()
+    const { ticket_id, disposition_id, customer_name } = body
 
+    const sets = []
+    const vals = []
+    let i = 1
+
+    if (ticket_id !== undefined) { sets.push(`ticket_id = $${i++}`); vals.push(ticket_id) }
+    if (disposition_id !== undefined) { sets.push(`disposition_id = $${i++}`); vals.push(disposition_id) }
+    if (customer_name !== undefined) { sets.push(`customer_name = $${i++}`); vals.push(customer_name) }
+
+    if (!sets.length) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+
+    vals.push(decodeURIComponent(await params.id))
     const result = await pool.query(
-      `UPDATE main.call_logs SET ticket_id = $1 WHERE primary_call_id = $2 RETURNING id, ticket_id`,
-      [ticket_id, decodeURIComponent(params.id)]
+      `UPDATE main.call_logs SET ${sets.join(', ')} WHERE primary_call_id = $${i} RETURNING id, ticket_id, disposition_id`,
+      vals
     )
 
     if (result.rows.length === 0) {

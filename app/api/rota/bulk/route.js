@@ -16,6 +16,7 @@ export async function POST(request) {
     start_time,
     end_time,
     shift_type = 'regular',
+    agent_type = null,
     notes = null,
     breaks = [],
     replace_existing = false,
@@ -51,10 +52,10 @@ export async function POST(request) {
       }
 
       const shiftRes = await client.query(
-        `INSERT INTO main.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO main.shift_rotas (user_id, shift_date, start_time, end_time, shift_type, agent_type, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        [user_id, date, start_time, end_time, shift_type, notes, session.user.id]
+        [user_id, date, start_time, end_time, shift_type, agent_type || null, notes, session.user.id]
       )
       const shiftId = shiftRes.rows[0].id
 

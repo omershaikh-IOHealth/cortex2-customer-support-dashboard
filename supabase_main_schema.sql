@@ -1,416 +1,459 @@
--- ============================================================
--- Cortex Dashboard — Schema: main
--- Run this in Supabase SQL Editor
--- LMS tables excluded (lms_* and auth_users)
--- ============================================================
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
-CREATE SCHEMA IF NOT EXISTS main;
-
--- ── companies ──────────────────────────────────────────────────────────────
-CREATE TABLE main.companies (
-    id serial PRIMARY KEY,
-    company_code varchar(50) NOT NULL UNIQUE,
-    company_name varchar(255) NOT NULL,
-    description text,
-    domain varchar(255),
-    is_active boolean DEFAULT true,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-
--- ── processing_logs ────────────────────────────────────────────────────────
-CREATE TABLE main.processing_logs (
-    id serial PRIMARY KEY,
-    workflow_name varchar(100),
-    entity_type varchar(50),
-    entity_id integer,
-    action varchar(100),
-    status varchar(50),
-    details jsonb,
-    error_message text,
-    duration_ms integer,
-    alerts_sent integer,
-    created_at timestamp DEFAULT now()
-);
-
--- ── users ──────────────────────────────────────────────────────────────────
-CREATE TABLE main.users (
-    id serial PRIMARY KEY,
-    email varchar(255) NOT NULL UNIQUE,
-    password_hash varchar(255) NOT NULL,
-    full_name varchar(255) NOT NULL,
-    role varchar(50) NOT NULL,
-    ziwo_email varchar(255),
-    ziwo_password varchar(255),
-    is_active boolean DEFAULT true,
-    login_attempts integer DEFAULT 0,
-    locked_until timestamp,
-    last_login_at timestamp,
-    current_session_tok varchar(255),
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now(),
-    CONSTRAINT users_role_check CHECK (role IN ('admin', 'agent'))
-);
-
--- ── ai_companion_sessions ──────────────────────────────────────────────────
-CREATE TABLE main.ai_companion_sessions (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id text NOT NULL UNIQUE,
-    messages jsonb DEFAULT '[]',
-    summary text,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_companion_sessions_user ON main.ai_companion_sessions (user_id);
-
--- ── pocs ───────────────────────────────────────────────────────────────────
-CREATE TABLE main.pocs (
-    id serial PRIMARY KEY,
-    company_id integer REFERENCES main.companies(id),
-    email varchar(255) NOT NULL UNIQUE,
-    name varchar(255),
-    phone varchar(50),
-    role varchar(100),
-    status varchar(50) DEFAULT 'active',
-    is_primary boolean DEFAULT false,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-
--- ── solutions ──────────────────────────────────────────────────────────────
-CREATE TABLE main.solutions (
-    id serial PRIMARY KEY,
-    company_id integer REFERENCES main.companies(id) ON DELETE CASCADE,
-    solution_code varchar(50) NOT NULL,
-    solution_name varchar(255) NOT NULL,
-    description text,
-    clickup_space_id varchar(50),
-    clickup_list_id varchar(50),
-    business_hours_start time DEFAULT '08:00:00',
-    business_hours_end time DEFAULT '20:00:00',
-    timezone varchar(50) DEFAULT 'Asia/Dubai',
-    working_days integer[] DEFAULT '{0,1,2,3,4,5,6}',
-    is_active boolean DEFAULT true,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now(),
-    UNIQUE (company_id, solution_code)
-);
-
--- ── agent_status ───────────────────────────────────────────────────────────
 CREATE TABLE main.agent_status (
-    id serial PRIMARY KEY,
-    user_id integer UNIQUE REFERENCES main.users(id) ON DELETE CASCADE,
-    status varchar(50) DEFAULT 'available',
-    status_note varchar(255),
-    set_at timestamp DEFAULT now()
+  id integer NOT NULL DEFAULT nextval('main.agent_status_id_seq'::regclass),
+  user_id integer UNIQUE,
+  status character varying DEFAULT 'available'::character varying,
+  status_note character varying,
+  set_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT agent_status_pkey PRIMARY KEY (id),
+  CONSTRAINT agent_status_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
 );
-
--- ── auth_logs ──────────────────────────────────────────────────────────────
-CREATE TABLE main.auth_logs (
-    id serial PRIMARY KEY,
-    user_id integer REFERENCES main.users(id) ON DELETE SET NULL,
-    email varchar(255),
-    success boolean NOT NULL,
-    ip_address varchar(45),
-    user_agent text,
-    failure_reason varchar(100),
-    created_at timestamp DEFAULT now()
+CREATE TABLE main.ai_companion_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL UNIQUE,
+  messages jsonb DEFAULT '[]'::jsonb,
+  summary text,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT ai_companion_sessions_pkey PRIMARY KEY (id)
 );
-CREATE INDEX idx_auth_logs_email ON main.auth_logs (email);
-CREATE INDEX idx_auth_logs_created_at ON main.auth_logs (created_at DESC);
-
--- ── circulars ──────────────────────────────────────────────────────────────
-CREATE TABLE main.circulars (
-    id serial PRIMARY KEY,
-    title varchar(500) NOT NULL,
-    content text NOT NULL,
-    category varchar(100),
-    tags text[],
-    is_active boolean DEFAULT true,
-    created_by integer REFERENCES main.users(id),
-    updated_by integer REFERENCES main.users(id),
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_circulars_is_active ON main.circulars (is_active);
-
--- ── notifications ──────────────────────────────────────────────────────────
-CREATE TABLE main.notifications (
-    id serial PRIMARY KEY,
-    user_id integer REFERENCES main.users(id) ON DELETE CASCADE,
-    type varchar(50) NOT NULL,
-    title varchar(255) NOT NULL,
-    body text,
-    link varchar(255),
-    is_read boolean DEFAULT false,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_notifications_user_unread ON main.notifications (user_id, is_read, created_at DESC);
-
--- ── shift_rotas ────────────────────────────────────────────────────────────
-CREATE TABLE main.shift_rotas (
-    id serial PRIMARY KEY,
-    user_id integer REFERENCES main.users(id) ON DELETE CASCADE,
-    shift_date date NOT NULL,
-    start_time time NOT NULL,
-    end_time time NOT NULL,
-    shift_type varchar(50) DEFAULT 'regular',
-    notes text,
-    created_by integer REFERENCES main.users(id),
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_shift_rotas_user_date ON main.shift_rotas (user_id, shift_date);
-
--- ── tickets ────────────────────────────────────────────────────────────────
-CREATE TABLE main.tickets (
-    id serial PRIMARY KEY,
-    company_id integer REFERENCES main.companies(id),
-    solution_id integer REFERENCES main.solutions(id),
-    poc_id integer REFERENCES main.pocs(id),
-    assigned_to_id integer REFERENCES main.users(id),
-    clickup_task_id varchar(50) UNIQUE,
-    clickup_url text,
-    title varchar(500) NOT NULL,
-    description text,
-    module varchar(100),
-    operating_system varchar(50),
-    mobile_or_national_id varchar(100),
-    request_type varchar(100),
-    case_type varchar(100),
-    priority varchar(10),
-    status varchar(100) DEFAULT 'Open',
-    assigned_to_email varchar(255),
-    sla_response_due timestamp,
-    sla_resolution_due timestamp,
-    sla_consumption_pct numeric(5,2) DEFAULT 0,
-    sla_status varchar(50) DEFAULT 'healthy',
-    sla_paused_at timestamp,
-    sla_paused_duration interval DEFAULT '00:00:00',
-    escalation_level integer DEFAULT 0,
-    last_escalation_at timestamp,
-    ai_summary text,
-    ai_sentiment varchar(50),
-    created_by_email varchar(255),
-    created_by_name varchar(255),
-    is_deleted boolean DEFAULT false,
-    deleted_at timestamptz,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now(),
-    resolved_at timestamp,
-    closed_at timestamp
-);
-CREATE INDEX idx_tickets_active ON main.tickets (is_deleted) WHERE is_deleted = false;
-CREATE INDEX idx_tickets_assigned_to ON main.tickets (assigned_to_email);
-
--- ── assignee_configs ───────────────────────────────────────────────────────
 CREATE TABLE main.assignee_configs (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    role_code varchar(50) NOT NULL,
-    role_name varchar(100),
-    person_name varchar(255),
-    email varchar(255),
-    clickup_user_id varchar(50),
-    is_active boolean DEFAULT true,
-    UNIQUE (solution_id, role_code, email)
+  id integer NOT NULL DEFAULT nextval('main.assignee_configs_id_seq'::regclass),
+  solution_id integer,
+  role_code character varying NOT NULL,
+  role_name character varying,
+  person_name character varying,
+  email character varying,
+  clickup_user_id character varying,
+  is_active boolean DEFAULT true,
+  CONSTRAINT assignee_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT assignee_configs_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
 );
-
--- ── call_logs ──────────────────────────────────────────────────────────────
+CREATE TABLE main.auth_logs (
+  id integer NOT NULL DEFAULT nextval('main.auth_logs_id_seq'::regclass),
+  user_id integer,
+  email character varying,
+  success boolean NOT NULL,
+  ip_address character varying,
+  user_agent text,
+  failure_reason character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT auth_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT auth_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
+);
+CREATE TABLE main.briefing_acks (
+  id integer NOT NULL DEFAULT nextval('main.briefing_acks_id_seq'::regclass),
+  user_id integer NOT NULL,
+  shift_id integer NOT NULL,
+  acked_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT briefing_acks_pkey PRIMARY KEY (id),
+  CONSTRAINT briefing_acks_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
+  CONSTRAINT briefing_acks_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES main.shift_rotas(id)
+);
 CREATE TABLE main.call_logs (
-    id serial PRIMARY KEY,
-    primary_call_id varchar(255) UNIQUE,
-    agent_call_id varchar(255),
-    agent_id integer REFERENCES main.users(id),
-    direction varchar(20) NOT NULL DEFAULT 'inbound',
-    customer_number varchar(50),
-    queue_name varchar(255),
-    duration_secs integer DEFAULT 0,
-    talk_time_secs integer DEFAULT 0,
-    hold_time_secs integer DEFAULT 0,
-    hangup_cause varchar(100),
-    hangup_by varchar(50),
-    recording_file varchar(255),
-    status varchar(50) DEFAULT 'ended',
-    ticket_id integer REFERENCES main.tickets(id),
-    started_at timestamp DEFAULT now(),
-    answered_at timestamp,
-    ended_at timestamp,
-    created_at timestamp DEFAULT now()
+  id integer NOT NULL DEFAULT nextval('main.call_logs_id_seq'::regclass),
+  primary_call_id character varying UNIQUE,
+  agent_call_id character varying,
+  agent_id integer,
+  direction character varying NOT NULL DEFAULT 'inbound'::character varying,
+  customer_number character varying,
+  queue_name character varying,
+  duration_secs integer DEFAULT 0,
+  talk_time_secs integer DEFAULT 0,
+  hold_time_secs integer DEFAULT 0,
+  hangup_cause character varying,
+  hangup_by character varying,
+  recording_file character varying,
+  status character varying DEFAULT 'ended'::character varying,
+  ticket_id integer,
+  started_at timestamp without time zone DEFAULT now(),
+  answered_at timestamp without time zone,
+  ended_at timestamp without time zone,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT call_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT call_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES main.users(id),
+  CONSTRAINT call_logs_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id)
 );
-CREATE INDEX idx_call_logs_agent_id ON main.call_logs (agent_id);
-CREATE INDEX idx_call_logs_started_at ON main.call_logs (started_at DESC);
-
--- ── circular_versions ──────────────────────────────────────────────────────
-CREATE TABLE main.circular_versions (
-    id serial PRIMARY KEY,
-    circular_id integer REFERENCES main.circulars(id) ON DELETE CASCADE,
-    version integer NOT NULL,
-    title varchar(500),
-    content text,
-    changed_by integer REFERENCES main.users(id),
-    changed_at timestamp DEFAULT now()
-);
-
--- ── escalation_configs ─────────────────────────────────────────────────────
-CREATE TABLE main.escalation_configs (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    level integer NOT NULL,
-    threshold_percent integer NOT NULL,
-    level_name varchar(100),
-    notify_roles text[],
-    action_description text,
-    UNIQUE (solution_id, level)
-);
-
--- ── kpi_configs ────────────────────────────────────────────────────────────
-CREATE TABLE main.kpi_configs (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    kpi_code varchar(100) NOT NULL,
-    kpi_name varchar(255),
-    description text,
-    calculation_method text,
-    target_value numeric(10,2),
-    unit varchar(50),
-    report_frequency varchar(50),
-    UNIQUE (solution_id, kpi_code)
-);
-
--- ── modules ────────────────────────────────────────────────────────────────
-CREATE TABLE main.modules (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    module_code varchar(100) NOT NULL,
-    module_name varchar(255) NOT NULL,
-    description text,
-    UNIQUE (solution_id, module_code)
-);
-
--- ── notification_queue ─────────────────────────────────────────────────────
-CREATE TABLE main.notification_queue (
-    id serial PRIMARY KEY,
-    ticket_id integer REFERENCES main.tickets(id),
-    notification_type varchar(50) NOT NULL,
-    template_key varchar(100),
-    recipients text[],
-    subject text,
-    body text,
-    status varchar(50) DEFAULT 'pending',
-    attempts integer DEFAULT 0,
-    sent_at timestamp,
-    error_message text,
-    created_at timestamp DEFAULT now()
-);
-
--- ── request_types ──────────────────────────────────────────────────────────
-CREATE TABLE main.request_types (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    request_type varchar(100) NOT NULL,
-    description text,
-    sla_applicable boolean DEFAULT true,
-    UNIQUE (solution_id, request_type)
-);
-
--- ── shift_breaks ───────────────────────────────────────────────────────────
-CREATE TABLE main.shift_breaks (
-    id serial PRIMARY KEY,
-    shift_id integer REFERENCES main.shift_rotas(id) ON DELETE CASCADE,
-    break_start time NOT NULL,
-    break_end time NOT NULL,
-    break_type varchar(50) DEFAULT 'scheduled',
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_shift_breaks_shift_id ON main.shift_breaks (shift_id);
-
--- ── sla_alerts ─────────────────────────────────────────────────────────────
-CREATE TABLE main.sla_alerts (
-    id serial PRIMARY KEY,
-    ticket_id integer REFERENCES main.tickets(id) ON DELETE CASCADE,
-    alert_level integer NOT NULL,
-    consumption_pct numeric(5,2),
-    notified_emails text[],
-    notification_channel varchar(50),
-    acknowledged_by varchar(255),
-    is_acknowledged boolean DEFAULT false,
-    acknowledged_at timestamp,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX idx_sla_alerts_ticket ON main.sla_alerts (ticket_id);
-CREATE UNIQUE INDEX idx_sla_alerts_unique_level ON main.sla_alerts (ticket_id, alert_level) WHERE alert_level < 4;
-
--- ── sla_configs ────────────────────────────────────────────────────────────
-CREATE TABLE main.sla_configs (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    priority varchar(10) NOT NULL,
-    priority_name varchar(50),
-    priority_description text,
-    response_hours numeric(5,2),
-    resolution_hours numeric(5,2),
-    resolution_type varchar(50) DEFAULT 'hours',
-    UNIQUE (solution_id, priority)
-);
-
--- ── threads ────────────────────────────────────────────────────────────────
-CREATE TABLE main.threads (
-    id serial PRIMARY KEY,
-    ticket_id integer REFERENCES main.tickets(id) ON DELETE CASCADE,
-    clickup_history_id varchar(50),
-    action_type varchar(50) NOT NULL,
-    actor_email varchar(255),
-    actor_name varchar(255),
-    old_value text,
-    new_value text,
-    raw_content text,
-    ai_summary text,
-    has_attachments boolean DEFAULT false,
-    attachment_urls text[],
-    thread_source varchar(50) DEFAULT 'clickup',
-    metadata jsonb,
-    created_at timestamp DEFAULT now()
-);
-CREATE UNIQUE INDEX idx_threads_clickup_history_id ON main.threads (clickup_history_id) WHERE clickup_history_id IS NOT NULL;
-CREATE INDEX idx_threads_history_id ON main.threads (clickup_history_id) WHERE clickup_history_id IS NOT NULL;
-
--- ── case_types ─────────────────────────────────────────────────────────────
 CREATE TABLE main.case_types (
-    id serial PRIMARY KEY,
-    solution_id integer REFERENCES main.solutions(id) ON DELETE CASCADE,
-    request_type_id integer REFERENCES main.request_types(id),
-    case_type varchar(100) NOT NULL,
-    description text,
-    default_priority varchar(10),
-    UNIQUE (solution_id, case_type)
+  id integer NOT NULL DEFAULT nextval('main.case_types_id_seq'::regclass),
+  solution_id integer,
+  request_type_id integer,
+  case_type character varying NOT NULL,
+  description text,
+  default_priority character varying,
+  CONSTRAINT case_types_pkey PRIMARY KEY (id),
+  CONSTRAINT case_types_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id),
+  CONSTRAINT case_types_request_type_id_fkey FOREIGN KEY (request_type_id) REFERENCES main.request_types(id)
+);
+CREATE TABLE main.circular_versions (
+  id integer NOT NULL DEFAULT nextval('main.circular_versions_id_seq'::regclass),
+  circular_id integer,
+  version integer NOT NULL,
+  title character varying,
+  content text,
+  changed_by integer,
+  changed_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT circular_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT circular_versions_circular_id_fkey FOREIGN KEY (circular_id) REFERENCES main.circulars(id),
+  CONSTRAINT circular_versions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES main.users(id)
+);
+CREATE TABLE main.circulars (
+  id integer NOT NULL DEFAULT nextval('main.circulars_id_seq'::regclass),
+  title character varying NOT NULL,
+  content text NOT NULL,
+  category character varying,
+  tags ARRAY,
+  is_active boolean DEFAULT true,
+  created_by integer,
+  updated_by integer,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT circulars_pkey PRIMARY KEY (id),
+  CONSTRAINT circulars_created_by_fkey FOREIGN KEY (created_by) REFERENCES main.users(id),
+  CONSTRAINT circulars_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES main.users(id)
+);
+CREATE TABLE main.companies (
+  id integer NOT NULL DEFAULT nextval('main.companies_id_seq'::regclass),
+  company_code character varying NOT NULL UNIQUE,
+  company_name character varying NOT NULL,
+  description text,
+  domain character varying,
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT companies_pkey PRIMARY KEY (id)
+);
+CREATE TABLE main.escalation_configs (
+  id integer NOT NULL DEFAULT nextval('main.escalation_configs_id_seq'::regclass),
+  solution_id integer,
+  level integer NOT NULL,
+  threshold_percent integer NOT NULL,
+  level_name character varying,
+  notify_roles ARRAY,
+  action_description text,
+  CONSTRAINT escalation_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT escalation_configs_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.kpi_configs (
+  id integer NOT NULL DEFAULT nextval('main.kpi_configs_id_seq'::regclass),
+  solution_id integer,
+  kpi_code character varying NOT NULL,
+  kpi_name character varying,
+  description text,
+  calculation_method text,
+  target_value numeric,
+  unit character varying,
+  report_frequency character varying,
+  CONSTRAINT kpi_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT kpi_configs_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.modules (
+  id integer NOT NULL DEFAULT nextval('main.modules_id_seq'::regclass),
+  solution_id integer,
+  module_code character varying NOT NULL,
+  module_name character varying NOT NULL,
+  description text,
+  CONSTRAINT modules_pkey PRIMARY KEY (id),
+  CONSTRAINT modules_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.notification_queue (
+  id integer NOT NULL DEFAULT nextval('main.notification_queue_id_seq'::regclass),
+  ticket_id integer,
+  notification_type character varying NOT NULL,
+  template_key character varying,
+  recipients ARRAY,
+  subject text,
+  body text,
+  status character varying DEFAULT 'pending'::character varying,
+  attempts integer DEFAULT 0,
+  sent_at timestamp without time zone,
+  error_message text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT notification_queue_pkey PRIMARY KEY (id),
+  CONSTRAINT notification_queue_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id)
+);
+CREATE TABLE main.notifications (
+  id integer NOT NULL DEFAULT nextval('main.notifications_id_seq'::regclass),
+  user_id integer,
+  type character varying NOT NULL,
+  title character varying NOT NULL,
+  body text,
+  link character varying,
+  is_read boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id)
+);
+CREATE TABLE main.pocs (
+  id integer NOT NULL DEFAULT nextval('main.pocs_id_seq'::regclass),
+  company_id integer,
+  email character varying NOT NULL UNIQUE,
+  name character varying,
+  phone character varying,
+  role character varying,
+  status character varying DEFAULT 'active'::character varying,
+  is_primary boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  is_vip boolean DEFAULT false,
+  CONSTRAINT pocs_pkey PRIMARY KEY (id),
+  CONSTRAINT pocs_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id)
+);
+CREATE TABLE main.processing_logs (
+  id integer NOT NULL DEFAULT nextval('main.processing_logs_id_seq'::regclass),
+  workflow_name character varying,
+  entity_type character varying,
+  entity_id integer,
+  action character varying,
+  status character varying,
+  details jsonb,
+  error_message text,
+  duration_ms integer,
+  alerts_sent integer,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT processing_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE main.request_types (
+  id integer NOT NULL DEFAULT nextval('main.request_types_id_seq'::regclass),
+  solution_id integer,
+  request_type character varying NOT NULL,
+  description text,
+  sla_applicable boolean DEFAULT true,
+  CONSTRAINT request_types_pkey PRIMARY KEY (id),
+  CONSTRAINT request_types_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.shift_breaks (
+  id integer NOT NULL DEFAULT nextval('main.shift_breaks_id_seq'::regclass),
+  shift_id integer,
+  break_start time without time zone NOT NULL,
+  break_end time without time zone NOT NULL,
+  break_type character varying DEFAULT 'scheduled'::character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT shift_breaks_pkey PRIMARY KEY (id),
+  CONSTRAINT shift_breaks_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES main.shift_rotas(id)
+);
+CREATE TABLE main.shift_rotas (
+  id integer NOT NULL DEFAULT nextval('main.shift_rotas_id_seq'::regclass),
+  user_id integer,
+  shift_date date NOT NULL,
+  start_time time without time zone NOT NULL,
+  end_time time without time zone NOT NULL,
+  shift_type character varying DEFAULT 'regular'::character varying,
+  notes text,
+  created_by integer,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT shift_rotas_pkey PRIMARY KEY (id),
+  CONSTRAINT shift_rotas_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
+  CONSTRAINT shift_rotas_created_by_fkey FOREIGN KEY (created_by) REFERENCES main.users(id)
+);
+CREATE TABLE main.sla_alerts (
+  id integer NOT NULL DEFAULT nextval('main.sla_alerts_id_seq'::regclass),
+  ticket_id integer,
+  alert_level integer NOT NULL,
+  consumption_pct numeric,
+  notified_emails ARRAY,
+  notification_channel character varying,
+  acknowledged_by character varying,
+  is_acknowledged boolean DEFAULT false,
+  acknowledged_at timestamp without time zone,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT sla_alerts_pkey PRIMARY KEY (id),
+  CONSTRAINT sla_alerts_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id)
+);
+CREATE TABLE main.sla_configs (
+  id integer NOT NULL DEFAULT nextval('main.sla_configs_id_seq'::regclass),
+  solution_id integer,
+  priority character varying NOT NULL,
+  priority_name character varying,
+  priority_description text,
+  response_hours numeric,
+  resolution_hours numeric,
+  resolution_type character varying DEFAULT 'hours'::character varying,
+  CONSTRAINT sla_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT sla_configs_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id)
+);
+CREATE TABLE main.solutions (
+  id integer NOT NULL DEFAULT nextval('main.solutions_id_seq'::regclass),
+  company_id integer,
+  solution_code character varying NOT NULL,
+  solution_name character varying NOT NULL,
+  description text,
+  clickup_space_id character varying,
+  clickup_list_id character varying,
+  business_hours_start time without time zone DEFAULT '08:00:00'::time without time zone,
+  business_hours_end time without time zone DEFAULT '20:00:00'::time without time zone,
+  timezone character varying DEFAULT 'Asia/Dubai'::character varying,
+  working_days ARRAY DEFAULT '{0,1,2,3,4,5,6}'::integer[],
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT solutions_pkey PRIMARY KEY (id),
+  CONSTRAINT solutions_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id)
+);
+CREATE TABLE main.threads (
+  id integer NOT NULL DEFAULT nextval('main.threads_id_seq'::regclass),
+  ticket_id integer,
+  clickup_history_id character varying,
+  action_type character varying NOT NULL,
+  actor_email character varying,
+  actor_name character varying,
+  old_value text,
+  new_value text,
+  raw_content text,
+  ai_summary text,
+  has_attachments boolean DEFAULT false,
+  attachment_urls ARRAY,
+  thread_source character varying DEFAULT 'clickup'::character varying,
+  metadata jsonb,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT threads_pkey PRIMARY KEY (id),
+  CONSTRAINT threads_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id)
+);
+CREATE TABLE main.tickets (
+  id integer NOT NULL DEFAULT nextval('main.tickets_id_seq'::regclass),
+  company_id integer,
+  solution_id integer,
+  poc_id integer,
+  assigned_to_id integer,
+  clickup_task_id character varying UNIQUE,
+  clickup_url text,
+  title character varying NOT NULL,
+  description text,
+  module character varying,
+  operating_system character varying,
+  mobile_or_national_id character varying,
+  request_type character varying,
+  case_type character varying,
+  priority character varying,
+  status character varying DEFAULT 'Open'::character varying,
+  assigned_to_email character varying,
+  sla_response_due timestamp without time zone,
+  sla_resolution_due timestamp without time zone,
+  sla_consumption_pct numeric DEFAULT 0,
+  sla_status character varying DEFAULT 'healthy'::character varying,
+  sla_paused_at timestamp without time zone,
+  sla_paused_duration interval DEFAULT '00:00:00'::interval,
+  escalation_level integer DEFAULT 0,
+  last_escalation_at timestamp without time zone,
+  ai_summary text,
+  ai_sentiment character varying,
+  created_by_email character varying,
+  created_by_name character varying,
+  is_deleted boolean DEFAULT false,
+  deleted_at timestamp with time zone,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  resolved_at timestamp without time zone,
+  closed_at timestamp without time zone,
+  channel character varying DEFAULT 'email'::character varying,
+  CONSTRAINT tickets_pkey PRIMARY KEY (id),
+  CONSTRAINT tickets_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id),
+  CONSTRAINT tickets_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id),
+  CONSTRAINT tickets_poc_id_fkey FOREIGN KEY (poc_id) REFERENCES main.pocs(id),
+  CONSTRAINT tickets_assigned_to_id_fkey FOREIGN KEY (assigned_to_id) REFERENCES main.users(id)
+);
+CREATE TABLE main.users (
+  id integer NOT NULL DEFAULT nextval('main.users_id_seq'::regclass),
+  email character varying NOT NULL UNIQUE,
+  password_hash character varying NOT NULL,
+  full_name character varying NOT NULL,
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['admin'::character varying, 'agent'::character varying]::text[])),
+  ziwo_email character varying,
+  ziwo_password character varying,
+  is_active boolean DEFAULT true,
+  login_attempts integer DEFAULT 0,
+  locked_until timestamp without time zone,
+  last_login_at timestamp without time zone,
+  current_session_tok character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 
--- ============================================================
--- Disable Row Level Security (required — app uses its own auth)
--- ============================================================
+-- =====================================================================
+-- MIGRATION: Phase 2 enhancements (run once)
+-- =====================================================================
 
-ALTER TABLE main.companies             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.processing_logs       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.users                 DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.ai_companion_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.pocs                  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.solutions             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.agent_status          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.auth_logs             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.circulars             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.notifications         DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.shift_rotas           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.tickets               DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.assignee_configs      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.call_logs             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.circular_versions     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.escalation_configs    DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.kpi_configs           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.modules               DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.notification_queue    DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.request_types         DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.shift_breaks          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.sla_alerts            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.sla_configs           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.threads               DISABLE ROW LEVEL SECURITY;
-ALTER TABLE main.case_types            DISABLE ROW LEVEL SECURITY;
+-- Circular acknowledgments
+CREATE TABLE IF NOT EXISTS main.circular_acks (
+  id SERIAL PRIMARY KEY,
+  circular_id INTEGER REFERENCES main.circulars(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
+  acked_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(circular_id, user_id)
+);
+
+-- Agent status history (for live timeline)
+CREATE TABLE IF NOT EXISTS main.agent_status_history (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
+  status VARCHAR(50),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at TIMESTAMPTZ
+);
+
+-- Break requests (agent applies, admin approves)
+CREATE TABLE IF NOT EXISTS main.break_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES main.users(id) ON DELETE CASCADE,
+  shift_id INTEGER REFERENCES main.shift_rotas(id) ON DELETE SET NULL,
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  duration_mins INTEGER,
+  note TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  reviewed_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ
+);
+
+-- Admin-defined agent categories (inbound, outbound, etc.)
+CREATE TABLE IF NOT EXISTS main.agent_categories (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(50) NOT NULL,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.agent_categories (name) VALUES ('inbound'), ('outbound')
+  ON CONFLICT DO NOTHING;
+
+-- Minimum agents per shift slot and category
+CREATE TABLE IF NOT EXISTS main.shift_type_minimums (
+  id SERIAL PRIMARY KEY,
+  shift_slot VARCHAR(50),
+  agent_type VARCHAR(50),
+  min_count INTEGER DEFAULT 1,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  UNIQUE(shift_slot, agent_type, company_code)
+);
+
+-- System-wide settings (key-value)
+CREATE TABLE IF NOT EXISTS main.system_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT,
+  updated_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.system_settings (key, value) VALUES
+  ('auto_logoff_enabled', 'true'),
+  ('auto_logoff_minutes', '10')
+ON CONFLICT (key) DO NOTHING;
+
+-- Call dispositions / tags (admin-managed)
+CREATE TABLE IF NOT EXISTS main.call_dispositions (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  company_code VARCHAR(20) DEFAULT 'medgulf',
+  created_by INTEGER REFERENCES main.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO main.call_dispositions (name) VALUES
+  ('Call back'), ('Appointment'), ('Insurance'), ('Radiology'), ('Physiotherapy'), ('Complaint')
+ON CONFLICT DO NOTHING;
+
+-- Alter existing tables
+ALTER TABLE main.shift_rotas ADD COLUMN IF NOT EXISTS agent_type VARCHAR(50);
+ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS start_time TIME;
+ALTER TABLE main.leave_requests ADD COLUMN IF NOT EXISTS end_time TIME;
+ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS disposition_id INTEGER REFERENCES main.call_dispositions(id) ON DELETE SET NULL;
+ALTER TABLE main.call_logs ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200);

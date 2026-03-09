@@ -93,12 +93,17 @@ export async function GET(request) {
     const result = await pool.query(
       `SELECT c.id, c.primary_call_id, c.direction, c.customer_number,
               c.duration_secs, c.talk_time_secs, c.hangup_cause, c.status,
-              c.started_at, c.ended_at, c.ticket_id,
+              c.started_at, c.ended_at, c.answered_at, c.ticket_id,
+              c.disposition_id, c.customer_name,
               u.full_name as agent_name, u.email as agent_email,
-              t.id as ticket_ref, t.title as ticket_title, t.status as ticket_status
+              t.id as ticket_ref, t.title as ticket_title, t.status as ticket_status,
+              d.name as disposition_name,
+              COALESCE(c.customer_name, p.name) as resolved_customer_name
        FROM main.call_logs c
        LEFT JOIN main.users u ON c.agent_id = u.id
        LEFT JOIN main.tickets t ON c.ticket_id = t.id
+       LEFT JOIN main.call_dispositions d ON c.disposition_id = d.id
+       LEFT JOIN main.pocs p ON p.phone = c.customer_number
        ${where}
        ORDER BY c.started_at DESC
        LIMIT $${i++} OFFSET $${i++}`,
