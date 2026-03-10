@@ -1,0 +1,4 @@
+for response due time, for zoho email tickets, response is instantaneous as an automated reply mail is sent.
+now for clikcup and calls, if we open a ticket those ticket should also open in zoho desk, the ticket creation should be reciprocated. this is an n8n automation update as well
+: not there in clickup along with other n8n automation update; to be added
+

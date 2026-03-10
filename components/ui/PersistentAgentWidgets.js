@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
@@ -15,9 +16,35 @@ const IdleLogout = dynamic(() => import('./IdleLogout'), { ssr: false })
  */
 export default function PersistentAgentWidgets() {
   const { data: session, status } = useSession()
+  const isAgent = status === 'authenticated' && session?.user?.role === 'agent'
 
-  // Only render for authenticated agents
-  if (status !== 'authenticated' || session?.user?.role !== 'agent') return null
+  /**
+   * Browser-close logout (agents only).
+   *
+   * When an agent closes the browser tab/window, navigator.sendBeacon posts to
+   * /api/auth/logout which expires the session cookie. The next time the browser
+   * is opened the cookie is gone → redirect to login.
+   *
+   * Note: `beforeunload` fires on tab close AND hard refresh (F5). Client-side
+   * navigation in Next.js does NOT trigger beforeunload, so internal page
+   * changes are unaffected. Hard refresh will log the agent out — acceptable
+   * trade-off for an internal support centre tool.
+   *
+   * Admins are intentionally excluded (isAgent check) so they stay logged in.
+   */
+  useEffect(() => {
+    if (!isAgent) return
+
+    function handleBeforeUnload() {
+      navigator.sendBeacon('/api/auth/logout')
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isAgent])
+
+  // Only render widgets for authenticated agents
+  if (!isAgent) return null
 
   return (
     <>

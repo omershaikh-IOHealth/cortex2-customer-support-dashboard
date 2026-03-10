@@ -24,7 +24,8 @@ export async function GET(request) {
     const result = await pool.query(`
       SELECT p.*, c.company_name,
         (SELECT COUNT(*)::int FROM main.tickets t
-         WHERE t.poc_id = p.id AND t.status NOT IN ('Resolved', 'Closed')) AS open_ticket_count
+         WHERE t.poc_id = p.id AND t.status NOT IN ('Resolved', 'Closed')
+           AND (t.is_deleted = false OR t.is_deleted IS NULL)) AS open_ticket_count
       FROM main.pocs p
       LEFT JOIN main.companies c ON p.company_id = c.id
       ${where}

@@ -345,7 +345,7 @@ export default function RotaManagementSection() {
                     <th className="table-header">Type</th>
                     <th className="table-header">Note</th>
                     <th className="table-header">Status</th>
-                    <th className="table-header">Actions</th>
+                    <th className="table-header">Zoho People</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cortex-border">
@@ -368,13 +368,14 @@ export default function RotaManagementSection() {
                         </span>
                       </td>
                       <td className="table-cell">
-                        {lr.status === 'pending' && (
-                          <div className="flex gap-1.5">
-                            <button onClick={() => handleLeaveReview(lr.id, 'approved')} className="text-xs bg-cortex-success/15 text-cortex-success hover:bg-cortex-success/25 px-2.5 py-1 rounded-lg transition-colors font-medium">Approve</button>
-                            <button onClick={() => handleLeaveReview(lr.id, 'rejected')} className="text-xs bg-cortex-danger/10 text-cortex-danger hover:bg-cortex-danger/20 px-2.5 py-1 rounded-lg transition-colors font-medium">Reject</button>
-                          </div>
+                        {lr.zoho_people_record_id ? (
+                          <span className="text-xs text-cortex-success">Synced ✓</span>
+                        ) : (
+                          <span className="text-xs text-cortex-muted">Pending sync…</span>
                         )}
-                        {lr.status !== 'pending' && <span className="text-xs text-cortex-muted">by {lr.reviewer_name || '—'}</span>}
+                        {lr.status !== 'pending' && lr.reviewer_name && (
+                          <p className="text-[10px] text-cortex-muted mt-0.5">reviewed by {lr.reviewer_name}</p>
+                        )}
                       </td>
                     </tr>
                   ))}

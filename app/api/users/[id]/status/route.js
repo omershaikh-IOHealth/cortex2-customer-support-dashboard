@@ -44,7 +44,7 @@ export async function PUT(request, { params }) {
        SET ended_at = NOW()
        WHERE user_id = $1 AND ended_at IS NULL`,
       [id]
-    ).catch(() => {}) // ignore if table doesn't exist yet
+    )
 
     // Upsert current status
     await pool.query(
@@ -62,7 +62,7 @@ export async function PUT(request, { params }) {
       `INSERT INTO main.agent_status_history (user_id, status, started_at)
        VALUES ($1, $2, NOW())`,
       [id, status]
-    ).catch(() => {}) // ignore if table doesn't exist yet
+    )
 
     return NextResponse.json({ ok: true, status })
   } catch (e) {

@@ -12,6 +12,7 @@ export async function GET() {
       FROM main.sla_alerts sa
       JOIN main.tickets t ON sa.ticket_id = t.id
       WHERE t.company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)
+        AND (t.is_deleted = false OR t.is_deleted IS NULL)
       ORDER BY sa.created_at DESC
       LIMIT 50
     `)

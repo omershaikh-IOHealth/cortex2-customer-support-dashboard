@@ -78,6 +78,7 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
   const [ticketDesc, setTicketDesc] = useState('')
   const [ticketPriority, setTicketPriority] = useState('P3')
   const [creatingTicket, setCreatingTicket] = useState(false)
+  const [isFCR, setIsFCR] = useState(false)
 
   // POC (customer) section
   const [pocMode, setPocMode] = useState('search')
@@ -350,6 +351,7 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
       setTicketTitle('')
       setTicketDesc('')
       setTicketPriority('P3')
+      setIsFCR(false)
       // Reset POC/org form
       setPocMode('search'); setPocSearch(''); setPocResults([])
       setNewPOCName(''); setNewPOCEmail(''); setNewPOCPhone('')
@@ -698,7 +700,35 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
                 {/* Ticket creation form */}
                 {showTicketForm ? (
                   <div className="space-y-2.5 border-t border-cortex-border/60 pt-3">
-                    <p className="text-xs font-semibold text-cortex-text">Create ticket for this call</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-cortex-text">Create ticket for this call</p>
+                      <button
+                        onClick={() => {
+                          const next = !isFCR
+                          setIsFCR(next)
+                          if (next) {
+                            const dispName = selectedDisposition
+                              ? dispositions.find(d => d.id === selectedDisposition)?.name
+                              : null
+                            setTicketTitle(dispName ? `FCR — ${dispName}` : 'FCR — Resolved on Call')
+                          } else {
+                            setTicketTitle('')
+                          }
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-colors ${
+                          isFCR
+                            ? 'bg-cortex-success/20 text-cortex-success border-cortex-success/40'
+                            : 'bg-cortex-bg text-cortex-muted border-cortex-border hover:border-cortex-muted'
+                        }`}
+                      >
+                        {isFCR ? '✓ FCR' : 'Mark FCR'}
+                      </button>
+                    </div>
+                    {isFCR && (
+                      <div className="rounded-lg bg-cortex-success/10 border border-cortex-success/30 px-2.5 py-1.5 text-[10px] text-cortex-success">
+                        First Call Resolution — ticket will be created as <strong>Completed</strong>, not pushed to ClickUp
+                      </div>
+                    )}
                     <input
                       type="text"
                       placeholder="Title *"
@@ -838,23 +868,27 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
                               title: ticketTitle.trim(),
                               description: ticketDesc.trim() || undefined,
                               priority: ticketPriority,
-                              channel: 'voice',
+                              status: isFCR ? 'completed' : 'Open',
+                              channel: 'call',
                               poc_id,
                               company_id,
+                              push_to_clickup: !isFCR,
                             })
                             if (endedInfo.primaryCallId) {
                               updateCallLog(endedInfo.primaryCallId, {
                                 ticket_id: ticket.id,
                                 ...(selectedDisposition && { disposition_id: selectedDisposition }),
+                                ...(isFCR && { fcr: true, fcr_ticket_id: ticket.id }),
                               }).catch(() => {})
                             }
-                            toast.success(`Ticket #${ticket.id} created`)
+                            toast.success(isFCR ? `FCR ticket #${ticket.id} logged` : `Ticket #${ticket.id} created`)
                           } catch (e) {
                             toast.error(e.message || 'Failed to create ticket')
                           } finally {
                             setCreatingTicket(false)
                             setShowTicketForm(false)
                             setEndedInfo(null)
+                            setIsFCR(false)
                             setStatus(S.CONNECTED)
                           }
                         }}
@@ -870,6 +904,7 @@ export default function ZiwoWidget({ contactCenterName = 'iohealth' }) {
                           }
                           setShowTicketForm(false)
                           setEndedInfo(null)
+                          setIsFCR(false)
                           setStatus(S.CONNECTED)
                         }}
                         className="px-3 py-1.5 text-xs text-cortex-muted hover:text-cortex-text border border-cortex-border rounded-lg transition-colors"

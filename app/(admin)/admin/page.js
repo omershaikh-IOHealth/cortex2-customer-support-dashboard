@@ -143,6 +143,11 @@ export default function AdminPage() {
       setSettingsForm({
         auto_logoff_enabled: systemSettings.auto_logoff_enabled !== 'false',
         auto_logoff_minutes: parseInt(systemSettings.auto_logoff_minutes) || 10,
+        agent_target_calls_per_day: parseInt(systemSettings.agent_target_calls_per_day) || 120,
+        agent_target_aht_seconds: parseInt(systemSettings.agent_target_aht_seconds) || 135,
+        agent_target_max_missed: parseInt(systemSettings.agent_target_max_missed) || 3,
+        agent_target_fcr_pct: parseInt(systemSettings.agent_target_fcr_pct) || 80,
+        agent_target_wrapup_seconds: parseInt(systemSettings.agent_target_wrapup_seconds) || 60,
       })
     }
   }, [systemSettings]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -154,6 +159,11 @@ export default function AdminPage() {
       await updateSystemSettings({
         auto_logoff_enabled: String(settingsForm.auto_logoff_enabled),
         auto_logoff_minutes: String(settingsForm.auto_logoff_minutes),
+        agent_target_calls_per_day: String(settingsForm.agent_target_calls_per_day),
+        agent_target_aht_seconds: String(settingsForm.agent_target_aht_seconds),
+        agent_target_max_missed: String(settingsForm.agent_target_max_missed),
+        agent_target_fcr_pct: String(settingsForm.agent_target_fcr_pct),
+        agent_target_wrapup_seconds: String(settingsForm.agent_target_wrapup_seconds),
       })
       showToast('Settings saved')
       refetchSettings()
@@ -287,30 +297,62 @@ export default function AdminPage() {
           <h2 className="font-semibold text-cortex-text text-sm mb-4 flex items-center gap-2">
             ⚙ System Settings
           </h2>
-          <div className="flex flex-wrap items-center gap-6">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settingsForm.auto_logoff_enabled}
-                onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_enabled: e.target.checked }))}
-                className="rounded"
-              />
-              <span className="text-sm text-cortex-text">Enable auto-logoff for idle agents</span>
-            </label>
-            {settingsForm.auto_logoff_enabled && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-cortex-muted">Idle timeout:</span>
+          <div className="space-y-5">
+            {/* Auto-logoff */}
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="flex items-center gap-3 cursor-pointer">
                 <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={settingsForm.auto_logoff_minutes}
-                  onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_minutes: parseInt(e.target.value) || 10 }))}
-                  className="input w-20 text-center"
+                  type="checkbox"
+                  checked={settingsForm.auto_logoff_enabled}
+                  onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_enabled: e.target.checked }))}
+                  className="rounded"
                 />
-                <span className="text-sm text-cortex-muted">minutes</span>
+                <span className="text-sm text-cortex-text">Enable auto-logoff for idle agents</span>
+              </label>
+              {settingsForm.auto_logoff_enabled && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-cortex-muted">Idle timeout:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={settingsForm.auto_logoff_minutes}
+                    onChange={e => setSettingsForm(f => ({ ...f, auto_logoff_minutes: parseInt(e.target.value) || 10 }))}
+                    className="input w-20 text-center"
+                  />
+                  <span className="text-sm text-cortex-muted">minutes</span>
+                </div>
+              )}
+            </div>
+
+            {/* Agent Performance Targets */}
+            <div>
+              <p className="text-xs font-semibold text-cortex-muted uppercase tracking-wide mb-3">Agent Performance Targets</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {[
+                  { key: 'agent_target_calls_per_day', label: 'Calls / day', suffix: 'calls' },
+                  { key: 'agent_target_aht_seconds', label: 'Target AHT', suffix: 'sec' },
+                  { key: 'agent_target_max_missed', label: 'Max Missed', suffix: 'calls/day' },
+                  { key: 'agent_target_fcr_pct', label: 'FCR Rate', suffix: '%' },
+                  { key: 'agent_target_wrapup_seconds', label: 'Wrap-up Target', suffix: 'sec' },
+                ].map(({ key, label, suffix }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-xs text-cortex-muted">{label}</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        value={settingsForm[key]}
+                        onChange={e => setSettingsForm(f => ({ ...f, [key]: parseInt(e.target.value) || 0 }))}
+                        className="input w-20 text-center text-sm"
+                      />
+                      <span className="text-xs text-cortex-muted">{suffix}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+
             <button
               onClick={saveSettings}
               disabled={savingSettings}

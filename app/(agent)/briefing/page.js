@@ -286,7 +286,7 @@ export default function BriefingPage() {
           </div>
           <div className="space-y-0">
             {[
-              { label: 'Queue',   value: 'iohealth' },
+              { label: 'Queue',   value: todayShift?.agent_type || todayShift?.shift_type || 'Inbound' },
               { label: 'Role',    value: session?.user?.role,      badge: true  },
               { label: 'ZIWO',    value: session?.user?.ziwoEmail || 'Not linked', mono: true },
             ].map(({ label, value, badge, mono }) => (

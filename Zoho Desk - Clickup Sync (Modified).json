@@ -1,0 +1,2125 @@
+{
+  "name": "clickup-cortex-sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3424,
+        80
+      ],
+      "id": "b38adc64-d533-4f38-a622-0bc0852c2e39",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.clickup.com/api/v2/list/901215777514/task",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "archived",
+              "value": "false"
+            },
+            {
+              "name": "include_closed",
+              "value": "true"
+            },
+            {
+              "name": "subtasks",
+              "value": "true"
+            },
+            {
+              "name": "page",
+              "value": "0"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1584,
+        208
+      ],
+      "id": "07588763-b4e5-4fe1-a2be-7385fea57e18",
+      "name": "Fetch ClickUp Tasks",
+      "notes": "GET all tasks from MedGulf Customer Feedback list. Replace CLICKUP_LIST_ID with actual list ID."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  t.id AS ticket_id, \n  t.clickup_task_id, \n  t.status, \n  t.priority, \n  t.title,\n  t.updated_at, \n  (SELECT COUNT(*) FROM main.threads th_count WHERE th_count.ticket_id = t.id) AS thread_count,\n  t.sla_consumption_pct, \n  t.escalation_level,\n  t.sla_status, \n  t.sla_paused_at, \n  t.sla_paused_duration,\n  t.sla_response_due, \n  t.sla_resolution_due,\n  t.created_at, \n  t.is_deleted,\n  COALESCE(t.clickup_thread_count, 0) AS clickup_thread_count,\n  COALESCE(\n    (SELECT json_agg(th.clickup_history_id) \n     FROM main.threads th \n     WHERE th.ticket_id = t.id AND th.clickup_history_id IS NOT NULL),\n    '[]'::json\n  ) AS existing_thread_ids\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE c.company_code = 'medgulf'\n  AND (t.is_deleted = false OR t.is_deleted IS NULL);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -2704,
+        208
+      ],
+      "id": "c28120b8-3c9d-4690-b8ff-29fac68efb7b",
+      "name": "Fetch DB Tickets",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  s.id AS solution_id, \n  s.company_id,\n  s.business_hours_start, \n  s.business_hours_end, \n  s.timezone, \n  s.working_days,\n  c.company_code, \n  c.domain\nFROM main.solutions s\nJOIN main.companies c ON s.company_id = c.id\nWHERE c.company_code = 'medgulf' \n  AND s.solution_code = 'app'\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -2256,
+        208
+      ],
+      "id": "629fb14e-82a7-44d3-a58e-3fce584e4ef3",
+      "name": "Fetch Solution Config",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  sc.priority, \n  sc.response_hours, \n  sc.resolution_hours, \n  sc.resolution_type\nFROM main.sla_configs sc\nJOIN main.solutions s ON sc.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE c.company_code = 'medgulf' \n  AND s.solution_code = 'app';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -2032,
+        208
+      ],
+      "id": "f435ccbc-5b30-42b7-bbcf-7cd46c2e89aa",
+      "name": "Fetch SLA Configs",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clickupRaw = $('Fetch ClickUp Tasks').first().json;\nconst clickupTasks = clickupRaw.tasks || [];\nconst dbTickets = $('Merge DB Tickets').first().json._db_tickets;\nconst merged = $('Merge Configs').first().json;\nconst solutionConfig = merged._solution_config;\nconst slaConfigs = merged._sla_configs;\n\nconst dbMap = {};\nfor (const t of dbTickets) {\n  if (t.clickup_task_id) dbMap[t.clickup_task_id] = t;\n}\nconst clickupIds = new Set(clickupTasks.map(t => t.id));\nconst results = [];\n\n// Status groups\nconst CLOSED_STATUSES = ['closed', 'resolved', 'complete', 'rejected', 'done'];\nconst PAUSED_STATUSES = ['on hold', 'blocked', 'on_hold'];\n\nfor (const task of clickupTasks) {\n  const existing = dbMap[task.id];\n\n  // Extract custom fields as name→value map\n  const customFields = {};\n  if (task.custom_fields) {\n    for (const cf of task.custom_fields) {\n      const fieldName = cf.name?.toLowerCase()?.replace(/\\s+/g, '_');\n      let fieldValue = null;\n      if (cf.type === 'drop_down' && cf.type_config?.options && cf.value !== undefined && cf.value !== null) {\n        const option = cf.type_config.options.find(o => o.orderindex === cf.value);\n        fieldValue = option?.name || null;\n      } else if (cf.type === 'number') {\n        fieldValue = cf.value != null ? String(cf.value) : null;\n      } else {\n        fieldValue = cf.value || null;\n      }\n      if (fieldName) customFields[fieldName] = fieldValue;\n    }\n  }\n\n  // Priority mapping: ClickUp → P1-P5\n  let priority = 'P3';\n  if (task.priority) {\n    const pMap = { 'urgent': 'P1', 'high': 'P2', 'normal': 'P3', 'low': 'P4' };\n    priority = pMap[task.priority?.priority?.toLowerCase()] || 'P3';\n  } else {\n    priority = 'P5'; // No priority = Very Low\n  }\n\n  const statusRaw = task.status?.status || 'open';\n  const statusLower = statusRaw.toLowerCase();\n\n  const taskData = {\n    clickup_task_id: task.id,\n    clickup_url: task.url,\n    title: task.name || 'Untitled',\n    description: (task.description || '').substring(0, 5000),\n    status: statusRaw,\n    status_type: task.status?.type || null,\n    priority: priority,\n    _is_closed_status: CLOSED_STATUSES.includes(statusLower),\n    _is_paused_status: PAUSED_STATUSES.includes(statusLower),\n    module: customFields.module || null,\n    operating_system: customFields.operating_system || null,\n    mobile_or_national_id: customFields.patient_identifier || null,\n    request_type_clickup: customFields.request_type || null,\n    case_type_clickup: customFields.case_type || null,\n    created_at: task.date_created ? new Date(parseInt(task.date_created)).toISOString() : new Date().toISOString(),\n    updated_at: task.date_updated ? new Date(parseInt(task.date_updated)).toISOString() : new Date().toISOString(),\n    closed_at: task.date_closed ? new Date(parseInt(task.date_closed)).toISOString() : null,\n    created_by_email: task.creator?.email || null,\n    created_by_name: task.creator?.username || null,\n    comment_count: parseInt(task.comment_count) || 0,\n    assignees: task.assignees || [],\n    tags: task.tags?.map(tg => tg.name) || [],\n    custom_fields: customFields,\n    _solution_id: solutionConfig.solution_id,\n    _company_id: solutionConfig.company_id,\n    _company_domain: solutionConfig.domain,\n    _sla_configs: slaConfigs,\n    _solution_config: solutionConfig\n  };\n\n  if (!existing) {\n    results.push({ json: { ...taskData, _sync_action: 'NEW' } });\n  } else {\n    const changes = [];\n    if (existing.status?.toLowerCase() !== statusLower) changes.push('status');\n    if (existing.priority !== taskData.priority) changes.push('priority');\n    if (existing.title !== taskData.title) changes.push('title');\n    const exUp = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;\n    const cuUp = new Date(taskData.updated_at).getTime();\n    if (cuUp > exUp) changes.push('updated_at');\n\n    // Thread count optimization: skip ClickUp comment fetch if nothing changed\n    const cuCommentCount = parseInt(task.comment_count) || 0;\n    const dbThreadCount = parseInt(existing.clickup_thread_count) || 0;\n    const skipThreads = cuCommentCount === dbThreadCount && !(cuUp > exUp);\n\n    results.push({\n      json: {\n        ...taskData,\n        _sync_action: 'EXISTS',\n        _db_ticket_id: existing.ticket_id,\n        _has_changes: changes.length > 0,\n        _changed_fields: changes,\n        _existing_thread_ids: existing.existing_thread_ids || [],\n        _existing_priority: existing.priority,\n        _existing_sla_status: existing.sla_status,\n        _existing_escalation_level: existing.escalation_level,\n        _existing_sla_consumption_pct: existing.sla_consumption_pct,\n        _existing_sla_response_due: existing.sla_response_due,\n        _existing_sla_resolution_due: existing.sla_resolution_due,\n        _existing_sla_paused_at: existing.sla_paused_at,\n        _existing_sla_paused_duration: existing.sla_paused_duration,\n        _skip_threads: skipThreads,\n        _db_comment_count: dbThreadCount,\n        _cu_comment_count: cuCommentCount\n      }\n    });\n  }\n}\n\n// Deleted tickets\nfor (const db of dbTickets) {\n  if (db.clickup_task_id && !clickupIds.has(db.clickup_task_id)) {\n    results.push({\n      json: {\n        _sync_action: 'DELETED',\n        _db_ticket_id: db.ticket_id,\n        clickup_task_id: db.clickup_task_id,\n        title: db.title\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { _sync_action: 'NONE', message: 'No tickets to process' } }];\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        208
+      ],
+      "id": "1a7d58ae-3095-41f2-961c-dd400030281c",
+      "name": "Compare & Classify"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1136,
+        208
+      ],
+      "id": "b3893b12-4868-4a91-b45e-1aecbfac81c0",
+      "name": "Loop Each Ticket"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3ae22f00-544c-4d2d-9c51-42c012d3d1f5",
+                    "leftValue": "={{ $json._sync_action }}",
+                    "rightValue": "NEW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New Ticket"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "420cb14c-51c6-4031-a6bd-9285851efd7b",
+                    "leftValue": "={{ $json._sync_action }}",
+                    "rightValue": "EXISTS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Existing Ticket"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "915fc6c1-91ce-4aca-9fe2-7b6ee08a5118",
+                    "leftValue": "={{ $json._sync_action }}",
+                    "rightValue": "DELETED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Deleted Ticket"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -912,
+        176
+      ],
+      "id": "7c3f2d07-c942-48cf-b62d-cad09387af9d",
+      "name": "Route by Action"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id AS poc_id, \n  email, \n  name, \n  company_id\nFROM main.pocs\nWHERE email = '{{ $json.created_by_email }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -224,
+        96
+      ],
+      "id": "b94ab404-8480-4b24-8191-f58cf89dee3d",
+      "name": "Check POC Exists",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = $('Route by Action').first().json;\nconst pocResult = $input.first().json;\n\nlet pocId = pocResult?.poc_id || null;\nlet pocAction = pocId ? 'EXISTING' : 'CREATE';\n\nreturn [{\n  json: {\n    ...ticket,\n    _poc_id: pocId,\n    _poc_action: pocAction,\n    _poc_type: pocId ? 'known' : 'pending' // resolved after Create POC\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        96
+      ],
+      "id": "4c0efff1-7481-4a23-a635-a0dea8027c6a",
+      "name": "Evaluate POC"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "poc-needs-create",
+              "leftValue": "={{ $json._poc_action }}",
+              "rightValue": "CREATE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        432,
+        96
+      ],
+      "id": "1bfa1210-6d48-48bc-b0ce-e49033770804",
+      "name": "POC Needs Create?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.pocs (company_id, email, name, status, created_at, updated_at)\nVALUES (\n  (\n    SELECT c.id \n    FROM main.companies c \n    WHERE split_part('{{ $json.created_by_email }}', '@', 2) ILIKE '%' || c.domain || '%'\n    LIMIT 1\n  ),\n  {{ $json.created_by_email ? \"'\" + $json.created_by_email + \"'\" : 'NULL' }},\n  {{ $json.created_by_name ? \"'\" + $json.created_by_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  'active',\n  NOW(), NOW()\n)\nON CONFLICT (email) DO UPDATE SET\n  name = COALESCE(EXCLUDED.name, main.pocs.name),\n  company_id = COALESCE(EXCLUDED.company_id, main.pocs.company_id),\n  updated_at = NOW()\nRETURNING id AS poc_id, email, name, company_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        656,
+        16
+      ],
+      "id": "e7f17664-c118-4417-a1d8-9fcc76d730bf",
+      "name": "Create POC",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge POC ID back into ticket data\nconst ticket = $('Evaluate POC').first().json;\nconst pocAction = ticket._poc_action;\n\nlet pocId;\nif (pocAction === 'CREATE') {\n  pocId = $('Create POC').first().json.poc_id;\n} else {\n  pocId = ticket._poc_id;\n}\n\nreturn [{\n  json: {\n    ...ticket,\n    _poc_id: pocId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        96
+      ],
+      "id": "45fbf0d9-a892-405a-88a4-2248bdbd2752",
+      "name": "Merge POC ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== BUILD LLM PROFILING REQUEST =====\nconst ticket = $input.first().json;\nconst modules = ['Login/Sign Up','Language','Landing Page (Home)','My Health','Cash Claims','Call Doctor Now','Appointment','AI Companion','Apps Sections and Functions','Digital Twin','Wellness'];\n\nconst systemPrompt = `You are an expert support ticket classifier for MedGulf healthcare mobile app.\n\nYour job is to analyze a new support ticket and return a structured JSON profile.\n\nAvailable modules: ${modules.join(', ')}\n\nRequest types:\n- Incident: Unplanned interruption or quality reduction of a service\n- Service Request: User guidance, configuration change, or access request\n- Problem: Recurring incident needing root cause investigation\n- Change Request: New feature or enhancement request\n\nPriority levels (assess based on impact and urgency):\n- P1 (Critical): Complete system/app outage or total loss of service\n- P2 (High): Major functionality impaired, core operations impacted\n- P3 (Medium): Partial disruption affecting non-core functions\n- P4 (Low): Minor issue with limited impact\n- P5 (Very Low): Isolated issue with minimal impact\n\nRespond ONLY with valid JSON, no markdown, no explanation:\n{\n  \"request_type\": \"Incident|Service Request|Problem|Change Request\",\n  \"case_type\": \"<brief case type label, e.g. 'Login Failure', 'Crash on Launch'>\",\n  \"priority\": \"P1|P2|P3|P4|P5\",\n  \"sentiment\": \"positive|neutral|negative|frustrated|angry\",\n  \"summary\": \"<1-2 sentence summary of the issue>\",\n  \"module\": \"<best matching module from the list, or 'Unknown'>\"\n}`;\n\nconst userMessage = `Ticket Title: ${ticket.title}\\n\\nDescription:\\n${ticket.description || 'No description provided'}\\n\\nReported Module: ${ticket.module || 'Not specified'}\\nReporter: ${ticket.created_by_name || 'Unknown'}\\nTags: ${(ticket.tags || []).join(', ') || 'None'}`;\n\nconst requestBody = {\n  temperature: 0.1,\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userMessage }\n  ]\n};\n\nreturn [{\n  json: {\n    requestBody: JSON.stringify(requestBody),\n    _ticket: ticket\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        96
+      ],
+      "id": "739d83ff-cb49-49fb-930d-e3ad472dd539",
+      "name": "Build LLM Profile Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.core42.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 395a4d599312411fac54f6044d9d7f16"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1328,
+        96
+      ],
+      "id": "62d07bd0-3d2a-46ff-8a1f-292ba4782216",
+      "name": "LLM Call - Profile"
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmResponse = $input.first().json;\nconst ticket = $('Build LLM Profile Request').first().json._ticket;\n\nlet profile;\ntry {\n  const content = llmResponse.choices?.[0]?.message?.content || '{}';\n  const cleaned = content.replace(/```json|```/g, '').trim();\n  profile = JSON.parse(cleaned);\n} catch (e) {\n  profile = {\n    request_type: ticket.request_type_clickup || 'Incident',\n    case_type: 'Uncategorized',\n    priority: ticket.priority || 'P3',\n    sentiment: 'neutral',\n    summary: ticket.title,\n    module: ticket.module || 'Unknown'\n  };\n}\n\nconst finalPriority = profile.priority || ticket.priority || 'P3';\n\n// SLA applicability: only Incidents and Problems\nconst requestType = profile.request_type || ticket.request_type_clickup || 'Incident';\nconst isSlaApplicable = ['Incident', 'Problem'].includes(requestType);\n\nconst slaConfigs = ticket._sla_configs || [];\nconst slaConfig = isSlaApplicable ? slaConfigs.find(s => s.priority === finalPriority) : null;\nconst hasHourSla = slaConfig && slaConfig.resolution_type === 'hours' && slaConfig.resolution_hours;\n\nconst cfg = ticket._solution_config || {};\nconst bhS = parseInt((cfg.business_hours_start || '08:00').split(':')[0]);\nconst bhE = parseInt((cfg.business_hours_end || '20:00').split(':')[0]);\n\nfunction addBH(startDate, hours) {\n  if (!hours || hours <= 0) return null;\n  let cur = new Date(startDate);\n  let rem = hours;\n  for (let i = 0; i < 500 && rem > 0; i++) {\n    const dh = cur.getUTCHours() + 4;\n    const ah = dh >= 24 ? dh - 24 : dh;\n    if (ah >= bhS && ah < bhE) {\n      const left = bhE - ah;\n      const c = Math.min(rem, left);\n      rem -= c;\n      cur = new Date(cur.getTime() + c * 3600000);\n    } else if (ah < bhS) {\n      cur = new Date(cur.getTime() + (bhS - ah) * 3600000);\n    } else {\n      cur = new Date(cur.getTime() + ((24 - ah) + bhS) * 3600000);\n    }\n  }\n  return cur.toISOString();\n}\n\nconst now = new Date();\nconst slaRespDue = isSlaApplicable && slaConfig?.response_hours ? addBH(now, slaConfig.response_hours) : null;\nconst slaResDue = hasHourSla ? addBH(now, slaConfig.resolution_hours) : null;\n\nreturn [{\n  json: {\n    ...ticket,\n    request_type: requestType,\n    case_type: profile.case_type,\n    priority: finalPriority,\n    ai_sentiment: profile.sentiment,\n    ai_summary: profile.summary,\n    module: profile.module !== 'Unknown' ? profile.module : ticket.module,\n    sla_applicable: isSlaApplicable,\n    sla_response_due: slaRespDue,\n    sla_resolution_due: slaResDue,\n    sla_status: isSlaApplicable ? 'healthy' : 'not_applicable',\n    sla_consumption_pct: 0,\n    escalation_level: 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        96
+      ],
+      "id": "7447d532-aa17-4038-abcf-2c458ee96ebf",
+      "name": "Parse LLM + Calculate SLA"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.tickets (\n  company_id, solution_id, poc_id, clickup_task_id, clickup_url, channel,\n  title, description, module, operating_system, mobile_or_national_id,\n  request_type, case_type, priority, status,\n  sla_response_due, sla_resolution_due, sla_consumption_pct, sla_status,\n  escalation_level, ai_summary, ai_sentiment,\n  created_at, updated_at, created_by_email, created_by_name\n) VALUES (\n  (SELECT c.id FROM main.companies c WHERE c.company_code = 'medgulf' LIMIT 1),\n  (SELECT s.id FROM main.solutions s JOIN main.companies c ON s.company_id = c.id WHERE c.company_code = 'medgulf' AND s.solution_code = 'app' LIMIT 1),\n  {{ $json._poc_id ? $json._poc_id : 'NULL' }},\n  '{{ $json.clickup_task_id }}',\n  '{{ $json.clickup_url }}',\n  'clickup',\n  '{{ $json.title.replace(/'/g, \"''\") }}',\n  {{ $json.description ? \"'\" + $json.description.replace(/'/g, \"''\").replace(/\\n/g, ' ') + \"'\" : 'NULL' }},\n  {{ $json.module ? \"'\" + $json.module.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.operating_system ? \"'\" + $json.operating_system + \"'\" : 'NULL' }},\n  {{ $json.mobile_or_national_id ? \"'\" + $json.mobile_or_national_id + \"'\" : 'NULL' }},\n  {{ $json.request_type ? \"'\" + $json.request_type + \"'\" : 'NULL' }},\n  {{ $json.case_type ? \"'\" + $json.case_type.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  '{{ $json.priority }}',\n  '{{ $json.status }}',\n  {{ $json.sla_response_due ? \"'\" + $json.sla_response_due + \"'\" : 'NULL' }},\n  {{ $json.sla_resolution_due ? \"'\" + $json.sla_resolution_due + \"'\" : 'NULL' }},\n  0,\n  'healthy',\n  0,\n  {{ $json.ai_summary ? \"'\" + $json.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.ai_sentiment ? \"'\" + $json.ai_sentiment + \"'\" : 'NULL' }},\n  '{{ $json.created_at }}',\n  NOW(),\n  {{ $json.created_by_email ? \"'\" + $json.created_by_email + \"'\" : 'NULL' }},\n  {{ $json.created_by_name ? \"'\" + $json.created_by_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }}\n)\nON CONFLICT (clickup_task_id) DO UPDATE SET\n  status = EXCLUDED.status,\n  channel = COALESCE(main.tickets.channel, EXCLUDED.channel),\n  priority = EXCLUDED.priority,\n  request_type = EXCLUDED.request_type,\n  case_type = EXCLUDED.case_type,\n  ai_summary = EXCLUDED.ai_summary,\n  ai_sentiment = EXCLUDED.ai_sentiment,\n  sla_response_due = EXCLUDED.sla_response_due,\n  sla_resolution_due = EXCLUDED.sla_resolution_due,\n  updated_at = NOW()\nRETURNING id AS ticket_id, clickup_task_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1776,
+        96
+      ],
+      "id": "e8036bdd-2ba8-4ece-8fe7-3e0fefe023ed",
+      "name": "Insert New Ticket",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Insert the initial thread (ticket creation event)\nconst insertResult = $('Insert New Ticket').first().json;\nconst ticketData = $('Parse LLM + Calculate SLA').first().json;\n\nreturn [{\n  json: {\n    ticket_id: insertResult.ticket_id,\n    action_type: 'ticket_created',\n    actor_email: ticketData.created_by_email,\n    actor_name: ticketData.created_by_name,\n    raw_content: ticketData.description || ticketData.title,\n    ai_summary: ticketData.ai_summary,\n    created_at: ticketData.created_at\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        96
+      ],
+      "id": "822ad64d-ae5f-450f-b553-a6f7ff80a09b",
+      "name": "Build Initial Thread"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.threads (\n  ticket_id, action_type, actor_email, actor_name,\n  raw_content, ai_summary, created_at\n) VALUES (\n  {{ $json.ticket_id }},\n  '{{ $json.action_type }}',\n  {{ $json.actor_email ? \"'\" + $json.actor_email + \"'\" : 'NULL' }},\n  {{ $json.actor_name ? \"'\" + $json.actor_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.raw_content ? \"'\" + $json.raw_content.substring(0, 5000).replace(/'/g, \"''\").replace(/\\n/g, ' ') + \"'\" : 'NULL' }},\n  {{ $json.ai_summary ? \"'\" + $json.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  '{{ $json.created_at }}'\n)\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2224,
+        96
+      ],
+      "id": "067c5dad-2402-4174-b2db-39690fe5f0ec",
+      "name": "Insert Initial Thread",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return to loop\nreturn [{ json: { _done: true, _sync_action: 'NEW', clickup_task_id: $('Route by Action').first().json.clickup_task_id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        96
+      ],
+      "id": "03febcbb-16c4-4513-844b-0911b9f881d2",
+      "name": "New Ticket Done"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.clickup_task_id }}/comment",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -256,
+        576
+      ],
+      "id": "47e0244f-08e7-4ba8-94cf-6a8866c1f0cf",
+      "name": "Fetch ClickUp Comments"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = $('Route by Action').first().json;\nconst commentsRaw = $input.first().json;\nconst comments = commentsRaw.comments || [];\n\nconst existingThreadIds = ticket._existing_thread_ids || [];\nconst existingIdSet = new Set(existingThreadIds.map(String));\nconst newComments = comments.filter(c => !existingIdSet.has(String(c.id)));\n\nconst changes = ticket._changed_fields || [];\nconst hasNewComments = newComments.length > 0;\nconst hasFieldChanges = changes.length > 0;\n\n// SLA impact detection\nlet slaImpact = 'none';\nconst statusLower = ticket.status?.toLowerCase();\n\nif (changes.includes('status')) {\n  if (['on hold', 'blocked', 'on_hold'].includes(statusLower)) {\n    slaImpact = 'pause';\n  } else if (['open', 'in progress', 'in_progress', 'active'].includes(statusLower)) {\n    slaImpact = 'resume';\n  } else if (['closed', 'resolved', 'complete', 'rejected', 'done'].includes(statusLower)) {\n    slaImpact = 'stop';\n  }\n}\n\n// Priority change with DIRECTION\nlet priorityChangeDirection = null;\nif (changes.includes('priority')) {\n  const pRank = { 'P1': 1, 'P2': 2, 'P3': 3, 'P4': 4, 'P5': 5 };\n  const oldR = pRank[ticket._existing_priority] || 3;\n  const newR = pRank[ticket.priority] || 3;\n  if (newR < oldR) {\n    priorityChangeDirection = 'upgrade';\n    slaImpact = 'priority_upgrade';\n  } else if (newR > oldR) {\n    priorityChangeDirection = 'downgrade';\n    slaImpact = 'priority_downgrade';\n  }\n}\n\nreturn [{\n  json: {\n    ...ticket,\n    _new_comments: newComments,\n    _has_new_comments: hasNewComments,\n    _has_field_changes: hasFieldChanges,\n    _has_any_changes: hasNewComments || hasFieldChanges,\n    _sla_impact: slaImpact,\n    _priority_change_direction: priorityChangeDirection,\n    _all_comment_ids: comments.map(c => String(c.id))\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        576
+      ],
+      "id": "1587a03e-e704-4b3a-861f-f30df74f48a5",
+      "name": "Detect Changes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-any-changes",
+              "leftValue": "={{ $json._has_any_changes }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        192,
+        576
+      ],
+      "id": "4caf5619-c6c7-4327-ba29-800d5c34e033",
+      "name": "Has Changes?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── THREAD COMPACTION (run-length encoding for consecutive duplicates) ───────\n\nfunction getSignature(t) {\n  return `${t.action_type}|${String(t.raw_content).trim()}|${String(t.new_value).trim()}`;\n}\n\nfunction compactThreads(threads) {\n  const compacted = [];\n  let i = 0;\n\n  while (i < threads.length) {\n    const current = threads[i];\n    const sig = getSignature(current);\n    let count = 1;\n    let j = i + 1;\n\n    while (j < threads.length && getSignature(threads[j]) === sig) {\n      count++;\n      j++;\n    }\n\n    if (count > 1) {\n      const last = threads[j - 1];\n      const firstTime = new Date(current.created_at).toISOString().replace('T', ' ').substring(0, 16);\n      const lastTime  = new Date(last.created_at).toISOString().replace('T', ' ').substring(0, 16);\n\n      compacted.push({\n        id: current.id,\n        action_type: current.action_type,\n        actor_name: current.actor_name,\n        actor_email: current.actor_email,\n        old_value: current.old_value,\n        new_value: current.new_value,\n        raw_content: current.raw_content,\n        ai_summary: current.ai_summary || current.raw_content,\n        created_at: current.created_at,\n        thread_source: current.thread_source,\n        metadata: current.metadata,\n        _collapsed: true,\n        _count: count,\n        _first_at: current.created_at,\n        _last_at: last.created_at,\n        _collapse_note: `↻ Repeated ×${count} (${firstTime} → ${lastTime})`\n      });\n    } else {\n      compacted.push({ ...current, _collapsed: false, _count: 1 });\n    }\n\n    i = j;\n  }\n\n  return compacted;\n}\n\nfunction deduplicateSlaComments(threads) {\n  const toRemove = new Set();\n\n  threads.forEach((t, idx) => {\n    if (t.action_type !== 'comment') return;\n    if (!t.raw_content || !t.raw_content.includes('SLA ESCALATION')) return;\n\n    const tTime = new Date(t.created_at).getTime();\n    const window = threads.slice(Math.max(0, idx - 3), Math.min(threads.length, idx + 4));\n    const hasPair = window.some(w =>\n      w.id !== t.id &&\n      w.action_type === 'sla_escalation' &&\n      Math.abs(new Date(w.created_at).getTime() - tTime) <= 5000\n    );\n\n    if (hasPair) toRemove.add(t.id);\n  });\n\n  return threads.filter(t => !toRemove.has(t.id));\n}\n\nfunction buildEntry(t) {\n  const time = new Date(t.created_at).toISOString().replace('T', ' ').substring(0, 16) + 'Z';\n  const actor = t.actor_name || t.actor_email || 'system';\n  const collapseNote = t._collapsed ? `  ${t._collapse_note}` : '';\n\n  switch (t.action_type) {\n    case 'ticket_created':\n      return `[${time}] CREATED by ${actor}\\n  ${(t.ai_summary || t.raw_content || '').substring(0, 600)}`;\n\n    case 'field_change': {\n      let details = t.raw_content || '';\n      try {\n        const nv = typeof t.new_value === 'string' ? JSON.parse(t.new_value) : t.new_value;\n        if (nv && typeof nv === 'object') {\n          details = 'Changed: ' + Object.entries(nv).map(([k, v]) => `${k}=${v}`).join(', ')\n                  + (t.raw_content ? ` | ${t.raw_content}` : '');\n        }\n      } catch (_) {}\n      return `[${time}] FIELD CHANGE by ${actor}: ${details.substring(0, 200)}${collapseNote}`;\n    }\n\n    case 'comment':\n      return `[${time}] COMMENT by ${actor}:\\n  ${(t.raw_content || '').substring(0, 400)}`;\n\n    case 'sla_escalation': {\n      const pct = t.metadata?.pct ?? 'N/A';\n      const lvl = t.metadata?.level ?? '?';\n      return `[${time}] SLA ESCALATION E${lvl} at ${pct}% by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}`;\n    }\n\n    case 'status_change':\n      return `[${time}] STATUS CHANGE by ${actor}: ${t.old_value || '?'} → ${t.new_value || '?'}${collapseNote}`;\n\n    case 'assignment':\n      return `[${time}] ASSIGNED by ${actor}: ${(t.raw_content || '').substring(0, 200)}`;\n\n    case 'priority_change':\n      return `[${time}] PRIORITY CHANGE by ${actor}: ${t.old_value || '?'} → ${t.new_value || '?'}`;\n\n    case 'resolution':\n      return `[${time}] RESOLVED by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 300)}`;\n\n    default:\n      return `[${time}] ${t.action_type.toUpperCase()} by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}${collapseNote}`;\n  }\n}\n\n// ─── MAIN ─────────────────────────────────────────────────────────────────────\nconst ticket = $('Detect Changes').first().json;  // ← original ticket with all fields\nconst rawThreads = $input.all().map(i => i.json); // ← thread rows from Fetch All Threads\n\nconst ticketData = ticket;\nconst slaData    = {};\nconst escalations = [];\n\n// ─── RUN COMPACTION ───────────────────────────────────────────────────────────\nconst dedupedThreads   = deduplicateSlaComments(rawThreads);\nconst compactedThreads = compactThreads(dedupedThreads);\nconst timelineLines    = compactedThreads.map(buildEntry).filter(Boolean);\n\n// ─── Stats ────────────────────────────────────────────────────────────────────\nconst originalCount  = rawThreads.length;\nconst compactedCount = compactedThreads.length;\nconst reductionPct   = originalCount > 0\n  ? Math.round((1 - compactedCount / originalCount) * 100)\n  : 0;\n\nconst slaEscalations = compactedThreads.filter(t => t.action_type === 'sla_escalation');\nconst escalationSummary = slaEscalations.length > 0\n  ? slaEscalations.map(e => `E${e.metadata?.level} @ ${e.metadata?.pct}%`).join(' → ')\n  : 'None';\n\n// ─── Prompts ──────────────────────────────────────────────────────────────────\nconst systemPrompt = `You are a technical support analyst summarizing ticket activity for MedGulf healthcare app support.\n\nThread history has been compacted using run-length encoding — consecutive identical events are shown as a single entry with a repeat count (↻ Repeated ×N).\n\nRespond ONLY with valid JSON, no markdown, no code blocks:\n{\n  \"action_summary\": \"<detailed summary of the ticket issue, key actions taken, and current state>\",\n  \"sla_note\": \"<SLA escalation progression and breach status, or 'none' if no SLA concerns>\",\n  \"sentiment_shift\": \"positive|neutral|negative|none\"\n}`;\n\nconst userPrompt = `TICKET #${ticketData.ticket_number || ticketData.id || 'N/A'}\nTitle: ${ticketData.title || 'N/A'}\nStatus: ${ticketData.status || 'N/A'} | Priority: ${ticketData.priority || 'N/A'}\nCreated: ${ticketData.created_at || 'N/A'}\nSLA Consumption: ${slaData.consumption_pct ?? 'N/A'}% | Breach: ${slaData.is_breached ? 'YES' : 'No'}\nEscalation Progression: ${escalationSummary}\n\n--- THREAD HISTORY (${compactedCount} entries, compacted from ${originalCount}, −${reductionPct}%) ---\n${timelineLines.join('\\n\\n')}\n--- END THREAD HISTORY ---\n\nPlease summarize this ticket.`;\n\nconst requestBody = {\n  model: 'gpt-4o',\n  temperature: 0.1,\n  max_tokens: 1000,\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user',   content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    requestBody: JSON.stringify(requestBody),\n    _ticket: ticket,  // ← full ticket directly, no spreading needed\n    _original_thread_count:  originalCount,\n    _compacted_thread_count: compactedCount,\n    _reduction_pct:          reductionPct,\n    _sla_escalation_count:   slaEscalations.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        480
+      ],
+      "id": "16ca8a00-c46f-41a9-a833-b88108c2c83c",
+      "name": "Build LLM Summary Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.core42.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 395a4d599312411fac54f6044d9d7f16"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        848,
+        480
+      ],
+      "id": "e0491e21-d4e7-42de-92ce-af5b40bd6045",
+      "name": "LLM Call - Summarize",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmResp = $input.first().json;\nconst ticket = $('Build LLM Summary Request').first().json._ticket;\n\nlet summary;\ntry {\n  const content = llmResp.choices?.[0]?.message?.content || '{}';\n  summary = JSON.parse(content.replace(/```json|```/g, '').trim());\n} catch (e) {\n  summary = { action_summary: 'Ticket updated', sla_note: 'none', sentiment_shift: 'none' };\n}\n\nconst slaConfigs = ticket._sla_configs || [];\nconst cfg = ticket._solution_config || {};\nconst bhS = parseInt((cfg.business_hours_start || '08:00').split(':')[0]);\nconst bhE = parseInt((cfg.business_hours_end || '20:00').split(':')[0]);\n\nfunction addBH(startDate, hours) {\n  if (!hours || hours <= 0) return null;\n  let cur = new Date(startDate);\n  let rem = hours;\n  for (let i = 0; i < 500 && rem > 0; i++) {\n    const dh = cur.getUTCHours() + 4;\n    const ah = dh >= 24 ? dh - 24 : dh;\n    if (ah >= bhS && ah < bhE) {\n      const left = bhE - ah;\n      const c = Math.min(rem, left);\n      rem -= c;\n      cur = new Date(cur.getTime() + c * 3600000);\n    } else if (ah < bhS) {\n      cur = new Date(cur.getTime() + (bhS - ah) * 3600000);\n    } else {\n      cur = new Date(cur.getTime() + ((24 - ah) + bhS) * 3600000);\n    }\n  }\n  return cur.toISOString();\n}\n\nlet slaUpdate = {};\nconst impact = ticket._sla_impact;\n\nif (impact === 'pause') {\n  slaUpdate = { sla_paused_at: new Date().toISOString(), sla_status: 'paused' };\n\n} else if (impact === 'resume') {\n  if (ticket._existing_sla_paused_at) {\n    const pausedMs = Date.now() - new Date(ticket._existing_sla_paused_at).getTime();\n    const pausedHrs = Math.round(pausedMs / 3600000 * 100) / 100;\n    slaUpdate = { sla_paused_at: null, sla_status: 'healthy', _add_paused_hours: pausedHrs };\n  } else {\n    slaUpdate = { sla_status: 'healthy' };\n  }\n\n} else if (impact === 'priority_upgrade') {\n  // SLA RESETS from NOW (per MedGulf governance: upgrade resets timer)\n  const sc = slaConfigs.find(s => s.priority === ticket.priority);\n  if (sc) {\n    const now = new Date();\n    slaUpdate = {\n      sla_response_due: sc.response_hours ? addBH(now, sc.response_hours) : null,\n      sla_resolution_due: sc.resolution_hours ? addBH(now, sc.resolution_hours) : null,\n      sla_status: 'healthy',\n      sla_consumption_pct: 0,\n      sla_paused_at: null,\n      sla_paused_duration: '0'\n    };\n  }\n\n} else if (impact === 'priority_downgrade') {\n  // SLA CONTINUES from original created_at (per governance: downgrade doesn't reset)\n  const sc = slaConfigs.find(s => s.priority === ticket.priority);\n  if (sc) {\n    const createdAt = ticket.created_at || new Date().toISOString();\n    slaUpdate = {\n      sla_response_due: sc.response_hours ? addBH(createdAt, sc.response_hours) : null,\n      sla_resolution_due: sc.resolution_hours ? addBH(createdAt, sc.resolution_hours) : null\n    };\n  }\n\n} else if (impact === 'stop') {\n  slaUpdate = { sla_status: 'resolved' };\n}\n\nreturn [{\n  json: {\n    ...ticket,\n    _action_summary: summary.action_summary,\n    _sla_note: summary.sla_note,\n    _sentiment_shift: summary.sentiment_shift,\n    _sla_update: slaUpdate\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        480
+      ],
+      "id": "6f485e20-6845-4af4-890d-137cd35bb480",
+      "name": "Parse Summary + SLA Impact"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE main.tickets SET\n  status = '{{ $json.status }}',\n  priority = '{{ $json.priority }}',\n  ai_summary = {{ $json._action_summary ? \"'\" + $json._action_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  ai_sentiment = {{ $json._sentiment_shift && $json._sentiment_shift !== 'none' ? \"'\" + $json._sentiment_shift + \"'\" : 'ai_sentiment' }},\n  closed_at = {{ $json.closed_at ? \"'\" + $json.closed_at + \"'\" : 'closed_at' }},\n  resolved_at = {{ $json._sla_update?.sla_status === 'resolved' ? 'NOW()' : 'resolved_at' }},\n  sla_status = {{ $json._sla_update?.sla_status ? \"'\" + $json._sla_update.sla_status + \"'\" : 'sla_status' }},\n  sla_paused_at = {{ $json._sla_update?.sla_paused_at === null ? 'NULL' : ($json._sla_update?.sla_paused_at ? \"'\" + $json._sla_update.sla_paused_at + \"'\" : 'sla_paused_at') }},\n  sla_response_due = {{ $json._sla_update?.sla_response_due ? \"'\" + $json._sla_update.sla_response_due + \"'\" : 'sla_response_due' }},\n  sla_resolution_due = {{ $json._sla_update?.sla_resolution_due ? \"'\" + $json._sla_update.sla_resolution_due + \"'\" : 'sla_resolution_due' }},\n  sla_consumption_pct = {{ $json._sla_update?.sla_consumption_pct !== undefined ? $json._sla_update.sla_consumption_pct : 'sla_consumption_pct' }},\n  clickup_thread_count = {{ $json._cu_comment_count || 0 }},\n  updated_at = NOW()\nWHERE id = {{ $json._db_ticket_id }}\nRETURNING id AS ticket_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1296,
+        480
+      ],
+      "id": "4813fef1-a186-4ea3-8a70-d394c2d1d308",
+      "name": "Update Existing Ticket",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== INSERT NEW THREADS (Comments + Field Changes) =====\nconst ticketData = $('Parse Summary + SLA Impact').first().json;\nconst updateResult = $('Update Existing Ticket').first().json;\nconst ticketId = updateResult.ticket_id;\n\nconst threads = [];\n\n// 1. Insert comment threads\nconst newComments = ticketData._new_comments || [];\nfor (const c of newComments) {\n  const author = c.user?.username || c.user?.email || 'Unknown';\n  const authorEmail = c.user?.email || null;\n  const commentText = c.comment_text || (c.comment || []).map(p => p.text || '').join(' ');\n  \n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: String(c.id),\n      action_type: 'comment',\n      actor_email: authorEmail,\n      actor_name: author,\n      raw_content: commentText.substring(0, 5000),\n      ai_summary: null,\n      has_attachments: (c.attachments || []).length > 0,\n      created_at: c.date ? new Date(parseInt(c.date)).toISOString() : new Date().toISOString()\n    }\n  });\n}\n\n// 2. Insert field change threads\nconst changedFields = ticketData._changed_fields || [];\nif (changedFields.length > 0 && changedFields.some(f => f !== 'updated_at')) {\n  threads.push({\n    json: {\n      ticket_id: ticketId,\n      clickup_history_id: null,\n      action_type: 'field_change',\n      actor_email: null,\n      actor_name: 'system',\n      raw_content: `Fields changed: ${changedFields.join(', ')}`,\n      ai_summary: ticketData._action_summary,\n      new_value: JSON.stringify({ status: ticketData.status, priority: ticketData.priority }),\n      has_attachments: false,\n      created_at: new Date().toISOString()\n    }\n  });\n}\n\nif (threads.length === 0) {\n  return [{ json: { \n    _done: true, \n    _no_threads: true, \n    _sync_action: 'EXISTS', \n    clickup_task_id: ticketData.clickup_task_id,\n    ticket_id: ticketId \n  } }];\n}\n\nreturn threads;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        480
+      ],
+      "id": "a96ee11f-9b4d-423e-a765-b133307f81b9",
+      "name": "Build Update Threads"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.threads (\n  ticket_id, clickup_history_id, action_type,\n  actor_email, actor_name, raw_content, ai_summary,\n  new_value, has_attachments, created_at\n) VALUES (\n  {{ $json.ticket_id }},\n  {{ $json.clickup_history_id ? \"'\" + $json.clickup_history_id + \"'\" : 'NULL' }},\n  '{{ $json.action_type }}',\n  {{ $json.actor_email ? \"'\" + $json.actor_email + \"'\" : 'NULL' }},\n  {{ $json.actor_name ? \"'\" + $json.actor_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.raw_content ? \"'\" + $json.raw_content.replace(/'/g, \"''\").replace(/\\n/g, ' ') + \"'\" : 'NULL' }},\n  {{ $json.ai_summary ? \"'\" + $json.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.new_value ? \"'\" + $json.new_value.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.has_attachments || false }},\n  '{{ $json.created_at }}'\n)\nON CONFLICT (clickup_history_id) WHERE clickup_history_id IS NOT NULL DO NOTHING\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1744,
+        480
+      ],
+      "id": "e2d0a5a7-5b30-4b7b-8124-3bcda47945e4",
+      "name": "Insert Update Threads",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { _done: true, _sync_action: 'EXISTS', clickup_task_id: $('Route by Action').first().json.clickup_task_id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        480
+      ],
+      "id": "255c0b52-7be7-4976-b52a-27af5c3c74e9",
+      "name": "Existing Ticket Done"
+    },
+    {
+      "parameters": {
+        "jsCode": "// No changes - skip\nreturn [{ json: { _done: true, _sync_action: 'EXISTS_NO_CHANGE', clickup_task_id: $('Route by Action').first().json.clickup_task_id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        672
+      ],
+      "id": "e0026d38-febf-410a-a14c-4fdb96a15f6a",
+      "name": "Skip No Changes"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE main.tickets SET\n  is_deleted = true,\n  deleted_at = NOW(),\n  status = 'deleted',\n  updated_at = NOW()\nWHERE id = {{ $json._db_ticket_id }}\nRETURNING id AS ticket_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -304,
+        1056
+      ],
+      "id": "7bbf011e-1212-4530-9935-42d4c577302c",
+      "name": "Soft Delete Ticket",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { _done: true, _sync_action: 'DELETED', clickup_task_id: $('Soft Delete Ticket').first().json.ticket_id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1056
+      ],
+      "id": "88d497ea-7a8f-4346-aaf8-f9babc571e3e",
+      "name": "Delete Done"
+    },
+    {
+      "parameters": {
+        "jsCode": "// No-op for NONE or fallback\nreturn [{ json: { _done: true, _sync_action: 'NONE' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        1312
+      ],
+      "id": "6aa2ae20-86bf-462e-be01-8bf0c37ca5b8",
+      "name": "No-Op"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2976,
+        688
+      ],
+      "id": "78b001cc-1c67-4d4a-af53-c67bebb5952b",
+      "name": "Merge All Paths"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Just pass through to loop\nreturn [{ json: { _continue: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        688
+      ],
+      "id": "34e871e1-4eed-42c3-9302-6c1d84c11344",
+      "name": "Continue Loop"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT t.id AS ticket_id, t.clickup_task_id, t.title, t.priority,\n  t.sla_response_due, t.sla_resolution_due,\n  t.sla_consumption_pct, t.sla_status, t.escalation_level,\n  t.sla_paused_at, t.sla_paused_duration,\n  t.created_at,\n  sc.response_hours, sc.resolution_hours\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nLEFT JOIN main.sla_configs sc ON sc.solution_id = s.id AND sc.priority = t.priority\nWHERE c.company_code = 'medgulf'\n  AND t.sla_status NOT IN ('resolved', 'paused')\n  AND (t.is_deleted = false OR t.is_deleted IS NULL)\n  AND t.status NOT IN ('closed', 'resolved', 'deleted')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        640,
+        -816
+      ],
+      "id": "755f3fe9-0e9a-4482-a7cc-2d04bdbc9638",
+      "name": "Fetch Active Tickets for SLA",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const tickets = $input.all().map(i => i.json);\nconst now = new Date();\nconst BH_START = 8;\nconst BH_END = 20;\n\nfunction getBusinessHoursElapsed(startDate, endDate) {\n  let elapsed = 0;\n  let current = new Date(startDate);\n  const end = new Date(endDate);\n  if (current >= end) return 0;\n  \n  for (let i = 0; i < 5000 && current < end; i++) {\n    const dubaiHour = (current.getUTCHours() + 4) % 24;\n    if (dubaiHour >= BH_START && dubaiHour < BH_END) {\n      const nextHour = new Date(current.getTime() + 3600000);\n      if (nextHour <= end) {\n        elapsed += 1;\n        current = nextHour;\n      } else {\n        elapsed += (end.getTime() - current.getTime()) / 3600000;\n        current = end;\n      }\n    } else {\n      if (dubaiHour >= BH_END) {\n        current = new Date(current.getTime() + ((24 - dubaiHour) + BH_START) * 3600000);\n      } else {\n        current = new Date(current.getTime() + (BH_START - dubaiHour) * 3600000);\n      }\n    }\n  }\n  return Math.round(elapsed * 100) / 100;\n}\n\n// Escalation thresholds from DB (PDF-aligned: 65/78/85/90)\nconst ESC_THRESHOLDS = [\n  { level: 1, pct: 65 },\n  { level: 2, pct: 78 },\n  { level: 3, pct: 85 },\n  { level: 4, pct: 90 }\n];\n\nconst processedTickets = [];\nconst skippedTickets = [];\n\nfor (const t of tickets) {\n  if (!t.sla_resolution_due && !t.sla_response_due) {\n    skippedTickets.push({ ticket_id: t.ticket_id, reason: 'no_sla_config' });\n    continue;\n  }\n  if (t.sla_status === 'not_applicable') {\n    skippedTickets.push({ ticket_id: t.ticket_id, reason: 'sla_not_applicable' });\n    continue;\n  }\n\n  let pausedHours = 0;\n  if (t.sla_paused_duration && typeof t.sla_paused_duration !== 'object') {\n    pausedHours = parseFloat(String(t.sla_paused_duration).replace(/[^0-9.]/g, '')) || 0;\n  }\n\n  const elapsedBH = getBusinessHoursElapsed(t.created_at, now) - pausedHours;\n  const targetHours = parseFloat(t.resolution_hours) || parseFloat(t.response_hours) || 24;\n  const consumptionPct = Math.min(999.99, Math.round((elapsedBH / targetHours) * 10000) / 100);\n\n  let slaStatus = 'healthy';\n  if (consumptionPct >= 100) slaStatus = 'breached';\n  else if (consumptionPct >= 90) slaStatus = 'critical';\n  else if (consumptionPct >= 78) slaStatus = 'at_risk';\n  else if (consumptionPct >= 65) slaStatus = 'warning';\n\n  // Escalation ONLY for P1/P2\n  let escalationLevel = 0;\n  const escApplicable = ['P1', 'P2'].includes(t.priority);\n  if (escApplicable) {\n    for (const esc of [...ESC_THRESHOLDS].reverse()) {\n      if (consumptionPct >= esc.pct) {\n        escalationLevel = esc.level;\n        break;\n      }\n    }\n  }\n\n  const currentEsc = t.escalation_level || 0;\n  const needsEscalation = escalationLevel > currentEsc;\n  const needsBreachRenotify = escalationLevel === 4 && currentEsc === 4;\n\n  processedTickets.push({\n    ticket_id: t.ticket_id,\n    clickup_task_id: t.clickup_task_id,\n    title: t.title,\n    priority: t.priority,\n    elapsed_bh: elapsedBH,\n    target_hours: targetHours,\n    consumption_pct: consumptionPct,\n    sla_status: slaStatus,\n    escalation_level: escalationLevel,\n    previous_escalation_level: currentEsc,\n    needs_escalation: needsEscalation,\n    needs_breach_renotify: needsBreachRenotify,\n    escalation_applicable: escApplicable\n  });\n}\n\nreturn [{\n  json: {\n    processed_tickets: processedTickets,\n    skipped_tickets: skippedTickets,\n    summary: {\n      total: tickets.length,\n      processed: processedTickets.length,\n      skipped: skippedTickets.length,\n      needs_escalation: processedTickets.filter(t => t.needs_escalation).length,\n      breach_renotify: processedTickets.filter(t => t.needs_breach_renotify).length\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        -832
+      ],
+      "id": "3e25ca30-34f2-4ab0-865b-4212c286b91b",
+      "name": "Calculate SLA Consumption"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE main.tickets SET\n  sla_consumption_pct = {{$json.processed_tickets[0].consumption_pct }},\n  sla_status = '{{ $json.processed_tickets[0].sla_status }}',\n  escalation_level = {{ $json.processed_tickets[0].escalation_level }},\n  last_escalation_at = {{ $json.needs_escalation ? 'NOW()' : 'last_escalation_at' }},\n  updated_at = NOW()\nWHERE id = {{ $json.processed_tickets[0].ticket_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1504,
+        -752
+      ],
+      "id": "974ee41b-f19a-47d6-a80e-e06e2a543367",
+      "name": "Update SLA Status",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "needs-escalation",
+              "leftValue": "={{ $('Calculate SLA Consumption').item.json.processed_tickets[0].needs_escalation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "808300cf-d4a8-4314-9083-73db40f537d4",
+              "leftValue": "={{ $('Calculate SLA Consumption').item.json.processed_tickets[0].needs_breach_renotify }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        -832
+      ],
+      "id": "9d1ce48d-76bf-46af-afec-dc11d0e89634",
+      "name": "Needs Escalation?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ec.level, ec.level_name, ec.notify_roles, ec.action_description,\n  ac.person_name, ac.email, ac.role_code, ac.clickup_user_id\nFROM main.escalation_configs ec\nJOIN main.solutions s ON ec.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nLEFT JOIN main.assignee_configs ac ON ac.solution_id = s.id\n  AND ac.role_code = ANY(ec.notify_roles)\nWHERE c.company_code = 'medgulf'\n  AND s.solution_code = 'app'\n  AND ec.level = {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].escalation_level }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1952,
+        -896
+      ],
+      "id": "8a3e4a56-550d-40fe-aa0e-b7f16bfb1390",
+      "name": "Get Escalation Recipients",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.sla_alerts (\n  ticket_id, alert_level, consumption_pct,\n  notified_emails, notification_channel, created_at\n)\nSELECT\n  {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].ticket_id }},\n  {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].escalation_level }},\n  {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].consumption_pct }},\n  ARRAY[{{ $('Get Escalation Recipients').all().map(i => \"'\" + i.json.email + \"'\").join(',') }}],\n  'clickup_comment',\n  NOW()\nWHERE NOT EXISTS (\n  SELECT 1 FROM main.sla_alerts sa\n  WHERE sa.ticket_id = {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].ticket_id }}\n    AND sa.alert_level = {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].escalation_level }}\n    AND (\n      {{ $('Calculate SLA Consumption').first().json.processed_tickets[0].escalation_level }} < 4\n      OR\n      ({{ $('Calculate SLA Consumption').first().json.processed_tickets[0].escalation_level }} = 4 AND sa.created_at > NOW() - INTERVAL '1 hour')\n    )\n)\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2176,
+        -896
+      ],
+      "id": "f88d8221-bff2-4fce-8d50-31acaaf15d2e",
+      "name": "Insert SLA Alert",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.processing_logs (\n  workflow_name, entity_type, action, status, details, created_at\n) VALUES (\n  'cortex_clickup_sync',\n  'workflow_run',\n  'sync_complete',\n  'success',\n  jsonb_build_object('timestamp', NOW()::text),\n  NOW()\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3520,
+        -896
+      ],
+      "id": "173a9b04-f678-4d73-9d82-1d359e85a175",
+      "name": "Log Workflow Run",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const solutionConfig = $('Fetch Solution Config').first().json;\nconst slaConfigs = $('Fetch SLA Configs').all().map(i => i.json);\n\nreturn [{\n  json: {\n    _solution_config: solutionConfig,\n    _sla_configs: slaConfigs\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1808,
+        208
+      ],
+      "id": "ac033f6d-84bb-40a7-802f-ef0e4bdd21ff",
+      "name": "Merge Configs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbTickets = $input.all().map(i => i.json);\nreturn [{\n  json: {\n    _db_tickets: dbTickets\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2480,
+        208
+      ],
+      "id": "8a33c574-5e3b-4b1b-8b48-9957a2608655",
+      "name": "Merge DB Tickets"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        864,
+        -816
+      ],
+      "id": "b5056d2a-b616-4965-828a-ab36d6e3ee9c",
+      "name": "For each Ticket"
+    },
+    {
+      "parameters": {
+        "jsCode": "const done = $input.all().map(i => i.json);\nreturn [{\n  json: {\n    _done: done\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -816
+      ],
+      "id": "2cffc36d-1c40-4554-99b0-c656392b8449",
+      "name": "Merge all in 1 item"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Just pass through to loop\nreturn [{ json: { _continue: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        -896
+      ],
+      "id": "e450f152-0242-44ec-864e-0dcf50168bea",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "91faa5da-6c77-42d2-8091-d3c59309258a",
+              "leftValue": "={{ $json.processed_tickets }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1280,
+        -832
+      ],
+      "id": "9db26fb7-5fd2-4f88-a858-6eb2aa41d188",
+      "name": "processed_tickets is empty?"
+    },
+    {
+      "parameters": {
+        "content": "# SLA Calculation and Alert Generations",
+        "height": 544,
+        "width": 3952,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -288,
+        -1136
+      ],
+      "typeVersion": 1,
+      "id": "54d08226-cbf4-47a3-ba15-96e4e734f138",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# New Ticket",
+        "height": 544,
+        "width": 2736,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -336,
+        -176
+      ],
+      "typeVersion": 1,
+      "id": "2d868b90-0fed-46ad-9626-54015eaebe29",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# Existing Ticket Ticket",
+        "height": 544,
+        "width": 2272,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -336,
+        384
+      ],
+      "typeVersion": 1,
+      "id": "9f73f2c6-935a-4172-8a6d-eddba3e04d5b",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "# Ticket Deletion & Fallback",
+        "height": 544,
+        "width": 576,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -336,
+        960
+      ],
+      "typeVersion": 1,
+      "id": "9fcb1679-2a8f-4ca5-99ae-190e416170bd",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const alertResult = $input.first().json;\nconst recipients = $('Get Escalation Recipients').all().map(i => i.json);\nconst ticketData = $('Calculate SLA Consumption').first().json.processed_tickets[0];\n\nif (!alertResult || !alertResult.id) {\n  return [{ json: { _skip_notification: true } }];\n}\n\nconst seenEmails = new Set();\nconst uniqueRecipients = recipients.filter(r => {\n  if (seenEmails.has(r.email)) return false;\n  seenEmails.add(r.email);\n  return true;\n});\n\nconst recipientNames = uniqueRecipients.map(r => r.person_name).join(', ');\nconst recipientUserIds = uniqueRecipients\n  .filter(r => r.clickup_user_id)\n  .map(r => parseInt(r.clickup_user_id));\n\nconst levelConfig = recipients[0] || {};\n\n// Build rich text comment with proper @mentions\nconst commentParts = [\n  { text: \"⚠️ SLA ESCALATION — \" + (levelConfig.level_name || 'Escalation Level ' + ticketData.escalation_level) + \"\\n\\n\" },\n  { text: \"Ticket: \" + ticketData.title + \"\\n\" },\n  { text: \"Priority: \" + ticketData.priority + \"\\n\" },\n  { text: \"SLA Consumption: \" + ticketData.consumption_pct + \"%\\n\" },\n  { text: \"Action Required: \" + (levelConfig.action_description || 'Please review') + \"\\n\" },\n  { text: \"Notified: \" }\n];\n\nfor (let i = 0; i < uniqueRecipients.length; i++) {\n  const r = uniqueRecipients[i];\n  if (r.clickup_user_id) {\n    commentParts.push({\n      type: \"tag\",\n      user: { id: parseInt(r.clickup_user_id) }\n    });\n    if (i < uniqueRecipients.length - 1) {\n      commentParts.push({ text: \" \" });\n    }\n  }\n}\n\ncommentParts.push({ text: \"\\n\\n⏰ This ticket requires immediate attention per SLA governance.\\n\\n[🧪 TEST — Please disregard this notification]\" });\n\nconst commentRequestBody = JSON.stringify({\n  comment: commentParts,\n  notify_all: true\n});\n\nreturn [{\n  json: {\n    alert_id: alertResult.id,\n    clickup_task_id: ticketData.clickup_task_id,\n    ticket_id: ticketData.ticket_id,\n    title: ticketData.title,\n    priority: ticketData.priority,\n    consumption_pct: ticketData.consumption_pct,\n    escalation_level: ticketData.escalation_level,\n    level_name: levelConfig.level_name || 'Escalation Level ' + ticketData.escalation_level,\n    action_description: levelConfig.action_description || 'Please review',\n    notified_names: recipientNames,\n    notified_user_ids: recipientUserIds,\n    _comment_request_body: commentRequestBody,\n    _assignee_request_body: JSON.stringify({ add: recipientUserIds }),\n    _skip_notification: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -896
+      ],
+      "id": "010c1c00-d7e6-4462-9270-f33be30f9470",
+      "name": "Build Escalation Notification"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "78f1e68c-b243-4e05-9952-021698c1f2e7",
+              "leftValue": "={{ $json._skip_notification }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2624,
+        -896
+      ],
+      "id": "c5f2812f-277f-49bf-a588-60898a6c033c",
+      "name": "Skip Check"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.clickup_task_id }}/comment",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json._comment_request_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2848,
+        -896
+      ],
+      "id": "4516f450-4507-409f-9048-3cfbb1e971cc",
+      "name": "Post ClickUp Escalation Comment"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $('Build Escalation Notification').first().json.clickup_task_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"assignees\": {\n    \"add\": {{ JSON.stringify($('Build Escalation Notification').first().json.notified_user_ids) }}\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3088,
+        -912
+      ],
+      "id": "532277e0-089f-4cdb-96a3-7f32bd97207b",
+      "name": "Add Escalation Assignees"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.threads (\n  ticket_id, action_type, actor_name,\n  raw_content, ai_summary, thread_source, metadata, created_at\n) VALUES (\n  {{ $('Build Escalation Notification').first().json.ticket_id }},\n  'sla_escalation',\n  'system',\n  'SLA Escalation {{ $('Build Escalation Notification').first().json.level_name }} triggered at {{ $('Build Escalation Notification').first().json.consumption_pct }}% consumption. Priority: {{ $('Build Escalation Notification').first().json.priority }}. Notified: {{ $('Build Escalation Notification').first().json.notified_names }}. Action: {{ $('Build Escalation Notification').first().json.action_description }}',\n  'Escalated to {{ $('Build Escalation Notification').first().json.level_name }} at {{ $('Build Escalation Notification').first().json.consumption_pct }}%',\n  'system_escalation',\n  '{\"level\": {{ $('Build Escalation Notification').first().json.escalation_level }}, \"pct\": {{ $('Build Escalation Notification').first().json.consumption_pct }}, \"priority\": \"{{ $('Build Escalation Notification').first().json.priority }}\"}'::jsonb,\n  NOW()\n) RETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3296,
+        -896
+      ],
+      "id": "80e2070f-e4ec-42d9-b0fd-7e0d04f71479",
+      "name": "Insert Escalation Thread",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2896,
+        -48
+      ],
+      "id": "58d39121-0728-46aa-b7cb-829424a36b0d",
+      "name": "Every 1 Minute"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  id, action_type, actor_name, actor_email,\n  old_value, new_value, raw_content, ai_summary,\n  created_at, thread_source, metadata\nFROM main.threads\nWHERE ticket_id = {{ $json._db_ticket_id }}\nORDER BY created_at ASC",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        480
+      ],
+      "id": "707d404b-486b-40d0-9d28-8e15d474dd63",
+      "name": "Fetch All Threads",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "id": "dac69ac2-0665-4a66-9507-21ff56e3c103",
+      "name": "Skip Threads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        576
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "824700b7-65a3-407b-a91b-5ae18675cb93",
+              "leftValue": "={{ $json._skip_threads }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "f20e6de2-f843-46f4-aacd-e9c0444456f6",
+      "name": "Fetch Orphan Tickets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2704,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  t.id AS ticket_id, t.title, t.description, t.priority, t.status,\n  t.module, t.request_type, t.case_type, t.channel,\n  t.created_by_email, t.created_by_name, t.created_at,\n  t.poc_id, c.company_code\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE t.clickup_task_id IS NULL\n  AND (t.is_deleted = false OR t.is_deleted IS NULL)\n  AND c.company_code = 'medgulf'\n  AND t.channel IN ('call', 'apex', 'email')\n  AND t.created_at > NOW() - INTERVAL '7 days'",
+        "options": {}
+      }
+    },
+    {
+      "id": "bb801ade-4dd7-4a64-ae16-c22a5d7e4ff7",
+      "name": "Build Orphan Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2480,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Build ClickUp task body for each orphan ticket\nconst d = $input.first().json;\nconst priorityMap = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 4 };\nconst channelLabel = { call: '📞 Call', apex: '🖥 Dashboard', email: '✉ Email' }[d.channel] || d.channel;\n\nconst description = [\n  `**Channel:** ${channelLabel}`,\n  d.module ? `**Module:** ${d.module}` : null,\n  d.request_type ? `**Request Type:** ${d.request_type}` : null,\n  d.case_type ? `**Case Type:** ${d.case_type}` : null,\n  d.created_by_email ? `**Raised by:** ${d.created_by_name || d.created_by_email}` : null,\n  '',\n  d.description || ''\n].filter(x => x !== null).join('\\n');\n\nreturn [{\n  json: {\n    ...d,\n    _task_name: `${d.title?.substring(0, 120) || 'Ticket'}`,\n    _task_body: {\n      name: `${d.title?.substring(0, 120) || 'Ticket'}`,\n      description: description.substring(0, 3000),\n      priority: priorityMap[d.priority] || 3,\n      status: 'Open'\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "50d04852-82f3-4311-b98d-d784e7bb30f9",
+      "name": "Create ClickUp Orphan Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2256,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.clickup.com/api/v2/list/901215777514/task",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._task_body) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5b2d02e8-7f0f-4c52-a414-eb215ab532fa",
+      "name": "Update Orphan clickup_id",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2032,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE main.tickets\nSET clickup_task_id = $1,\n    clickup_url = $2,\n    updated_at = NOW()\nWHERE id = $3",
+        "options": {},
+        "additionalFields": {
+          "queryParameters": "={{ JSON.stringify([$json.id, $json.url, $('Build Orphan Task').first().json.ticket_id]) }}"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch DB Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Orphan Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch ClickUp Tasks": {
+      "main": [
+        [
+          {
+            "node": "Compare & Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch DB Tickets": {
+      "main": [
+        [
+          {
+            "node": "Merge DB Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Solution Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch SLA Configs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch SLA Configs": {
+      "main": [
+        [
+          {
+            "node": "Merge Configs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare & Classify": {
+      "main": [
+        [
+          {
+            "node": "Loop Each Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Each Ticket": {
+      "main": [
+        [
+          {
+            "node": "Merge all in 1 item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Action": {
+      "main": [
+        [
+          {
+            "node": "Check POC Exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Threads?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Soft Delete Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No-Op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check POC Exists": {
+      "main": [
+        [
+          {
+            "node": "Evaluate POC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate POC": {
+      "main": [
+        [
+          {
+            "node": "POC Needs Create?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POC Needs Create?": {
+      "main": [
+        [
+          {
+            "node": "Create POC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge POC ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create POC": {
+      "main": [
+        [
+          {
+            "node": "Merge POC ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge POC ID": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Profile Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Profile Request": {
+      "main": [
+        [
+          {
+            "node": "LLM Call - Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Call - Profile": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM + Calculate SLA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM + Calculate SLA": {
+      "main": [
+        [
+          {
+            "node": "Insert New Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert New Ticket": {
+      "main": [
+        [
+          {
+            "node": "Build Initial Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Initial Thread": {
+      "main": [
+        [
+          {
+            "node": "Insert Initial Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Initial Thread": {
+      "main": [
+        [
+          {
+            "node": "New Ticket Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Ticket Done": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch ClickUp Comments": {
+      "main": [
+        [
+          {
+            "node": "Detect Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Changes": {
+      "main": [
+        [
+          {
+            "node": "Has Changes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Changes?": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Threads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip No Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Summary Request": {
+      "main": [
+        [
+          {
+            "node": "LLM Call - Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Call - Summarize": {
+      "main": [
+        [
+          {
+            "node": "Parse Summary + SLA Impact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Summary + SLA Impact": {
+      "main": [
+        [
+          {
+            "node": "Update Existing Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Existing Ticket": {
+      "main": [
+        [
+          {
+            "node": "Build Update Threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Update Threads": {
+      "main": [
+        [
+          {
+            "node": "Insert Update Threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Update Threads": {
+      "main": [
+        [
+          {
+            "node": "Existing Ticket Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Ticket Done": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip No Changes": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soft Delete Ticket": {
+      "main": [
+        [
+          {
+            "node": "Delete Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Done": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No-Op": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Paths": {
+      "main": [
+        [
+          {
+            "node": "Continue Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Each Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Tickets for SLA": {
+      "main": [
+        [
+          {
+            "node": "For each Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate SLA Consumption": {
+      "main": [
+        [
+          {
+            "node": "processed_tickets is empty?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update SLA Status": {
+      "main": [
+        [
+          {
+            "node": "Needs Escalation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Escalation?": {
+      "main": [
+        [
+          {
+            "node": "Get Escalation Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Escalation Recipients": {
+      "main": [
+        [
+          {
+            "node": "Insert SLA Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert SLA Alert": {
+      "main": [
+        [
+          {
+            "node": "Build Escalation Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Configs": {
+      "main": [
+        [
+          {
+            "node": "Fetch ClickUp Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge DB Tickets": {
+      "main": [
+        [
+          {
+            "node": "Fetch Solution Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "For each Ticket": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Calculate SLA Consumption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge all in 1 item": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Tickets for SLA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "For each Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "processed_tickets is empty?": {
+      "main": [
+        [
+          {
+            "node": "Needs Escalation?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update SLA Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Escalation Notification": {
+      "main": [
+        [
+          {
+            "node": "Skip Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Check": {
+      "main": [
+        [
+          {
+            "node": "Post ClickUp Escalation Comment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "For each Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post ClickUp Escalation Comment": {
+      "main": [
+        [
+          {
+            "node": "Add Escalation Assignees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Escalation Assignees": {
+      "main": [
+        [
+          {
+            "node": "Insert Escalation Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Escalation Thread": {
+      "main": [
+        [
+          {
+            "node": "Log Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 1 Minute": {
+      "main": [
+        [
+          {
+            "node": "Fetch DB Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Orphan Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Threads": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Summary Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Orphan Tickets": {
+      "main": [
+        [
+          {
+            "node": "Build Orphan Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Orphan Task": {
+      "main": [
+        [
+          {
+            "node": "Create ClickUp Orphan Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create ClickUp Orphan Task": {
+      "main": [
+        [
+          {
+            "node": "Update Orphan clickup_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Threads?": {
+      "main": [
+        [
+          {
+            "node": "Skip No Changes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch ClickUp Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "41cb8c26-38ed-49a6-b076-376e61927a86",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e55337cd04f1eaeb9d80b3109da0b9a0ef8db1dfc622debb9291d0d8019d0fb5"
+  },
+  "id": "HzLpGcq3LQ5v95b8",
+  "tags": []
+}

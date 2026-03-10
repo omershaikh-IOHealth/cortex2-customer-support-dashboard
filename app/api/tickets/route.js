@@ -3,6 +3,47 @@ import pool from '@/lib/db'
 import { auth } from '@/auth'
 import { createClickUpTask } from '@/lib/clickup'
 
+// Compute AI similar tickets once after creation (non-blocking)
+async function computeSimilarTickets(ticketId, title, description) {
+  if (!process.env.CORE42_API_KEY) return
+  try {
+    const resolved = await pool.query(`
+      SELECT id, title, COALESCE(ai_summary, '') AS ai_summary
+      FROM main.tickets
+      WHERE id != $1
+        AND status IN ('closed', 'resolved', 'completed', 'complete')
+        AND (is_deleted = false OR is_deleted IS NULL)
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [ticketId])
+
+    if (resolved.rows.length === 0) return
+
+    const candidates = resolved.rows.map(r => `ID:${r.id} — ${r.title}. ${r.ai_summary}`.slice(0, 200)).join('\n')
+    const prompt = `New ticket:\nTitle: ${title}\nDescription: ${(description || '').slice(0, 500)}\n\nResolved tickets:\n${candidates}\n\nReturn a JSON array of the 5 most semantically similar ticket IDs, e.g. [12,34,56]. Only the array, no other text.`
+
+    const res = await fetch('https://api.core42.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CORE42_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        temperature: 0,
+        max_tokens: 100,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    const content = data.choices?.[0]?.message?.content || '[]'
+    const ids = JSON.parse(content.replace(/```json|```/g, '').trim())
+    if (!Array.isArray(ids) || ids.length === 0) return
+    await pool.query(
+      `UPDATE main.tickets SET similar_ticket_ids = $1 WHERE id = $2`,
+      [ids.map(Number).filter(Boolean), ticketId]
+    )
+  } catch (_) { /* best-effort — no-op on failure */ }
+}
+
 // POST — create a ticket from Cortex (syncs to DB + ClickUp)
 export async function POST(request) {
   const session = await auth()
@@ -14,7 +55,8 @@ export async function POST(request) {
       title, description, priority = 'P3', status = 'Open',
       module, request_type, case_type,
       poc_id, company_id, solution_id,
-      channel = 'email',
+      channel = 'apex',
+      push_to_clickup = true,
     } = body
 
     if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
@@ -32,16 +74,21 @@ export async function POST(request) {
     )
     const ticket = result.rows[0]
 
-    // 2. Push to ClickUp (non-blocking — don't fail if ClickUp is unavailable)
-    const cu = await createClickUpTask(ticket)
-    if (cu?.clickup_task_id) {
-      await pool.query(
-        `UPDATE main.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
-        [cu.clickup_task_id, cu.clickup_url, ticket.id]
-      )
-      ticket.clickup_task_id = cu.clickup_task_id
-      ticket.clickup_url = cu.clickup_url
+    // 2. Push to ClickUp (non-blocking — skip if push_to_clickup is false, e.g. FCR tickets)
+    if (push_to_clickup) {
+      const cu = await createClickUpTask(ticket)
+      if (cu?.clickup_task_id) {
+        await pool.query(
+          `UPDATE main.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
+          [cu.clickup_task_id, cu.clickup_url, ticket.id]
+        )
+        ticket.clickup_task_id = cu.clickup_task_id
+        ticket.clickup_url = cu.clickup_url
+      }
     }
+
+    // 3. Compute AI similar tickets (non-blocking, best-effort)
+    computeSimilarTickets(ticket.id, title, description).catch(() => {})
 
     return NextResponse.json(ticket, { status: 201 })
   } catch (e) {

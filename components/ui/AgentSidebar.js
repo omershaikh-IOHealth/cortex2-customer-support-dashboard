@@ -18,8 +18,8 @@ import {
   RadioTower,
   Clock,
   Bell,
-  ListTodo,
   ClipboardList,
+  PhoneCall,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -28,12 +28,12 @@ import NewBadge from './NewBadge'
 
 const navigation = [
   { name: 'Briefing',       href: '/briefing',        icon: BookOpen,       isNew: true, newDesc: 'New — Request leave and shift swaps from the Briefing page. Accept or decline incoming swap requests from teammates.' },
-  { name: 'My Tickets',     href: '/my-tickets',      icon: Ticket },
-  { name: 'My Tasks',       href: '/tasks',            icon: ListTodo,       isNew: true, newDesc: 'New page — connect your ClickUp account to view and manage your assigned tasks. Mark tasks complete directly from Cortex.' },
-  { name: 'My Requests',    href: '/my-requests',     icon: ClipboardList,  isNew: true, newDesc: 'New — submit leave requests, break requests, and shift swaps all in one place.' },
-  { name: 'My Dashboard',   href: '/agent-dashboard', icon: BarChart2 },
+  { name: 'My Tickets',     href: '/my-tickets',      icon: Ticket,         isNew: true, newDesc: 'Updated — My Tasks is now a tab here. New card/grid view, SLA colour-coded borders, priority & SLA status filters.' },
+  { name: 'My Requests',    href: '/my-requests',     icon: ClipboardList,  isNew: true, newDesc: 'Updated — unified view for Leave, Break and Swap requests. New card view, KPI strip and single "New Request" modal.' },
+  { name: 'My Dashboard',   href: '/agent-dashboard', icon: BarChart2,      isNew: true, newDesc: 'Redesigned — 12-tile KPI banner, Today\'s Targets progress bars, Calls by Hour chart, Performance Scorecard and FCR tracking.' },
+  { name: 'My Calls',       href: '/calls',            icon: PhoneCall,      isNew: true, newDesc: 'New page — full call history with direction, duration, FCR badge and filters for date range, disposition and customer search.' },
   { name: 'Customers',      href: '/pocs',            icon: Users,          isNew: true, newDesc: 'New Customers page — search and view all contacts, see their linked tickets and company.' },
-  { name: 'Knowledge Base', href: '/knowledge-base',  icon: BookOpen },
+  { name: 'Knowledge Base', href: '/knowledge-base',  icon: BookOpen,       isNew: true, newDesc: 'Redesigned — 3-column layout with category nav. Markdown editor with H1/H2/H3, bold, italic, bullets and live preview.' },
   { name: 'Notifications',  href: '/notifications',   icon: Bell,           isNew: true, newDesc: 'New notification centre — see all your alerts, filter by type, and click to jump to the linked ticket.' },
 ]
 
