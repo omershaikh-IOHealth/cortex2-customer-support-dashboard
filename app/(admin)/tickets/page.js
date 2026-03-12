@@ -331,6 +331,8 @@ export default function TicketsPage() {
                               <div className="flex items-center gap-1.5 mb-0.5">
                                 {ticket.channel === 'voice'
                                   ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">📞 Voice</span>
+                                  : ticket.channel === 'clickup'
+                                  ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">🔗 ClickUp</span>
                                   : <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cortex-muted/10 text-cortex-muted border border-cortex-border">✉ Email</span>
                                 }
                               </div>
