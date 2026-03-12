@@ -112,10 +112,13 @@ CREATE TABLE main.call_logs (
   created_at timestamp without time zone DEFAULT now(),
   disposition_id integer,
   customer_name character varying,
+  fcr boolean DEFAULT false,
+  fcr_ticket_id integer,
   CONSTRAINT call_logs_pkey PRIMARY KEY (id),
   CONSTRAINT call_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES main.users(id),
   CONSTRAINT call_logs_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES main.tickets(id),
-  CONSTRAINT call_logs_disposition_id_fkey FOREIGN KEY (disposition_id) REFERENCES main.call_dispositions(id)
+  CONSTRAINT call_logs_disposition_id_fkey FOREIGN KEY (disposition_id) REFERENCES main.call_dispositions(id),
+  CONSTRAINT call_logs_fcr_ticket_id_fkey FOREIGN KEY (fcr_ticket_id) REFERENCES main.tickets(id)
 );
 CREATE TABLE main.case_types (
   id integer NOT NULL DEFAULT nextval('main.case_types_id_seq'::regclass),
@@ -204,7 +207,7 @@ CREATE TABLE main.leave_requests (
   user_id integer NOT NULL,
   start_date date NOT NULL,
   end_date date NOT NULL,
-  leave_type character varying NOT NULL CHECK (leave_type::text = ANY (ARRAY['annual'::character varying, 'sick'::character varying, 'other'::character varying]::text[])),
+  leave_type character varying NOT NULL,
   note text,
   status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
   reviewed_by integer,
@@ -213,9 +216,21 @@ CREATE TABLE main.leave_requests (
   updated_at timestamp with time zone DEFAULT now(),
   start_time time without time zone,
   end_time time without time zone,
+  zoho_people_record_id character varying,
+  zoho_people_status character varying,
+  zoho_people_synced_at timestamp with time zone,
   CONSTRAINT leave_requests_pkey PRIMARY KEY (id),
   CONSTRAINT leave_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES main.users(id),
   CONSTRAINT leave_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES main.users(id)
+);
+CREATE TABLE main.leave_types (
+  id integer NOT NULL DEFAULT nextval('main.leave_types_id_seq'::regclass),
+  zoho_type_id character varying NOT NULL UNIQUE,
+  name character varying NOT NULL,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT leave_types_pkey PRIMARY KEY (id)
 );
 CREATE TABLE main.modules (
   id integer NOT NULL DEFAULT nextval('main.modules_id_seq'::regclass),
@@ -480,9 +495,13 @@ CREATE TABLE main.tickets (
   qa_flag_reason text,
   qa_flagged_by integer,
   qa_flagged_at timestamp with time zone,
-  zoho_ticket_id character varying,
+  zoho_ticket_id character varying UNIQUE,
   assigned_to_name character varying,
   qa_flagged boolean DEFAULT false,
+  clickup_thread_count integer DEFAULT 0,
+  similar_ticket_ids ARRAY,
+  linked_clickup_task_ids ARRAY DEFAULT '{}'::text[],
+  clickup_comment_count integer DEFAULT 0,
   CONSTRAINT tickets_pkey PRIMARY KEY (id),
   CONSTRAINT tickets_company_id_fkey FOREIGN KEY (company_id) REFERENCES main.companies(id),
   CONSTRAINT tickets_solution_id_fkey FOREIGN KEY (solution_id) REFERENCES main.solutions(id),

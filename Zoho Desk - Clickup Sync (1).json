@@ -1,0 +1,767 @@
+{
+  "name": "Zoho Desk - Clickup Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Pull enriched data from Enrich1 (stable ref regardless of attachment path)\nconst d = $('Parse Zoho LLM + Enrich3').first().json;\nconst slaConfigs = d._slaConfigs || [];\nconst priority = d._priority || 'P3';\nconst sla = slaConfigs.find(s => s.priority === priority) || {};\nconst responseHours = Number(sla.response_hours) || 8;\nconst resolutionHours = Number(sla.resolution_hours) || 24;\n\nconst now = new Date();\nconst slaResponseDue = new Date(now.getTime() + responseHours * 3600000).toISOString();\nconst slaResolutionDue = new Date(now.getTime() + resolutionHours * 3600000).toISOString();\n\nconst contactName = [d.contact?.firstName, d.contact?.lastName].filter(Boolean).join(' ') || '';\n\nreturn [{\n  json: {\n    ...d,\n    _insert: {\n      company_id: d._companyId || null,\n      solution_id: d._solutionId || null,\n      title: (d.subject || d._summary || 'New Zoho Ticket').substring(0, 500),\n      description: d._description || '',\n      priority: priority,\n      module: d._module || '',\n      request_type: d._requestType || '',\n      case_type: d._caseType || '',\n      zoho_ticket_id: String(d.ticketNumber || d.id || ''),\n      ai_summary: (d._summary || '').substring(0, 1000),\n      ai_sentiment: d._sentiment || 'neutral',\n      sla_response_due: slaResponseDue,\n      sla_resolution_due: slaResolutionDue,\n      created_by_email: d.contact?.email || '',\n      created_by_name: contactName,\n      created_at: d.createdTime || now.toISOString()\n    }\n  }\n}];"
+      },
+      "id": "9ca93a6e-ac2c-450f-b0b4-9f77ccf4a626",
+      "name": "Prepare DB Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5456,
+        4192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.tickets (\n  company_id, solution_id,\n  title, description, priority, status,\n  module, request_type, case_type,\n  channel, zoho_ticket_id,\n  ai_summary, ai_sentiment,\n  sla_response_due, sla_resolution_due, sla_status,\n  created_by_email, created_by_name, created_at\n) VALUES (\n  {{ $json._insert.company_id ? $json._insert.company_id : 'NULL' }},\n  {{ $json._insert.solution_id ? $json._insert.solution_id : 'NULL' }},\n  '{{ $json._insert.title.replace(/'/g, \"''\") }}',\n  {{ $json._insert.description ? \"'\" + $json._insert.description + \"'\" : 'NULL' }},\n  '{{ $json._insert.priority }}',\n  'Open',\n  {{ $json._insert.module ? \"'\" + $json._insert.module.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json._insert.request_type ? \"'\" + $json._insert.request_type + \"'\" : 'NULL' }},\n  {{ $json._insert.case_type ? \"'\" + $json._insert.case_type.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  'email',\n  '{{ $json._insert.zoho_ticket_id }}',\n  {{ $json._insert.ai_summary ? \"'\" + $json._insert.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json._insert.ai_sentiment ? \"'\" + $json._insert.ai_sentiment + \"'\" : \"'neutral'\" }},\n  {{ $json._insert.sla_response_due ? \"'\" + $json._insert.sla_response_due + \"'::timestamptz\" : 'NULL' }},\n  {{ $json._insert.sla_resolution_due ? \"'\" + $json._insert.sla_resolution_due + \"'::timestamptz\" : 'NULL' }},\n  'healthy',\n  {{ $json._insert.created_by_email ? \"'\" + $json._insert.created_by_email + \"'\" : 'NULL' }},\n  {{ $json._insert.created_by_name ? \"'\" + $json._insert.created_by_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json._insert.created_at ? \"'\" + $json._insert.created_at + \"'::timestamptz\" : 'NOW()' }}\n)\nON CONFLICT (zoho_ticket_id) DO UPDATE SET\n  status = EXCLUDED.status,\n  updated_at = NOW()\nRETURNING id",
+        "options": {}
+      },
+      "id": "64e2deae-0a45-49bb-89c3-c6c929d53cf7",
+      "name": "Insert Ticket to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5680,
+        4192
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE main.tickets\nSET clickup_task_id = '{{ $json.id }}',\n    clickup_url = '{{ $json.url }}',\n    updated_at = NOW()\nWHERE id = {{ $('Insert Ticket to DB').first().json.id }}",
+        "options": {}
+      },
+      "id": "2b043c87-8d66-4538-92e4-3b86dd40f310",
+      "name": "Update Ticket with ClickUp ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        6128,
+        4192
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * n8n Code node (JavaScript)\n * Input: Zoho Desk webhook payload from Webhook node\n * Output: Normalized object with key ticket + contact + thread + attachments fields\n */\n\nfunction firstDefined(...vals) {\n  for (const v of vals) {\n    if (v !== undefined && v !== null && v !== \"\") return v;\n  }\n  return null;\n}\n\nfunction toIntMaybe(v) {\n  if (v === null || v === undefined) return null;\n  const n = parseInt(String(v), 10);\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction stripHtml(html) {\n  if (!html) return null;\n  return String(html)\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \" \")\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \" \")\n    .replace(/<\\/?[^>]+(>|$)/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\n// n8n provides `items` array\nconst item = items[0] || {};\nconst body = item.json?.body;\n\n// Zoho sends body as an array of events: [ { payload, eventTime, eventType, orgId } ]\nconst evt = Array.isArray(body) ? body[0] : body;\nif (!evt || !evt.payload) {\n  return [\n    {\n      json: {\n        error: \"No Zoho event payload found\",\n        raw: item.json,\n      },\n    },\n  ];\n}\n\nconst payload = evt.payload;\nconst firstThread = payload.firstThread || null;\n\n// Contact info can appear in payload.contact\nconst contact = payload.contact || {};\nconst attachments =\n  (firstThread?.attachments || payload.descAttachments || []).map((a) => ({\n    id: firstDefined(a.id, null),\n    name: firstDefined(a.name, null),\n    size: toIntMaybe(a.size),\n    href: firstDefined(a.href, a.contentUrl, null),\n    previewUrl: firstDefined(a.previewurl, a.previewUrl, null),\n  }));\n\n// Convenience fields for identity resolution\nconst requesterEmail = firstDefined(contact.email, payload.email, null);\nlet requesterDomain = null;\nif (requesterEmail && requesterEmail.includes(\"@\")) {\n  requesterDomain = requesterEmail.split(\"@\").pop().toLowerCase();\n}\n\n// Thread content: prefer summary; keep HTML too\nconst threadHtml = firstDefined(firstThread?.content, null);\nconst threadText = stripHtml(threadHtml);\nconst threadSummary = firstDefined(firstThread?.summary, threadText, null);\n\n// Main normalized output\nconst normalized = {\n  // Source / event\n  source: \"zoho_desk\",\n  eventType: firstDefined(evt.eventType, null), // e.g., Ticket_Add\n  eventTimeMs: firstDefined(evt.eventTime, null),\n  orgId: firstDefined(evt.orgId, item.json?.body?.orgId, null),\n\n  // Ticket identifiers\n  ticketId: firstDefined(payload.id, null),\n  ticketNumber: firstDefined(payload.ticketNumber, null),\n  departmentId: firstDefined(payload.departmentId, null),\n  webUrl: firstDefined(payload.webUrl, null),\n\n  // Ticket fields\n  subject: firstDefined(payload.subject, null),\n  status: firstDefined(payload.status, null),\n  statusType: firstDefined(payload.statusType, null),\n  channel: firstDefined(payload.channel, null),\n  priority: firstDefined(payload.priority, null),\n  category: firstDefined(payload.category, null),\n  subCategory: firstDefined(payload.subCategory, null),\n  classification: firstDefined(payload.classification, null),\n  sentiment: firstDefined(payload.sentiment, null),\n\n  // Times\n  createdTime: firstDefined(payload.createdTime, null),\n  modifiedTime: firstDefined(payload.modifiedTime, null),\n  closedTime: firstDefined(payload.closedTime, null),\n  dueDate: firstDefined(payload.dueDate, null),\n  responseDueDate: firstDefined(payload.responseDueDate, null),\n  customerResponseTime: firstDefined(payload.customerResponseTime, null),\n  lastActivityTime: firstDefined(payload.lastActivityTime, null),\n\n  // Contact / requester (identity resolution)\n  contact: {\n    id: firstDefined(contact.id, payload.contactId, null),\n    firstName: firstDefined(contact.firstName, null),\n    lastName: firstDefined(contact.lastName, null),\n    phone: firstDefined(contact.phone, payload.phone, null),\n    mobile: firstDefined(contact.mobile, null),\n    email: requesterEmail,\n    domain: requesterDomain,\n    isSpam: firstDefined(contact.isSpam, payload.isSpam, null),\n    type: firstDefined(contact.type, null),\n    accountId: firstDefined(payload.accountId, contact.account?.id, null),\n  },\n\n  // Assignee (if any)\n  assignee: payload.assignee\n    ? {\n        id: firstDefined(payload.assignee.id, payload.assigneeId, null),\n        firstName: firstDefined(payload.assignee.firstName, null),\n        lastName: firstDefined(payload.assignee.lastName, null),\n        email: firstDefined(payload.assignee.email, null),\n      }\n    : {\n        id: firstDefined(payload.assigneeId, null),\n        firstName: null,\n        lastName: null,\n        email: null,\n      },\n\n  // First thread (useful for summarization/triage)\n  firstThread: firstThread\n    ? {\n        id: firstDefined(firstThread.id, null),\n        ticketId: firstDefined(firstThread.ticketId, payload.id, null),\n        channel: firstDefined(firstThread.channel, null),\n        direction: firstDefined(firstThread.direction, null), // \"in\" for customer\n        visibility: firstDefined(firstThread.visibility, null),\n        createdTime: firstDefined(firstThread.createdTime, null),\n        contentType: firstDefined(firstThread.contentType, null),\n        summary: threadSummary,\n        contentHtml: threadHtml,\n        contentText: threadText,\n        hasAttach: firstDefined(firstThread.hasAttach, false),\n        attachmentCount: toIntMaybe(firstThread.attachmentCount) ?? attachments.length,\n        fromEmailAddress: firstDefined(firstThread.fromEmailAddress, null),\n        to: firstDefined(firstThread.to, null),\n        cc: firstDefined(firstThread.cc, null),\n        author: firstThread.author\n          ? {\n              id: firstDefined(firstThread.author.id, null),\n              name: firstDefined(firstThread.author.name, null),\n              email: firstDefined(firstThread.author.email, null),\n              type: firstDefined(firstThread.author.type, null),\n            }\n          : null,\n      }\n    : null,\n\n  // Custom fields (both shapes exist in Zoho payloads)\n  customFields: payload.customFields || {},\n  cf: payload.cf || {},\n\n  // Attachments (metadata + download href)\n  attachments,\n\n  // Counts\n  counts: {\n    threadCount: toIntMaybe(payload.threadCount),\n    commentCount: toIntMaybe(payload.commentCount),\n    taskCount: toIntMaybe(payload.taskCount),\n    timeEntryCount: toIntMaybe(payload.timeEntryCount),\n    followerCount: toIntMaybe(payload.followerCount),\n    approvalCount: toIntMaybe(payload.approvalCount),\n    attachmentCount: toIntMaybe(payload.attachmentCount) ?? attachments.length,\n  },\n\n  // Flags\n  flags: {\n    isOverDue: !!payload.isOverDue,\n    isResponseOverdue: !!payload.isResponseOverdue,\n    isSpam: !!payload.isSpam,\n    isEscalated: !!payload.isEscalated,\n    isTrashed: !!payload.isTrashed,\n    isArchived: !!payload.isArchived,\n    isDeleted: !!payload.isDeleted,\n  },\n\n  // Raw (optional - keep if you want audit trace; remove if too heavy)\n  // raw: {\n    // event: evt,\n  // },\n};\n\nreturn [{ json: normalized }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        4192
+      ],
+      "id": "77bcf471-bc90-4b14-a326-51e1d48aa155",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Code in JavaScript1').item.json.attachments[0].href }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Zoho-oauthtoken {{$node[\"Get Access Token1\"].json[\"access_token\"]}}"
+            },
+            {
+              "name": "orgId",
+              "value": "845062863"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5008,
+        4048
+      ],
+      "id": "eefd17cc-8e5a-4b38-a7e0-637dd3586c9c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://accounts.zoho.com/oauth/v2/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "client_id",
+              "value": "1000.F1CPCDZEHTIHGMEDFW0HNMDOFAO5VR"
+            },
+            {
+              "name": "client_secret",
+              "value": "72e7d3c5f863610f24ed71e94ebb31f9c1e34bad96"
+            },
+            {
+              "name": "refresh_token",
+              "value": "1000.ca4b77087cb39ba85e2b786aee9c1e93.058b0fa9d570713b56aaba6135950aba"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4784,
+        4048
+      ],
+      "id": "bae43287-43cb-49f4-83d8-8e01da054b2f",
+      "name": "Get Access Token1"
+    },
+    {
+      "parameters": {
+        "team": "7542143",
+        "space": "90126395854",
+        "folderless": true,
+        "list": "=901215777514",
+        "name": "=ticketNo-{{ $('Parse Zoho LLM + Enrich3').first().json.ticketNumber }} | {{ $('Parse Zoho LLM + Enrich3').first().json._profile.summary.substring(0, 80) }}",
+        "additionalFields": {
+          "assignees": [
+            87796566
+          ],
+          "customFieldsJson": "={{ JSON.stringify($('Parse Zoho LLM + Enrich3').first().json._customFieldsJSON) }}",
+          "content": "={{ $('Parse Zoho LLM + Enrich3').first().json._description }}",
+          "markdownContent": true,
+          "priority": "={{ $('Parse Zoho LLM + Enrich3').first().json._clickupPriority }}"
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        5904,
+        4192
+      ],
+      "id": "eae98add-790d-4293-9eef-9d435924dfb5",
+      "name": "Create a task1",
+      "credentials": {
+        "clickUpApi": {
+          "id": "5VevQKcx1sszQZiG",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5232,
+        4128
+      ],
+      "id": "f83f45f1-3aba-4f63-9e70-d1451505a052",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1dab27c8-8cdb-48d5-be76-1e19b4de95b2",
+              "leftValue": "={{ $json.firstThread.hasAttach }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4560,
+        4192
+      ],
+      "id": "46a91ab3-b4e2-459d-bde4-6e9fc7c1c99e",
+      "name": "If Attachment exists1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-ticket",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2992,
+        3952
+      ],
+      "id": "b83d20b0-5286-4a99-90e8-f14551d94fa6",
+      "name": "New Ticket1",
+      "webhookId": "d8fac966-6855-4e00-a53e-ab8881980b02"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  c.id AS company_id,\n  c.company_code,\n  c.company_name,\n  c.domain,\n  s.id AS solution_id,\n  s.solution_code,\n  s.solution_name,\n  s.business_hours_start,\n  s.business_hours_end,\n  s.timezone,\n  s.clickup_space_id,\n  s.clickup_list_id,\n  COALESCE(\n    (SELECT json_agg(json_build_object(\n      'priority', sc.priority,\n      'priority_name', sc.priority_name,\n      'response_hours', sc.response_hours,\n      'resolution_hours', sc.resolution_hours,\n      'resolution_type', sc.resolution_type\n    )) FROM main.sla_configs sc WHERE sc.solution_id = s.id),\n    '[]'::json\n  ) AS sla_configs,\n  COALESCE(\n    (SELECT json_agg(json_build_object(\n      'module_code', m.module_code,\n      'module_name', m.module_name\n    )) FROM main.modules m WHERE m.solution_id = s.id),\n    '[]'::json\n  ) AS modules,\n  COALESCE(\n    (SELECT json_agg(json_build_object(\n      'id', rt.id,\n      'request_type', rt.request_type,\n      'sla_applicable', rt.sla_applicable\n    )) FROM main.request_types rt WHERE rt.solution_id = s.id),\n    '[]'::json\n  ) AS request_types\nFROM main.companies c\nJOIN main.solutions s ON s.company_id = c.id AND s.is_active = true\nWHERE c.domain = '{{ $('Code in JavaScript1').first().json.contact.domain }}'\n  AND c.is_active = true\nLIMIT 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3664,
+        4192
+      ],
+      "id": "ef62153d-46bc-407e-80d7-3750e326e97a",
+      "name": "Fetch Config by Domain1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== BUILD LLM REQUEST FOR ZOHO TICKET CLASSIFICATION =====\nconst zoho = $('Code in JavaScript1').first().json;\nconst dbConfig = $('Fetch Config by Domain1').first().json;\n\n// Extract dynamic lists from DB (or use defaults if domain not found)\nconst hasConfig = !!dbConfig?.company_id;\n\nconst modules = hasConfig && Array.isArray(dbConfig.modules)\n  ? dbConfig.modules.map(m => m.module_name).filter(Boolean)\n  : ['Login/Sign Up', 'Language', 'Landing Page (Home)', 'My Health', 'Cash Claims',\n     'Call Doctor Now', 'Appointment', 'AI Companion', 'Apps Sections and Functions',\n     'Digital Twin', 'Wellness'];\n\nconst requestTypes = hasConfig && Array.isArray(dbConfig.request_types)\n  ? dbConfig.request_types.map(rt => rt.request_type).filter(Boolean)\n  : ['Incident', 'Service Request', 'Problem', 'Change Request'];\n\nconst slaConfigs = hasConfig && Array.isArray(dbConfig.sla_configs)\n  ? dbConfig.sla_configs\n  : [];\n\n// Build priority context from SLA configs\nlet priorityContext = '';\nif (slaConfigs.length > 0) {\n  priorityContext = 'Available priorities with SLA:\\n' +\n    slaConfigs.map(s =>\n      `- ${s.priority} (${s.priority_name}): Response ${s.response_hours}h, Resolution ${s.resolution_hours}h`\n    ).join('\\n');\n} else {\n  priorityContext = `Priority levels (assess based on impact and urgency):\n- P1 (Critical): Complete system/app outage or total loss of service\n- P2 (High): Major functionality impaired, core operations impacted\n- P3 (Medium): Partial disruption affecting non-core functions\n- P4 (Low): Minor issue with limited impact\n- P5 (Very Low): Isolated issue with minimal impact`;\n}\n\nconst systemPrompt = `You are an expert support ticket classifier for a healthcare app support system.\n\nYour job is to analyze a new support ticket from an email and return a structured JSON profile.\n\nAvailable modules: ${modules.join(', ')}\n\nRequest types: ${requestTypes.join(', ')}\n\n${priorityContext}\n\nRespond ONLY with valid JSON, no markdown, no explanation:\n{\n  \"request_type\": \"<one of the request types listed above>\",\n  \"case_type\": \"<brief case type label, e.g. 'Login Failure', 'Crash on Launch', 'Claim Submission Error'>\",\n  \"priority\": \"<P1|P2|P3|P4|P5>\",\n  \"sentiment\": \"positive|neutral|negative|frustrated|angry\",\n  \"summary\": \"<1-2 sentence summary of the issue>\",\n  \"module\": \"<best matching module from the list, or 'Unknown'>\"\n}`;\n\nconst emailContent = zoho.firstThread?.summary\n  || zoho.firstThread?.contentText\n  || zoho.subject\n  || 'No content available';\n\nconst userMessage = `Email Subject: ${zoho.subject || 'No subject'}\n\nEmail Body:\n${emailContent}\n\nSender: ${zoho.contact?.firstName || ''} ${zoho.contact?.lastName || ''} (${zoho.contact?.email || 'unknown'})\nDomain: ${zoho.contact?.domain || 'unknown'}\nChannel: ${zoho.channel || 'email'}\nZoho Priority: ${zoho.priority || 'Not set'}\nZoho Category: ${zoho.category || 'Not set'}`;\n\nconst requestBody = {\n  temperature: 0.1,\n  model: 'gpt-4.1',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userMessage }\n  ]\n};\n\nreturn [{\n  json: {\n    requestBody: JSON.stringify(requestBody),\n    _zoho: zoho,\n    _dbConfig: dbConfig,\n    _hasConfig: hasConfig,\n    _slaConfigs: slaConfigs\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        4192
+      ],
+      "id": "38beee2b-2fd9-4f5a-af44-31d771ea567d",
+      "name": "Build Zoho LLM Request1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.core42.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 924e85b4a93a46249d0dbd985aff2b3b"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4112,
+        4192
+      ],
+      "id": "4be60bb9-8e1a-4f4b-84d1-cfa3028425d9",
+      "name": "HTTP Request7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== PARSE LLM RESPONSE + ENRICH ZOHO DATA FOR CLICKUP =====\nconst llmResponse = $input.first().json;\nconst prev = $('Build Zoho LLM Request1').first().json;\nconst zoho = prev._zoho;\nconst dbConfig = prev._dbConfig;\nconst hasConfig = prev._hasConfig;\nconst slaConfigs = prev._slaConfigs || [];\n\n// Parse LLM response\nlet profile;\ntry {\n  const content = llmResponse.choices?.[0]?.message?.content || '{}';\n  const cleaned = content.replace(/```json|```/g, '').trim();\n  profile = JSON.parse(cleaned);\n} catch (e) {\n  profile = {\n    request_type: 'Incident',\n    case_type: 'Availability',\n    priority: 'P3',\n    sentiment: 'neutral',\n    summary: zoho.subject || 'New ticket from Zoho',\n    module: 'Unknown'\n  };\n}\n\nconst priority = profile.priority || 'P3';\n\n// Map priority to ClickUp priority integer (1=Urgent, 2=High, 3=Normal, 4=Low)\nconst clickupPriorityMap = { 'P1': 1, 'P2': 2, 'P3': 3, 'P4': 4, 'P5': 4 };\nconst clickupPriority = clickupPriorityMap[priority] || 3;\n\n// --- EXACT CLICKUP DROPDOWN UUID MAPPING ---\n// Using exact Option IDs from your ClickUp workspace schema\nconst requestTypeMap = {\n  \"Incident\": \"037ea1a4-88f0-43d0-9bd9-386fc385aaac\",\n  \"Service Request\": \"2adace70-cf37-48aa-9b74-c05f5df185b6\",\n  \"Problem\": \"44f3a550-7b10-4e57-b59b-efbb63b6fb9c\",\n  \"Change Request\": \"904d1493-1ef1-4bfe-a731-40c825c28963\"\n};\n\nconst caseTypeMap = {\n  \"Availability\": \"71924ef3-bd27-46f4-af4b-986f21db3b9d\",\n  \"Core Function\": \"75b4337c-75d0-46b8-a849-618e19f1fbdd\",\n  \"Integration\": \"7d6f15a1-2bef-4989-a5c4-9d79adbc28b1\",\n  \"Data Integrity\": \"d960b7a3-005c-4b72-a64d-a438fd6980ee\",\n  \"Performance\": \"7c02067a-2703-4dd2-80c7-53a412b52302\",\n  \"Stability\": \"2a69eb54-c762-44da-bb36-41a568dcd10a\",\n  \"Security\": \"9412cc67-a469-436f-a875-617ddedf28c8\",\n  \"UI / UX\": \"f6116b75-c6ca-452c-9737-a4859b211495\",\n  \"Support\": \"4ea73a69-a682-41ec-96e3-3ffb32fb45cd\",\n  \"Access\": \"1cd65a2e-89fa-4771-be97-1f9fe6002a1d\",\n  \"Problem Record\": \"11115504-b918-4ad9-addb-49b02973978a\",\n  \"Enhancement\": \"6c05810f-baba-4bc8-aed5-efa9fb2ce86e\",\n  \n  // Fallbacks for LLM hallucinations based on previous runs\n  \"Major Outage\": \"71924ef3-bd27-46f4-af4b-986f21db3b9d\", // Maps to Availability\n  \"Complete App Outage\": \"71924ef3-bd27-46f4-af4b-986f21db3b9d\", // Maps to Availability\n  \"Uncategorized\": \"4ea73a69-a682-41ec-96e3-3ffb32fb45cd\" // Default to Support if completely lost\n};\n\n// --- BUILD JSON ARRAY FOR CLICKUP CUSTOM FIELDS ---\nconst clickupCustomFields = [];\n\n// Resolve Request Type\nconst resolvedRequestType = requestTypeMap[profile.request_type] || requestTypeMap[\"Incident\"];\nclickupCustomFields.push({\n  \"id\": \"83ff465c-0075-495c-aeb8-7db8cc56110a\",\n  \"value\": resolvedRequestType\n});\n\n// Resolve Case Type\nconst resolvedCaseType = caseTypeMap[profile.case_type] || caseTypeMap[\"Availability\"];\n\nclickupCustomFields.push({\n  \"id\": \"de899780-bc87-4ec2-ba94-fe01690ab330\",\n  \"value\": resolvedCaseType\n});\n\n// Project = MedGulf (always tag so team can filter in shared ClickUp workspace)\nclickupCustomFields.push({\n  \"id\": \"c75f543d-799e-4d4e-80c9-193cc1c765bc\",\n  \"value\": \"c6194728-c763-4cb8-8ee6-730cd855239e\"\n});\n\n// Module field — map Cortex module name to ClickUp option UUID\nconst moduleMap = {\n  'Login/Sign Up': '2213d3ff-ac80-46af-ac6e-c1350a686bfe',\n  'Login': '2213d3ff-ac80-46af-ac6e-c1350a686bfe',\n  'Landing Page (Home)': '00b6c134-d756-47b0-b3b6-14bab4b2dad1',\n  'Landing Page': '00b6c134-d756-47b0-b3b6-14bab4b2dad1',\n  'My Health': 'd88061d1-19fd-4d6f-94b1-fee6c942df5d',\n  'Cash Claims': '4cd06e13-0957-492c-af32-bbf4d563d7c8',\n  'Claims': '4cd06e13-0957-492c-af32-bbf4d563d7c8',\n  'Call Doctor Now': '4255761e-2020-4225-acc8-e3a3460d7f42',\n  'Appointment': 'ba8a07e0-ca30-4e8c-a593-d55ae971c035',\n  'AI Companion': '78edd917-bdda-4f97-95a3-a22f7c7552ad',\n  'Digital Twin': '0567e8ea-bc92-4e88-a48b-47fd0859fb81',\n  'Wellness': '924fde6f-f563-49ed-8ec3-3ca7ef430257',\n  'Support Center': 'ce9004b2-41b2-41cc-9a3c-4e8841ca64da',\n  'Apps Sections and Functions': 'ce9004b2-41b2-41cc-9a3c-4e8841ca64da',\n  'Language': 'ce9004b2-41b2-41cc-9a3c-4e8841ca64da'\n};\nconst moduleUUID = moduleMap[profile.module] || moduleMap['Support Center'];\nclickupCustomFields.push({\n  \"id\": \"7543a2bd-1322-407f-b171-9295dca96a5b\",\n  \"value\": moduleUUID\n});\n\n\n// Build enriched task description\nconst contactName = [zoho.contact?.firstName, zoho.contact?.lastName].filter(Boolean).join(' ') || 'Unknown';\nconst emailContent = zoho.firstThread?.summary || zoho.firstThread?.contentText || 'No content';\n\nconst description = `**AI Classification:**\\nPriority: ${priority} | Request Type: ${profile.request_type} | Module: ${profile.module}\\nCase Type: ${profile.case_type} | Sentiment: ${profile.sentiment}\\n\\n**Summary:** ${profile.summary}\\n\\n---\\n\\n**Ticket Details:**\\nRaised by: ${contactName}\\nEmail: ${zoho.contact?.email || 'Unknown'}\\nDomain: ${zoho.contact?.domain || 'Unknown'}\\nChannel: ${zoho.channel || 'email'}\\nZoho Ticket: #${zoho.ticketNumber || 'N/A'}\\n\\n**Email Subject:** ${zoho.subject || 'No subject'}\\n\\n**Email Content:**\\n${emailContent}\\n\\n${zoho.attachments?.length > 0 ? `\\n**Attachments:** ${zoho.attachments.map(a => `[${a.name}](${a.href})`).join(', ')}` : ''}\\n${hasConfig ? `\\n**Matched Company:** ${dbConfig.company_name} (${dbConfig.company_code})` : '**Company:** Could not resolve from domain'}`;\n\n// Determine assignee based on company config\nconst defaultAssignee = 87796566; // Asif K - L1\n\n// Pass everything through to Create a task\nreturn [{\n  json: {\n    ...zoho,\n    _enriched: true,\n    _profile: profile,\n    _priority: priority,\n    _clickupPriority: clickupPriority,\n    _customFieldsJSON: clickupCustomFields, // Correct formatted array with UUIDs\n    _description: description,\n    _assignee: defaultAssignee,\n    _companyName: hasConfig ? dbConfig.company_name : null,\n    _solutionId: hasConfig ? dbConfig.solution_id : null,\n    _companyId: hasConfig ? dbConfig.company_id : null,\n    _requestType: profile.request_type,\n    _caseType: profile.case_type,\n    _module: profile.module,\n    _sentiment: profile.sentiment,\n    _summary: profile.summary,\n    _slaConfigs: slaConfigs,\n    _dbConfig: dbConfig || {}\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        4192
+      ],
+      "id": "4c08c17c-4aaf-4beb-9b88-fe35f23f0002",
+      "name": "Parse Zoho LLM + Enrich3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse incoming Zoho Thread_Add webhook payload\nconst item = items[0] || {};\nconst body = item.json?.body;\nconst evt = Array.isArray(body) ? body[0] : body;\nif (!evt || !evt.payload) {\n  return [{ json: { _skip: true, reason: 'No payload' } }];\n}\n\nconst payload = evt.payload;\nconst thread = payload.thread || payload.firstThread || null;\nif (!thread) {\n  return [{ json: { _skip: true, reason: 'No thread in payload' } }];\n}\n\nfunction stripHtml(html) {\n  if (!html) return null;\n  return String(html).replace(/<style[sS]*?</style>/gi, ' ')\n    .replace(/<script[sS]*?</script>/gi, ' ')\n    .replace(/</?[^>]+(>|$)/g, ' ').replace(/s+/g, ' ').trim();\n}\n\nconst contentText = stripHtml(thread.content || thread.contentHtml) || thread.summary || '';\nconst contactEmail = payload.contact?.email || thread.fromEmailAddress || null;\nconst contactName = [payload.contact?.firstName, payload.contact?.lastName].filter(Boolean).join(' ') || contactEmail;\nconst zohoTicketNumber = String(payload.ticketNumber || payload.id || '');\n\nreturn [{\n  json: {\n    zoho_ticket_number: zohoTicketNumber,\n    thread_id: String(thread.id || ''),\n    direction: thread.direction || 'in',\n    content_text: contentText.substring(0, 5000),\n    content_html: (thread.content || '').substring(0, 10000),\n    actor_email: contactEmail,\n    actor_name: contactName,\n    created_at: thread.createdTime || new Date().toISOString(),\n    has_attachments: !!(thread.hasAttach || (thread.attachmentCount > 0)),\n    _skip: !zohoTicketNumber\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        3600
+      ],
+      "id": "9151e3c7-8ecb-42dc-a804-645f2a40c541",
+      "name": "Parse Thread Payload"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS ticket_id, zoho_ticket_id, channel\nFROM main.tickets\nWHERE zoho_ticket_id = '{{ $json.zoho_ticket_number }}'\n  AND (is_deleted = false OR is_deleted IS NULL)\nLIMIT 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3664,
+        3600
+      ],
+      "id": "b28f4fea-4402-490c-b570-3f23859063d8",
+      "name": "Find Ticket by Zoho ID",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO main.threads (\n  ticket_id, action_type, actor_email, actor_name,\n  raw_content, has_attachments, thread_source,\n  metadata, created_at\n) VALUES (\n  {{ $('Find Ticket by Zoho ID').first().json.ticket_id || 0 }},\n  'customer_reply',\n  {{ $('Parse Thread Payload').first().json.actor_email ? \"'\" + $('Parse Thread Payload').first().json.actor_email + \"'\" : 'NULL' }},\n  {{ $('Parse Thread Payload').first().json.actor_name ? \"'\" + $('Parse Thread Payload').first().json.actor_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $('Parse Thread Payload').first().json.content_text ? \"'\" + $('Parse Thread Payload').first().json.content_text.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $('Parse Thread Payload').first().json.has_attachments || false }},\n  'zoho',\n  '{{ JSON.stringify({ zoho_thread_id: $('Parse Thread Payload').first().json.thread_id, direction: $('Parse Thread Payload').first().json.direction }) }}'::jsonb,\n  '{{ $('Parse Thread Payload').first().json.created_at }}'::timestamptz\n)\nON CONFLICT DO NOTHING\nRETURNING id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3888,
+        3600
+      ],
+      "id": "14abe741-e24e-49a5-8b7a-e60299a4b087",
+      "name": "Insert Customer Reply Thread",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-0001-0000-0000-000000000001",
+              "leftValue": "={{ $json.body[0].eventType }}",
+              "rightValue": "Thread_Add",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "72877085-249b-4c6c-94c8-affc32390aaa",
+      "name": "Is Thread_Add?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3216,
+        3952
+      ]
+    }
+  ],
+  "pinData": {
+    "New Ticket1": [
+      {
+        "json": {
+          "headers": {
+            "host": "logics.sgh.iohealth.com",
+            "x-request-id": "12d7e4ca846274b01ee9dd1d56ca2913",
+            "x-real-ip": "136.143.177.62",
+            "x-forwarded-for": "136.143.177.62",
+            "x-forwarded-host": "logics.sgh.iohealth.com",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-scheme": "https",
+            "x-scheme": "https",
+            "content-length": "2724",
+            "req-mi-chain": "172717235:8080",
+            "x-zdesk-jwt": "eyJraWQiOiI5RVRhMV92UTRqaFgxMk9HdzFndEh5dnpnXzVFOUxGNkhwaFJRVFFERFVrIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJvcmdJZDo4NDUwNjI4NjMiLCJhdWQiOiJ3ZWJob29rSWQ6OTQ5MjI5MDAwMDA1NzQ2MDAxIiwiZXhwIjoxNzczMTU4NTMwLCJpYXQiOjE3NzMxNTc5MzB9.Aw9jvkifpZb9LAsQQ7R1BqivYwV5rV93UqoUGVuVavY-8juh9JjCC7mSgXR0UPnBTGLlmx_LO6qjFTX0xFpWNZk9a05QcEc2Lxb_yQVsdrM9w3TXTBADFIQKGcSoqi2t7gdMyZXJ3UIj1d-SVJszHMGphXuFUz9FEz2j8jJ8RY-26YE5_XOeCdL3P329tPsG-0n61VgZvHqqpnaLpVesB-vfruiyl2-TAq3v3tdBr9v1Ch-KLWhawmZHSMc-IQYcx35ni28Q322KcS4ARNQMXhMatmy3N4xbmkyn9A0UYmZtGBmCJIgIdSvPR5_7GQ7IVuwVua1EFsOPe-uvUqKx5w",
+            "content-type": "application/json",
+            "user-agent": "DeskWebhook",
+            "accept": "text/html, image/gif, image/jpeg, */*; q=0.2",
+            "x-forwarded-for-proxy-protocol": "136.143.177.62"
+          },
+          "params": {},
+          "query": {},
+          "body": [
+            {
+              "payload": {
+                "modifiedTime": "2026-03-10T15:52:09.000Z",
+                "subCategory": null,
+                "statusType": "Open",
+                "subject": "thanks",
+                "dueDate": null,
+                "departmentId": "949229000000006907",
+                "channel": "Email",
+                "onholdTime": null,
+                "language": null,
+                "source": {
+                  "appName": null,
+                  "extParentId": null,
+                  "extId": null,
+                  "permalink": null,
+                  "type": "SYSTEM",
+                  "appPhotoURL": null
+                },
+                "resolution": null,
+                "sharedDepartments": [],
+                "closedTime": null,
+                "approvalCount": "0",
+                "isOverDue": false,
+                "isTrashed": false,
+                "contact": {
+                  "firstName": null,
+                  "lastName": "Omer Shaikh",
+                  "phone": "0553731798",
+                  "mobile": null,
+                  "id": "949229000005728002",
+                  "isSpam": false,
+                  "type": null,
+                  "email": "omer.shaikh@iohealth.com",
+                  "account": null
+                },
+                "createdTime": "2026-03-10T15:52:09.000Z",
+                "id": "949229000006186134",
+                "isResponseOverdue": false,
+                "customerResponseTime": "2026-03-10T15:52:09.000Z",
+                "firstThread": {
+                  "isDescriptionThread": false,
+                  "attachments": [],
+                  "canReply": true,
+                  "isContentTruncated": false,
+                  "departmentId": "949229000000006907",
+                  "channel": "EMAIL",
+                  "source": {
+                    "appName": null,
+                    "extId": null,
+                    "permalink": null,
+                    "type": "SYSTEM",
+                    "appPhotoURL": null
+                  },
+                  "content": "<div><div dir=\"ltr\">any updates?<div><br></div></div>\r\n</div>",
+                  "channelRelatedInfo": null,
+                  "createdTime": "2026-03-10T15:51:51.000Z",
+                  "id": "949229000006186138",
+                  "contentType": "text/html",
+                  "direction": "in",
+                  "summary": "any updates?",
+                  "cc": "",
+                  "visibility": "public",
+                  "author": {
+                    "photoURL": null,
+                    "firstName": null,
+                    "lastName": "Omer Shaikh",
+                    "name": "Omer Shaikh",
+                    "id": "949229000005728002",
+                    "type": "END_USER",
+                    "email": "omer.shaikh@iohealth.com"
+                  },
+                  "fullContentURL": null,
+                  "isForward": false,
+                  "hasAttach": false,
+                  "replyTo": null,
+                  "attachmentCount": "0",
+                  "to": "\"support officer\"<support@iohealth.com>",
+                  "fromEmailAddress": "\"Omer Shaikh\"<omer.shaikh@iohealth.com>",
+                  "ticketId": "949229000006186134",
+                  "status": "SUCCESS"
+                },
+                "productId": null,
+                "contactId": "949229000005728002",
+                "threadCount": "1",
+                "secondaryContacts": [],
+                "priority": null,
+                "classification": null,
+                "commentCount": "0",
+                "taskCount": "0",
+                "accountId": null,
+                "phone": "0553731798",
+                "webUrl": "https://support.iohealth.com/support/iohealth/ShowHomePage.do#Cases/dv/949229000006186134",
+                "assignee": null,
+                "isSpam": false,
+                "status": "Open",
+                "entitySkills": [],
+                "ticketNumber": "379",
+                "sentiment": null,
+                "customFields": {},
+                "isArchived": false,
+                "description": null,
+                "timeEntryCount": "0",
+                "channelRelatedInfo": null,
+                "responseDueDate": null,
+                "isDeleted": false,
+                "modifiedBy": "949229000000139001",
+                "followerCount": "0",
+                "email": "omer.shaikh@iohealth.com",
+                "layoutDetails": {
+                  "id": "949229000000074011",
+                  "layoutName": "IOhealth"
+                },
+                "channelCode": null,
+                "cf": {},
+                "layoutId": "949229000000074011",
+                "assigneeId": null,
+                "createdBy": "949229000000139001",
+                "teamId": null,
+                "tagCount": "0",
+                "attachmentCount": "0",
+                "isEscalated": false,
+                "category": null,
+                "descAttachments": []
+              },
+              "eventTime": "1773157930778",
+              "eventType": "Ticket_Add",
+              "orgId": "845062863"
+            }
+          ],
+          "webhookUrl": "https://logics.sgh.iohealth.com/webhook/new-ticket",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Prepare DB Insert": {
+      "main": [
+        [
+          {
+            "node": "Insert Ticket to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Ticket to DB": {
+      "main": [
+        [
+          {
+            "node": "Create a task1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config by Domain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Access Token1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a task1": {
+      "main": [
+        [
+          {
+            "node": "Update Ticket with ClickUp ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Prepare DB Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Attachment exists1": {
+      "main": [
+        [
+          {
+            "node": "Get Access Token1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Prepare DB Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Ticket1": {
+      "main": [
+        [
+          {
+            "node": "Is Thread_Add?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config by Domain1": {
+      "main": [
+        [
+          {
+            "node": "Build Zoho LLM Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Zoho LLM Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request7": {
+      "main": [
+        [
+          {
+            "node": "Parse Zoho LLM + Enrich3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Zoho LLM + Enrich3": {
+      "main": [
+        [
+          {
+            "node": "If Attachment exists1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Thread Payload": {
+      "main": [
+        [
+          {
+            "node": "Find Ticket by Zoho ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Ticket by Zoho ID": {
+      "main": [
+        [
+          {
+            "node": "Insert Customer Reply Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Thread_Add?1": {
+      "main": [
+        [
+          {
+            "node": "Parse Thread Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9eaf5aa4-e615-4a6e-bd63-10bd52ef7758",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e55337cd04f1eaeb9d80b3109da0b9a0ef8db1dfc622debb9291d0d8019d0fb5"
+  },
+  "id": "lX1b2aagR3WAYNlL",
+  "tags": []
+}

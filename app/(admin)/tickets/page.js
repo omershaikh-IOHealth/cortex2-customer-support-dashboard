@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote, getUsers, getTicketTags, addTagToTicket, updateTicket } from '@/lib/api'
+import { useCompany } from '@/context/CompanyContext'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, getStatusColor, formatRelativeTime, truncate, getSentimentEmoji } from '@/lib/utils'
@@ -21,6 +22,7 @@ const BLANK_TICKET = { title: '', description: '', priority: 'P3', status: 'Open
 
 export default function TicketsPage() {
   const queryClient = useQueryClient()
+  const { company } = useCompany()
   const [filters, setFilters]         = useState({ status: '', priority: '', sla_status: '' })
   const [searchTerm, setSearchTerm]   = useState('')
   const [page, setPage]               = useState(1)
@@ -54,8 +56,8 @@ export default function TicketsPage() {
   }, [])
 
   const { data: ticketData, isLoading } = useQuery({
-    queryKey: ['tickets', filters, page, pageSize],
-    queryFn: () => getTickets({ ...filters, limit: pageSize, offset: (page - 1) * pageSize }),
+    queryKey: ['tickets', filters, page, pageSize, company],
+    queryFn: () => getTickets({ ...filters, limit: pageSize, offset: (page - 1) * pageSize, company }),
     refetchInterval: 30000,
   })
   const tickets    = ticketData?.tickets ?? (Array.isArray(ticketData) ? ticketData : [])

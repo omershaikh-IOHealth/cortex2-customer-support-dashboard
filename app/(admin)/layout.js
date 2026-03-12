@@ -1,18 +1,23 @@
+'use client'
+
 import Sidebar from '@/components/ui/Sidebar'
 import AICompanion from '@/components/ui/AICompanion'
 import TopAlertBar from '@/components/ui/TopAlertBar'
+import { CompanyProvider } from '@/context/CompanyContext'
 
 export default function AdminLayout({ children }) {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-        <TopAlertBar />
-        <main className="flex-1 p-8">
-          {children}
-        </main>
+    <CompanyProvider>
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 ml-64 flex flex-col min-h-screen">
+          <TopAlertBar />
+          <main className="flex-1 p-8">
+            {children}
+          </main>
+        </div>
+        <AICompanion />
       </div>
-      <AICompanion />
-    </div>
+    </CompanyProvider>
   )
 }

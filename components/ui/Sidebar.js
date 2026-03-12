@@ -20,11 +20,13 @@ import {
   RadioTower,
   Plug,
   Bell,
+  Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { getNotifications } from '@/lib/api'
 import NewBadge from './NewBadge'
+import { useCompany } from '@/context/CompanyContext'
 
 const navigation = [
   { name: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard },
@@ -50,6 +52,7 @@ function getInitials(str = '') {
 export default function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const { company, setCompany, companies } = useCompany()
 
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],
@@ -77,6 +80,24 @@ export default function Sidebar() {
             Support Ops
           </p>
         </div>
+      </div>
+
+      {/* Organization filter */}
+      <div className="relative px-3 pb-3 pt-2 border-b border-cortex-border">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Building2 className="w-3 h-3 text-cortex-muted" />
+          <span className="text-[10px] text-cortex-muted font-mono tracking-wider uppercase">Organization</span>
+        </div>
+        <select
+          value={company}
+          onChange={e => setCompany(e.target.value)}
+          className="w-full text-xs bg-cortex-bg border border-cortex-border rounded px-2 py-1.5 text-cortex-text focus:outline-none focus:border-cortex-accent cursor-pointer"
+        >
+          <option value="all">All Organizations</option>
+          {companies.map(c => (
+            <option key={c.company_code} value={c.company_code}>{c.company_name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Navigation */}

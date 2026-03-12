@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { getCriticalSLA } from '@/lib/api'
+import { useCompany } from '@/context/CompanyContext'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime, formatDate } from '@/lib/utils'
 import { Clock, CheckCircle, AlertCircle } from 'lucide-react'
@@ -14,9 +15,10 @@ const STAT_CONFIG = [
 ]
 
 export default function SLAPage() {
+  const { company } = useCompany()
   const { data: tickets, isLoading } = useQuery({
-    queryKey: ['critical-sla'],
-    queryFn: getCriticalSLA,
+    queryKey: ['critical-sla', company],
+    queryFn: () => getCriticalSLA(company),
     refetchInterval: 15000,
   })
 

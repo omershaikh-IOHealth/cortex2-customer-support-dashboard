@@ -1,14 +1,15 @@
 {
+  "name": "clickup-cortex-sync",
   "nodes": [
     {
       "parameters": {},
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -3424,
-        80
+        -8288,
+        8080
       ],
-      "id": "b38adc64-d533-4f38-a622-0bc0852c2e39",
+      "id": "d63b6e50-fb4c-411e-ad63-e69e9cb3221f",
       "name": "Manual Trigger"
     },
     {
@@ -49,10 +50,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -1584,
-        208
+        -6448,
+        8208
       ],
-      "id": "07588763-b4e5-4fe1-a2be-7385fea57e18",
+      "id": "8dfada1b-7b1e-48a4-8ac8-c139210b7e2a",
       "name": "Fetch ClickUp Tasks",
       "notes": "GET all tasks from MedGulf Customer Feedback list. Replace CLICKUP_LIST_ID with actual list ID."
     },
@@ -65,10 +66,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2704,
-        208
+        -7568,
+        8208
       ],
-      "id": "c28120b8-3c9d-4690-b8ff-29fac68efb7b",
+      "id": "7c69bf6a-d788-4f4a-9e5f-70622dd81903",
       "name": "Fetch DB Tickets",
       "alwaysOutputData": true,
       "credentials": {
@@ -87,10 +88,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2256,
-        208
+        -7120,
+        8208
       ],
-      "id": "629fb14e-82a7-44d3-a58e-3fce584e4ef3",
+      "id": "ca915b95-91d9-47f7-82ab-7e1c8cd5302a",
       "name": "Fetch Solution Config",
       "alwaysOutputData": true,
       "credentials": {
@@ -109,10 +110,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2032,
-        208
+        -6896,
+        8208
       ],
-      "id": "f435ccbc-5b30-42b7-bbcf-7cd46c2e89aa",
+      "id": "91bfbeec-008b-46b6-852e-4aa4f2a6d967",
       "name": "Fetch SLA Configs",
       "alwaysOutputData": true,
       "credentials": {
@@ -129,10 +130,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1360,
-        208
+        -6224,
+        8208
       ],
-      "id": "1a7d58ae-3095-41f2-961c-dd400030281c",
+      "id": "65c81a1f-6e1b-4f1b-a0ac-e169eef807b0",
       "name": "Compare & Classify"
     },
     {
@@ -142,10 +143,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -1136,
-        208
+        -6000,
+        8208
       ],
-      "id": "b3893b12-4868-4a91-b45e-1aecbfac81c0",
+      "id": "6b0b1530-4303-47d7-b381-6ba44f1fd19e",
       "name": "Loop Each Ticket"
     },
     {
@@ -235,10 +236,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -912,
-        176
+        -5776,
+        8176
       ],
-      "id": "7c3f2d07-c942-48cf-b62d-cad09387af9d",
+      "id": "a3a45e4d-df4e-4ff8-9f5b-8d2185ff77fd",
       "name": "Route by Action"
     },
     {
@@ -250,10 +251,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -224,
-        96
+        -5088,
+        8096
       ],
-      "id": "b94ab404-8480-4b24-8191-f58cf89dee3d",
+      "id": "6bbb6e10-ef46-4269-b08d-b871bdb35823",
       "name": "Check POC Exists",
       "alwaysOutputData": true,
       "credentials": {
@@ -270,10 +271,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        96
+        -4864,
+        8096
       ],
-      "id": "4c0efff1-7481-4a23-a635-a0dea8027c6a",
+      "id": "4138ad19-7764-4dfd-888a-2a434ad03a46",
       "name": "Evaluate POC"
     },
     {
@@ -303,10 +304,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        432,
-        96
+        -4432,
+        8096
       ],
-      "id": "1bfa1210-6d48-48bc-b0ce-e49033770804",
+      "id": "6e769520-a3eb-431d-916e-c17dd125f3d3",
       "name": "POC Needs Create?"
     },
     {
@@ -318,10 +319,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        656,
-        16
+        -4208,
+        8016
       ],
-      "id": "e7f17664-c118-4417-a1d8-9fcc76d730bf",
+      "id": "17aa0b24-a721-479d-aaa2-001553682a48",
       "name": "Create POC",
       "credentials": {
         "postgres": {
@@ -337,10 +338,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        96
+        -3984,
+        8096
       ],
-      "id": "45fbf0d9-a892-405a-88a4-2248bdbd2752",
+      "id": "fca17cf5-5f08-4ee6-b801-e5fa54614cd3",
       "name": "Merge POC ID"
     },
     {
@@ -350,10 +351,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1104,
-        96
+        -3760,
+        8096
       ],
-      "id": "739d83ff-cb49-49fb-930d-e3ad472dd539",
+      "id": "b32a2737-4287-42b2-b588-05e6a70ecd8a",
       "name": "Build LLM Profile Request"
     },
     {
@@ -381,10 +382,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1328,
-        96
+        -3536,
+        8096
       ],
-      "id": "62d07bd0-3d2a-46ff-8a1f-292ba4782216",
+      "id": "1146a43b-5382-48dc-b04c-ebcc198ffc1f",
       "name": "LLM Call - Profile"
     },
     {
@@ -394,10 +395,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1552,
-        96
+        -3312,
+        8096
       ],
-      "id": "7447d532-aa17-4038-abcf-2c458ee96ebf",
+      "id": "bb8d4755-0342-4bca-8fd5-e56a0d553bca",
       "name": "Parse LLM + Calculate SLA"
     },
     {
@@ -409,10 +410,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1776,
-        96
+        -3088,
+        8096
       ],
-      "id": "e8036bdd-2ba8-4ece-8fe7-3e0fefe023ed",
+      "id": "3827606f-f10d-40ea-aa7a-aa930d55120c",
       "name": "Insert New Ticket",
       "credentials": {
         "postgres": {
@@ -428,10 +429,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
-        96
+        -2864,
+        8096
       ],
-      "id": "822ad64d-ae5f-450f-b553-a6f7ff80a09b",
+      "id": "06bd2155-2f28-42dc-b91d-c860ecb95dc2",
       "name": "Build Initial Thread"
     },
     {
@@ -443,10 +444,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2224,
-        96
+        -2640,
+        8096
       ],
-      "id": "067c5dad-2402-4174-b2db-39690fe5f0ec",
+      "id": "c2695aaf-5dd8-468d-accf-65dd0cd22e80",
       "name": "Insert Initial Thread",
       "credentials": {
         "postgres": {
@@ -462,10 +463,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2448,
-        96
+        -2416,
+        8096
       ],
-      "id": "03febcbb-16c4-4513-844b-0911b9f881d2",
+      "id": "b0dcb4cb-0a5a-4ce6-9003-c7f74607c5d0",
       "name": "New Ticket Done"
     },
     {
@@ -485,10 +486,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -256,
-        576
+        -5120,
+        8576
       ],
-      "id": "47e0244f-08e7-4ba8-94cf-6a8866c1f0cf",
+      "id": "043da09d-7218-41e7-bdb9-3ffdfd0ca806",
       "name": "Fetch ClickUp Comments"
     },
     {
@@ -498,10 +499,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -32,
-        576
+        -4896,
+        8576
       ],
-      "id": "1587a03e-e704-4b3a-861f-f30df74f48a5",
+      "id": "174d7d1d-5f56-47d1-a639-cf5510975c74",
       "name": "Detect Changes"
     },
     {
@@ -532,10 +533,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        192,
-        576
+        -4672,
+        8576
       ],
-      "id": "4caf5619-c6c7-4327-ba29-800d5c34e033",
+      "id": "312d7997-a49e-49f0-a6f0-ece5323145b2",
       "name": "Has Changes?"
     },
     {
@@ -545,10 +546,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        624,
-        480
+        -4240,
+        8480
       ],
-      "id": "16ca8a00-c46f-41a9-a833-b88108c2c83c",
+      "id": "f5cfee1e-c0d0-491c-8f29-a0fb6cb3645b",
       "name": "Build LLM Summary Request"
     },
     {
@@ -576,10 +577,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        848,
-        480
+        -4016,
+        8480
       ],
-      "id": "e0491e21-d4e7-42de-92ce-af5b40bd6045",
+      "id": "5936159f-e40b-4284-a28e-f217c8b10d99",
       "name": "LLM Call - Summarize",
       "retryOnFail": true
     },
@@ -590,10 +591,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1072,
-        480
+        -3792,
+        8480
       ],
-      "id": "6f485e20-6845-4af4-890d-137cd35bb480",
+      "id": "c4fd8c37-513d-40d7-b364-fca55a4be57d",
       "name": "Parse Summary + SLA Impact"
     },
     {
@@ -605,10 +606,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1296,
-        480
+        -3568,
+        8480
       ],
-      "id": "4813fef1-a186-4ea3-8a70-d394c2d1d308",
+      "id": "d7b0e64f-6897-43c9-ba79-c0dd6e9ec8e7",
       "name": "Update Existing Ticket",
       "credentials": {
         "postgres": {
@@ -624,10 +625,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        480
+        -3344,
+        8480
       ],
-      "id": "a96ee11f-9b4d-423e-a765-b133307f81b9",
+      "id": "735bc820-8dad-451c-9448-59fc2419d2e4",
       "name": "Build Update Threads"
     },
     {
@@ -639,10 +640,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1744,
-        480
+        -3120,
+        8480
       ],
-      "id": "e2d0a5a7-5b30-4b7b-8124-3bcda47945e4",
+      "id": "d2811c5d-e960-419f-8e35-495f3f607f58",
       "name": "Insert Update Threads",
       "credentials": {
         "postgres": {
@@ -658,10 +659,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1968,
-        480
+        -2896,
+        8480
       ],
-      "id": "255c0b52-7be7-4976-b52a-27af5c3c74e9",
+      "id": "3ef12e28-f769-405c-a295-2958592d89de",
       "name": "Existing Ticket Done"
     },
     {
@@ -671,10 +672,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        624,
-        672
+        -4240,
+        8672
       ],
-      "id": "e0026d38-febf-410a-a14c-4fdb96a15f6a",
+      "id": "d0105644-3da3-48d3-b988-176e0e375fd7",
       "name": "Skip No Changes"
     },
     {
@@ -686,10 +687,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -304,
-        1056
+        -5168,
+        9056
       ],
-      "id": "7bbf011e-1212-4530-9935-42d4c577302c",
+      "id": "f84fd4cf-c5d5-4e93-8123-102562605ae1",
       "name": "Soft Delete Ticket",
       "credentials": {
         "postgres": {
@@ -705,10 +706,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -80,
-        1056
+        -4944,
+        9056
       ],
-      "id": "88d497ea-7a8f-4346-aaf8-f9babc571e3e",
+      "id": "b4a3ba3b-b0ce-4379-bbc7-9ee57df899da",
       "name": "Delete Done"
     },
     {
@@ -718,10 +719,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -304,
-        1312
+        -5168,
+        9312
       ],
-      "id": "6aa2ae20-86bf-462e-be01-8bf0c37ca5b8",
+      "id": "7686d527-7fce-4b81-be1f-48ac7fe02bf0",
       "name": "No-Op"
     },
     {
@@ -729,10 +730,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        2976,
-        688
+        -1888,
+        8688
       ],
-      "id": "78b001cc-1c67-4d4a-af53-c67bebb5952b",
+      "id": "e8c25efd-c1be-46df-83be-dde256d516d4",
       "name": "Merge All Paths"
     },
     {
@@ -742,10 +743,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3200,
-        688
+        -1664,
+        8688
       ],
-      "id": "34e871e1-4eed-42c3-9302-6c1d84c11344",
+      "id": "e98e66c1-b0ef-4b5e-9423-6a7cccb7d2ac",
       "name": "Continue Loop"
     },
     {
@@ -757,10 +758,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        640,
-        -816
+        -4224,
+        7184
       ],
-      "id": "755f3fe9-0e9a-4482-a7cc-2d04bdbc9638",
+      "id": "1c733aa1-dfad-46ea-a5b1-d015193d33c7",
       "name": "Fetch Active Tickets for SLA",
       "credentials": {
         "postgres": {
@@ -776,10 +777,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
-        -832
+        -3808,
+        7168
       ],
-      "id": "3e25ca30-34f2-4ab0-865b-4212c286b91b",
+      "id": "7a99336e-f01e-44cd-abc5-097270887ea7",
       "name": "Calculate SLA Consumption"
     },
     {
@@ -791,10 +792,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1504,
-        -752
+        -3360,
+        7248
       ],
-      "id": "974ee41b-f19a-47d6-a80e-e06e2a543367",
+      "id": "eff082aa-24c7-4d3e-840f-c7fb0729e692",
       "name": "Update SLA Status",
       "credentials": {
         "postgres": {
@@ -841,10 +842,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1728,
-        -832
+        -3136,
+        7168
       ],
-      "id": "9d1ce48d-76bf-46af-afec-dc11d0e89634",
+      "id": "0264f014-c869-4f4d-b6d3-6a174c5e6503",
       "name": "Needs Escalation?"
     },
     {
@@ -856,10 +857,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1952,
-        -896
+        -2912,
+        7104
       ],
-      "id": "8a3e4a56-550d-40fe-aa0e-b7f16bfb1390",
+      "id": "04228fd2-ab5b-4d37-8c86-9def3df0d280",
       "name": "Get Escalation Recipients",
       "credentials": {
         "postgres": {
@@ -877,10 +878,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2176,
-        -896
+        -2688,
+        7104
       ],
-      "id": "f88d8221-bff2-4fce-8d50-31acaaf15d2e",
+      "id": "fa835651-5728-4ddd-a718-56cf6e57f665",
       "name": "Insert SLA Alert",
       "credentials": {
         "postgres": {
@@ -898,10 +899,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        3520,
-        -896
+        -1344,
+        7104
       ],
-      "id": "173a9b04-f678-4d73-9d82-1d359e85a175",
+      "id": "5a38eff4-6eca-4d7a-aa4a-e35434f2210a",
       "name": "Log Workflow Run",
       "credentials": {
         "postgres": {
@@ -917,10 +918,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1808,
-        208
+        -6672,
+        8208
       ],
-      "id": "ac033f6d-84bb-40a7-802f-ef0e4bdd21ff",
+      "id": "7522fe4c-5cb7-4656-9774-1a501cdbdc98",
       "name": "Merge Configs"
     },
     {
@@ -930,10 +931,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2480,
-        208
+        -7344,
+        8208
       ],
-      "id": "8a33c574-5e3b-4b1b-8b48-9957a2608655",
+      "id": "f0bee05e-74c6-40ff-a9fa-5d8a894f3639",
       "name": "Merge DB Tickets"
     },
     {
@@ -943,10 +944,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        864,
-        -816
+        -4000,
+        7184
       ],
-      "id": "b5056d2a-b616-4965-828a-ab36d6e3ee9c",
+      "id": "4417eecd-bef4-4c89-a762-0a132f79af52",
       "name": "For each Ticket"
     },
     {
@@ -956,10 +957,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
-        -816
+        -4448,
+        7184
       ],
-      "id": "2cffc36d-1c40-4554-99b0-c656392b8449",
+      "id": "a47114e4-5c6b-4d3b-b381-ed012094e4ff",
       "name": "Merge all in 1 item"
     },
     {
@@ -969,10 +970,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3744,
-        -896
+        -1120,
+        7104
       ],
-      "id": "e450f152-0242-44ec-864e-0dcf50168bea",
+      "id": "d5d085f1-92cb-4ed2-9381-5fed88a468a0",
       "name": "Code in JavaScript"
     },
     {
@@ -1003,10 +1004,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1280,
-        -832
+        -3584,
+        7168
       ],
-      "id": "9db26fb7-5fd2-4f88-a858-6eb2aa41d188",
+      "id": "3f4b7403-add7-454e-92ed-4bd0ca819499",
       "name": "processed_tickets is empty?"
     },
     {
@@ -1018,11 +1019,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -288,
-        -1136
+        -5152,
+        6864
       ],
       "typeVersion": 1,
-      "id": "54d08226-cbf4-47a3-ba15-96e4e734f138",
+      "id": "f9e23d69-1085-4724-bc3d-6de70715c5c2",
       "name": "Sticky Note"
     },
     {
@@ -1034,11 +1035,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        -176
+        -5200,
+        7824
       ],
       "typeVersion": 1,
-      "id": "2d868b90-0fed-46ad-9626-54015eaebe29",
+      "id": "54447370-2a52-466e-bbd8-b965a0f0a8aa",
       "name": "Sticky Note1"
     },
     {
@@ -1050,11 +1051,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        384
+        -5200,
+        8384
       ],
       "typeVersion": 1,
-      "id": "9f73f2c6-935a-4172-8a6d-eddba3e04d5b",
+      "id": "e64913c1-97dd-409c-b571-88d17c3f4f07",
       "name": "Sticky Note2"
     },
     {
@@ -1066,11 +1067,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        960
+        -5200,
+        8960
       ],
       "typeVersion": 1,
-      "id": "9fcb1679-2a8f-4ca5-99ae-190e416170bd",
+      "id": "fd662af3-736d-4930-ab81-ba7b3b9e0ffa",
       "name": "Sticky Note3"
     },
     {
@@ -1080,10 +1081,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2400,
-        -896
+        -2464,
+        7104
       ],
-      "id": "010c1c00-d7e6-4462-9270-f33be30f9470",
+      "id": "b8f3c6e3-72ef-4cc4-8a68-535234976a61",
       "name": "Build Escalation Notification"
     },
     {
@@ -1114,10 +1115,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2624,
-        -896
+        -2240,
+        7104
       ],
-      "id": "c5f2812f-277f-49bf-a588-60898a6c033c",
+      "id": "055eecc7-e2df-4b02-864f-0789cb677b93",
       "name": "Skip Check"
     },
     {
@@ -1145,10 +1146,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2848,
-        -896
+        -2016,
+        7104
       ],
-      "id": "4516f450-4507-409f-9048-3cfbb1e971cc",
+      "id": "dd59ed3f-7552-462a-804f-4b69c0ac82b1",
       "name": "Post ClickUp Escalation Comment"
     },
     {
@@ -1176,10 +1177,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        3088,
-        -912
+        -1776,
+        7088
       ],
-      "id": "532277e0-089f-4cdb-96a3-7f32bd97207b",
+      "id": "c67f5884-7b77-48d2-81d9-3307202bec2f",
       "name": "Add Escalation Assignees"
     },
     {
@@ -1191,10 +1192,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3296,
-        -896
+        -1568,
+        7104
       ],
-      "id": "80e2070f-e4ec-42d9-b0fd-7e0d04f71479",
+      "id": "3c143780-a023-409e-8b2b-ef08bdd825aa",
       "name": "Insert Escalation Thread",
       "credentials": {
         "postgres": {
@@ -1212,254 +1213,12 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -2960,
-        320
+        -7824,
+        8320
       ],
-      "id": "538386fb-5211-40be-8775-e963e6b9b6e4",
+      "id": "bcddedbb-1cd4-4b32-83bf-f492c9c53a5f",
       "name": "Webhook",
       "webhookId": "b266d8ec-93fd-45d8-b9a8-8004d888d438"
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 1
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -2896,
-        -48
-      ],
-      "id": "58d39121-0728-46aa-b7cb-829424a36b0d",
-      "name": "Every 1 Minute"
-    },
-    {
-      "parameters": {
-        "url": "={{ $('Code in JavaScript1').item.json.attachments[0].href }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Zoho-oauthtoken {{$node[\"Get Access Token\"].json[\"access_token\"]}}"
-            },
-            {
-              "name": "orgId",
-              "value": "845062863"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        -1424,
-        -1760
-      ],
-      "id": "ca81fb10-5cc3-442b-b878-f225c4abe1e1",
-      "name": "HTTP Request1"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://accounts.zoho.com/oauth/v2/token",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "grant_type",
-              "value": "refresh_token"
-            },
-            {
-              "name": "client_id",
-              "value": "1000.F1CPCDZEHTIHGMEDFW0HNMDOFAO5VR"
-            },
-            {
-              "name": "client_secret",
-              "value": "72e7d3c5f863610f24ed71e94ebb31f9c1e34bad96"
-            },
-            {
-              "name": "refresh_token",
-              "value": "1000.ca4b77087cb39ba85e2b786aee9c1e93.058b0fa9d570713b56aaba6135950aba"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        -1648,
-        -1760
-      ],
-      "id": "042d0dc8-d0fb-4158-926b-5d0f48f6cf8d",
-      "name": "Get Access Token"
-    },
-    {
-      "parameters": {
-        "team": "7542143",
-        "space": "90126395854",
-        "folderless": true,
-        "list": "=901215777514",
-        "name": "=ticketNo-{{ $json.ticketNumber }}",
-        "additionalFields": {
-          "assignees": [
-            87796566
-          ],
-          "content": "=Ticket raised by: \nFirst name : {{ $json.contact.firstName }}\nLast name : {{ $json.contact.lastName }}\nEmail : {{ $json.contact.email }}\nDomain : {{ $json.contact.domain }}\n\n\nEmail subject : {{ $json.subject }}\nEmail content : {{ $json.firstThread.summary }}\n\nAttachment: [{{ $('Code in JavaScript1').item.json.attachments[0].name }}]({{ $('Code in JavaScript1').item.json.attachments[0].href }})\n\n"
-        }
-      },
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [
-        -976,
-        -1616
-      ],
-      "id": "bdba6d03-6fa8-4890-afb3-8ac6e99bf773",
-      "name": "Create a task",
-      "credentials": {
-        "clickUpApi": {
-          "id": "5VevQKcx1sszQZiG",
-          "name": "ClickUp account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "combineBy": "combineAll",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
-      "position": [
-        -1200,
-        -1696
-      ],
-      "id": "012e8d69-0bfc-4f98-a8f1-0e93c75898fd",
-      "name": "Merge"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "1dab27c8-8cdb-48d5-be76-1e19b4de95b2",
-              "leftValue": "={{ $json.firstThread.hasAttach }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -1872,
-        -1616
-      ],
-      "id": "b8b2f9de-6c05-49c1-9e46-8e6d846cf538",
-      "name": "If Attachment exists"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{$json.id}}/attachment\n",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=CLICKUP_TOKEN"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "multipart-form-data",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "parameterType": "formBinaryData",
-              "name": "attachment[0]",
-              "inputDataFieldName": "data"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        -752,
-        -1616
-      ],
-      "id": "c46a13d8-eaf7-409a-ac9c-d3897eb2e333",
-      "name": "HTTP Request",
-      "disabled": true
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://logics.sgh.iohealth.com/webhook/updateDB",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        -720,
-        -1840
-      ],
-      "id": "64e20f0a-7b49-4bbc-b026-c46eae9c63ac",
-      "name": "HTTP Request5"
-    },
-    {
-      "parameters": {
-        "jsCode": "/**\n * n8n Code node (JavaScript)\n * Input: Zoho Desk webhook payload from Webhook node\n * Output: Normalized object with key ticket + contact + thread + attachments fields\n */\n\nfunction firstDefined(...vals) {\n  for (const v of vals) {\n    if (v !== undefined && v !== null && v !== \"\") return v;\n  }\n  return null;\n}\n\nfunction toIntMaybe(v) {\n  if (v === null || v === undefined) return null;\n  const n = parseInt(String(v), 10);\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction stripHtml(html) {\n  if (!html) return null;\n  return String(html)\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \" \")\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \" \")\n    .replace(/<\\/?[^>]+(>|$)/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\n// n8n provides `items` array\nconst item = items[0] || {};\nconst body = item.json?.body;\n\n// Zoho sends body as an array of events: [ { payload, eventTime, eventType, orgId } ]\nconst evt = Array.isArray(body) ? body[0] : body;\nif (!evt || !evt.payload) {\n  return [\n    {\n      json: {\n        error: \"No Zoho event payload found\",\n        raw: item.json,\n      },\n    },\n  ];\n}\n\nconst payload = evt.payload;\nconst firstThread = payload.firstThread || null;\n\n// Contact info can appear in payload.contact\nconst contact = payload.contact || {};\nconst attachments =\n  (firstThread?.attachments || payload.descAttachments || []).map((a) => ({\n    id: firstDefined(a.id, null),\n    name: firstDefined(a.name, null),\n    size: toIntMaybe(a.size),\n    href: firstDefined(a.href, a.contentUrl, null),\n    previewUrl: firstDefined(a.previewurl, a.previewUrl, null),\n  }));\n\n// Convenience fields for identity resolution\nconst requesterEmail = firstDefined(contact.email, payload.email, null);\nlet requesterDomain = null;\nif (requesterEmail && requesterEmail.includes(\"@\")) {\n  requesterDomain = requesterEmail.split(\"@\").pop().toLowerCase();\n}\n\n// Thread content: prefer summary; keep HTML too\nconst threadHtml = firstDefined(firstThread?.content, null);\nconst threadText = stripHtml(threadHtml);\nconst threadSummary = firstDefined(firstThread?.summary, threadText, null);\n\n// Main normalized output\nconst normalized = {\n  // Source / event\n  source: \"zoho_desk\",\n  eventType: firstDefined(evt.eventType, null), // e.g., Ticket_Add\n  eventTimeMs: firstDefined(evt.eventTime, null),\n  orgId: firstDefined(evt.orgId, item.json?.body?.orgId, null),\n\n  // Ticket identifiers\n  ticketId: firstDefined(payload.id, null),\n  ticketNumber: firstDefined(payload.ticketNumber, null),\n  departmentId: firstDefined(payload.departmentId, null),\n  webUrl: firstDefined(payload.webUrl, null),\n\n  // Ticket fields\n  subject: firstDefined(payload.subject, null),\n  status: firstDefined(payload.status, null),\n  statusType: firstDefined(payload.statusType, null),\n  channel: firstDefined(payload.channel, null),\n  priority: firstDefined(payload.priority, null),\n  category: firstDefined(payload.category, null),\n  subCategory: firstDefined(payload.subCategory, null),\n  classification: firstDefined(payload.classification, null),\n  sentiment: firstDefined(payload.sentiment, null),\n\n  // Times\n  createdTime: firstDefined(payload.createdTime, null),\n  modifiedTime: firstDefined(payload.modifiedTime, null),\n  closedTime: firstDefined(payload.closedTime, null),\n  dueDate: firstDefined(payload.dueDate, null),\n  responseDueDate: firstDefined(payload.responseDueDate, null),\n  customerResponseTime: firstDefined(payload.customerResponseTime, null),\n  lastActivityTime: firstDefined(payload.lastActivityTime, null),\n\n  // Contact / requester (identity resolution)\n  contact: {\n    id: firstDefined(contact.id, payload.contactId, null),\n    firstName: firstDefined(contact.firstName, null),\n    lastName: firstDefined(contact.lastName, null),\n    phone: firstDefined(contact.phone, payload.phone, null),\n    mobile: firstDefined(contact.mobile, null),\n    email: requesterEmail,\n    domain: requesterDomain,\n    isSpam: firstDefined(contact.isSpam, payload.isSpam, null),\n    type: firstDefined(contact.type, null),\n    accountId: firstDefined(payload.accountId, contact.account?.id, null),\n  },\n\n  // Assignee (if any)\n  assignee: payload.assignee\n    ? {\n        id: firstDefined(payload.assignee.id, payload.assigneeId, null),\n        firstName: firstDefined(payload.assignee.firstName, null),\n        lastName: firstDefined(payload.assignee.lastName, null),\n        email: firstDefined(payload.assignee.email, null),\n      }\n    : {\n        id: firstDefined(payload.assigneeId, null),\n        firstName: null,\n        lastName: null,\n        email: null,\n      },\n\n  // First thread (useful for summarization/triage)\n  firstThread: firstThread\n    ? {\n        id: firstDefined(firstThread.id, null),\n        ticketId: firstDefined(firstThread.ticketId, payload.id, null),\n        channel: firstDefined(firstThread.channel, null),\n        direction: firstDefined(firstThread.direction, null), // \"in\" for customer\n        visibility: firstDefined(firstThread.visibility, null),\n        createdTime: firstDefined(firstThread.createdTime, null),\n        contentType: firstDefined(firstThread.contentType, null),\n        summary: threadSummary,\n        contentHtml: threadHtml,\n        contentText: threadText,\n        hasAttach: firstDefined(firstThread.hasAttach, false),\n        attachmentCount: toIntMaybe(firstThread.attachmentCount) ?? attachments.length,\n        fromEmailAddress: firstDefined(firstThread.fromEmailAddress, null),\n        to: firstDefined(firstThread.to, null),\n        cc: firstDefined(firstThread.cc, null),\n        author: firstThread.author\n          ? {\n              id: firstDefined(firstThread.author.id, null),\n              name: firstDefined(firstThread.author.name, null),\n              email: firstDefined(firstThread.author.email, null),\n              type: firstDefined(firstThread.author.type, null),\n            }\n          : null,\n      }\n    : null,\n\n  // Custom fields (both shapes exist in Zoho payloads)\n  customFields: payload.customFields || {},\n  cf: payload.cf || {},\n\n  // Attachments (metadata + download href)\n  attachments,\n\n  // Counts\n  counts: {\n    threadCount: toIntMaybe(payload.threadCount),\n    commentCount: toIntMaybe(payload.commentCount),\n    taskCount: toIntMaybe(payload.taskCount),\n    timeEntryCount: toIntMaybe(payload.timeEntryCount),\n    followerCount: toIntMaybe(payload.followerCount),\n    approvalCount: toIntMaybe(payload.approvalCount),\n    attachmentCount: toIntMaybe(payload.attachmentCount) ?? attachments.length,\n  },\n\n  // Flags\n  flags: {\n    isOverDue: !!payload.isOverDue,\n    isResponseOverdue: !!payload.isResponseOverdue,\n    isSpam: !!payload.isSpam,\n    isEscalated: !!payload.isEscalated,\n    isTrashed: !!payload.isTrashed,\n    isArchived: !!payload.isArchived,\n    isDeleted: !!payload.isDeleted,\n  },\n\n  // Raw (optional - keep if you want audit trace; remove if too heavy)\n  // raw: {\n    // event: evt,\n  // },\n};\n\nreturn [{ json: normalized }];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -2096,
-        -1616
-      ],
-      "id": "17d90f6c-f06a-43b2-b586-61ee0abddf37",
-      "name": "Code in JavaScript1"
-    },
-    {
-      "parameters": {
-        "content": "# Pushes Zoho tickets to Clickup Space",
-        "height": 720,
-        "width": 1872,
-        "color": 3
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        -2352,
-        -2064
-      ],
-      "typeVersion": 1,
-      "id": "7b9759df-9aa2-4781-861f-4bb26da91065",
-      "name": "Sticky Note4"
     },
     {
       "parameters": {
@@ -1470,10 +1229,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        400,
-        480
+        -4464,
+        8480
       ],
-      "id": "707d404b-486b-40d0-9d28-8e15d474dd63",
+      "id": "18e79b1e-c809-454d-83b2-97d4473c7cc3",
       "name": "Fetch All Threads",
       "credentials": {
         "postgres": {
@@ -1481,8 +1240,29 @@
           "name": "Omer - Supabase"
         }
       }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -7760,
+        7952
+      ],
+      "id": "a179b1e3-a852-4861-bed7-14f4effb9732",
+      "name": "Every 6 hours"
     }
   ],
+  "pinData": {},
   "connections": {
     "Manual Trigger": {
       "main": [
@@ -2153,100 +1933,6 @@
         ]
       ]
     },
-    "Every 1 Minute": {
-      "main": [
-        [
-          {
-            "node": "Fetch DB Tickets",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request1": {
-      "main": [
-        [
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Access Token": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Create a task": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "HTTP Request5",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge": {
-      "main": [
-        [
-          {
-            "node": "Create a task",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "If Attachment exists": {
-      "main": [
-        [
-          {
-            "node": "Get Access Token",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 1
-          }
-        ],
-        [
-          {
-            "node": "Create a task",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code in JavaScript1": {
-      "main": [
-        [
-          {
-            "node": "If Attachment exists",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Fetch All Threads": {
       "main": [
         [
@@ -2257,11 +1943,28 @@
           }
         ]
       ]
+    },
+    "Every 6 hours": {
+      "main": [
+        [
+          {
+            "node": "Fetch DB Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {},
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f3dcfab9-905e-4c00-9482-39f26dd0b4af",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "e55337cd04f1eaeb9d80b3109da0b9a0ef8db1dfc622debb9291d0d8019d0fb5"
-  }
+  },
+  "id": "HzLpGcq3LQ5v95b8",
+  "tags": []
 }

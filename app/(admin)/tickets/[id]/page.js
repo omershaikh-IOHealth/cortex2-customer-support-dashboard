@@ -43,6 +43,7 @@ import {
   Flag,
   Mail,
   Send,
+  Link2,
 } from 'lucide-react'
 import { openCompanionWith } from '@/components/ui/AICompanion'
 import NewBadge from '@/components/ui/NewBadge'
@@ -114,6 +115,27 @@ function SLACountdown({ dueDate, label }) {
   )
 }
 
+/* ── Thread source badge ─────────────────────────────────────────────── */
+function ThreadSourceBadge({ thread }) {
+  const src = thread.thread_source
+  if (!src || src === 'internal') return null
+  if (src === 'clickup') {
+    return <span className="badge text-[10px] bg-blue-500/10 border-blue-500/30 text-blue-500">ClickUp</span>
+  }
+  if (src === 'zoho') {
+    return <span className="badge text-[10px] bg-emerald-500/10 border-emerald-500/30 text-emerald-500">Zoho</span>
+  }
+  if (src === 'linked_clickup_task') {
+    let taskName = ''
+    try { taskName = JSON.parse(thread.metadata || '{}').linked_task_name || '' } catch {}
+    return <span className="badge text-[10px] bg-purple-500/10 border-purple-500/30 text-purple-500">Linked{taskName ? `: ${taskName.substring(0, 20)}` : ' Task'}</span>
+  }
+  if (src === 'linked_email') {
+    return <span className="badge text-[10px] bg-orange-500/10 border-orange-500/30 text-orange-500">Linked Email</span>
+  }
+  return null
+}
+
 /* ── Main page ──────────────────────────────────────────────────────── */
 export default function TicketDetailPage() {
   const params = useParams()
@@ -156,6 +178,11 @@ export default function TicketDetailPage() {
   const [savingZohoId, setSavingZohoId] = useState(false)
   const [replyContent, setReplyContent] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkSearchQuery, setLinkSearchQuery] = useState('')
+  const [linkSearchResults, setLinkSearchResults] = useState([])
+  const [linkSearching, setLinkSearching] = useState(false)
+  const [linkingTicket, setLinkingTicket] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -188,6 +215,38 @@ export default function TicketDetailPage() {
     if (!data?.ticket) return
     const t = data.ticket
     openCompanionWith(`What is the full history of ticket ${t.clickup_task_id || `#${t.id}`}?`)
+  }
+
+  const handleLinkSearch = async (q) => {
+    if (!q.trim()) { setLinkSearchResults([]); return }
+    setLinkSearching(true)
+    try {
+      const res = await fetch(`/api/tickets?search=${encodeURIComponent(q)}&limit=10`)
+      const d = await res.json()
+      setLinkSearchResults((d.tickets || []).filter(t => String(t.id) !== String(ticketId)))
+    } catch { setLinkSearchResults([]) }
+    setLinkSearching(false)
+  }
+
+  const handleLinkAsThread = async (sourceTicketId) => {
+    setLinkingTicket(true)
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/link-as-thread`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_ticket_id: sourceTicketId }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      toast.success('Email linked as thread')
+      setShowLinkModal(false)
+      setLinkSearchQuery('')
+      setLinkSearchResults([])
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] })
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLinkingTicket(false)
+    }
   }
 
   const handleAddNote = async () => {
@@ -867,23 +926,34 @@ export default function TicketDetailPage() {
             badge={allThreads.length > 0 ? allThreads.length : undefined}
             defaultOpen={false}
             headerRight={
-              allThreads.length > 0 ? (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {isAdmin && (
                   <button
-                    onClick={() => setThreadOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                    className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium font-mono"
-                    title="Toggle sort order"
+                    onClick={() => { setShowLinkModal(true); setLinkSearchQuery(''); setLinkSearchResults([]) }}
+                    className="flex items-center gap-1 text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium"
+                    title="Link another ticket as a thread entry on this ticket"
                   >
-                    {threadOrder === 'asc' ? '↑ Oldest first' : '↓ Newest first'}
+                    <Link2 className="w-3 h-3" /> Link email
                   </button>
-                  <button
-                    onClick={() => setThreadExpanded(v => !v)}
-                    className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium"
-                  >
-                    {threadExpanded ? 'Compact' : 'Full view'}
-                  </button>
-                </div>
-              ) : null
+                )}
+                {allThreads.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setThreadOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                      className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium font-mono"
+                      title="Toggle sort order"
+                    >
+                      {threadOrder === 'asc' ? '↑ Oldest first' : '↓ Newest first'}
+                    </button>
+                    <button
+                      onClick={() => setThreadExpanded(v => !v)}
+                      className="text-[11px] text-cortex-muted hover:text-cortex-accent transition-colors font-medium"
+                    >
+                      {threadExpanded ? 'Compact' : 'Full view'}
+                    </button>
+                  </>
+                )}
+              </div>
             }
           >
             {allThreads.length === 0 ? (
@@ -895,11 +965,12 @@ export default function TicketDetailPage() {
                   return (
                     <div key={thread.id} className={`relative pl-5 pb-5 border-l-2 last:pb-0 ${isNote ? 'border-amber-500/40' : 'border-cortex-border'}`}>
                       <div className={`absolute left-0 top-1 w-2 h-2 -translate-x-[5px] rounded-full ${isNote ? 'bg-amber-500' : 'bg-cortex-accent'}`} />
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-sm font-semibold">{thread.actor_name || 'System'}</span>
                         <span className={`badge text-[10px] ${isNote ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cortex-bg border border-cortex-border text-cortex-muted'}`}>
                           {thread.action_type?.replace(/_/g, ' ')}
                         </span>
+                        <ThreadSourceBadge thread={thread} />
                         <span className="text-[11px] text-cortex-muted font-mono ml-auto">{formatRelativeTime(thread.created_at)}</span>
                       </div>
                       {thread.raw_content && (
@@ -928,6 +999,7 @@ export default function TicketDetailPage() {
                       <span className={`badge text-[10px] flex-shrink-0 ${isNote ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cortex-bg border border-cortex-border text-cortex-muted'}`}>
                         {thread.action_type?.replace(/_/g, ' ')}
                       </span>
+                      <ThreadSourceBadge thread={thread} />
                       {thread.raw_content && (
                         <span className="text-cortex-muted flex-1 truncate hidden sm:block">{thread.raw_content}</span>
                       )}
@@ -1292,6 +1364,60 @@ export default function TicketDetailPage() {
                 {flagging ? 'Flagging…' : 'Flag for QA'}
               </button>
               <button onClick={() => setShowFlagModal(false)} className="btn-secondary px-5">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Link email as thread modal ── */}
+    {showLinkModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-cortex-surface border border-cortex-border rounded-2xl shadow-2xl w-full max-w-lg animate-slide-in">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border">
+            <h2 className="font-display font-bold text-cortex-text flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-cortex-accent" /> Link Email as Thread
+            </h2>
+            <button onClick={() => setShowLinkModal(false)} className="p-1.5 hover:bg-cortex-surface-raised rounded-lg text-cortex-muted hover:text-cortex-text transition-colors">
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <p className="text-xs text-cortex-muted">Search for a ticket whose content you want to link as a thread entry on this ticket. The source ticket will not be deleted.</p>
+            <input
+              type="text"
+              placeholder="Search by ticket title or ID…"
+              value={linkSearchQuery}
+              onChange={e => { setLinkSearchQuery(e.target.value); handleLinkSearch(e.target.value) }}
+              className="input text-sm"
+              autoFocus
+            />
+            {linkSearching && <p className="text-xs text-cortex-muted text-center py-2">Searching…</p>}
+            {!linkSearching && linkSearchResults.length > 0 && (
+              <div className="border border-cortex-border rounded-xl overflow-hidden divide-y divide-cortex-border/40 max-h-56 overflow-y-auto">
+                {linkSearchResults.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleLinkAsThread(t.id)}
+                    disabled={linkingTicket}
+                    className="w-full text-left px-4 py-3 hover:bg-cortex-surface-raised transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-cortex-text truncate">#{t.id} — {t.title}</p>
+                        <p className="text-[10px] text-cortex-muted mt-0.5">{t.channel} · {t.status} · {formatRelativeTime(t.created_at)}</p>
+                      </div>
+                      <span className={`badge text-[10px] flex-shrink-0 ${getPriorityColor(t.priority)}`}>{t.priority}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!linkSearching && linkSearchQuery.trim() && linkSearchResults.length === 0 && (
+              <p className="text-xs text-cortex-muted text-center py-2">No tickets found</p>
+            )}
+            <div className="flex justify-end pt-1">
+              <button onClick={() => setShowLinkModal(false)} className="btn-secondary px-5">Cancel</button>
             </div>
           </div>
         </div>

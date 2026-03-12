@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { getEscalations } from '@/lib/api'
+import { useCompany } from '@/context/CompanyContext'
 import Link from 'next/link'
 import { getEscalationLevelColor, formatDate, formatRelativeTime } from '@/lib/utils'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
@@ -14,9 +15,10 @@ const LEVEL_CONFIG = [
 ]
 
 export default function EscalationsPage() {
+  const { company } = useCompany()
   const { data: escalations, isLoading } = useQuery({
-    queryKey: ['escalations'],
-    queryFn: getEscalations,
+    queryKey: ['escalations', company],
+    queryFn: () => getEscalations(company),
     refetchInterval: 30000,
   })
 

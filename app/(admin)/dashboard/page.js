@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets, getAHTMetrics, getFCRMetrics, getQueueStats } from '@/lib/api'
+import { useCompany } from '@/context/CompanyContext'
 import MetricCard from '@/components/ui/MetricCard'
 import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target, Phone, Users, Timer, PhoneMissed } from 'lucide-react'
 import NewBadge from '@/components/ui/NewBadge'
@@ -37,24 +38,26 @@ function StatusDot({ status }) {
 }
 
 export default function DashboardPage() {
+  const { company } = useCompany()
+
   const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['overview-metrics'],
-    queryFn: getOverviewMetrics,
+    queryKey: ['overview-metrics', company],
+    queryFn: () => getOverviewMetrics(company),
     refetchInterval: 30000,
   })
   const { data: criticalSLA, isLoading: slaLoading } = useQuery({
-    queryKey: ['critical-sla'],
-    queryFn: getCriticalSLA,
+    queryKey: ['critical-sla', company],
+    queryFn: () => getCriticalSLA(company),
     refetchInterval: 30000,
   })
   const { data: recentEscalations } = useQuery({
-    queryKey: ['escalations'],
-    queryFn: getEscalations,
+    queryKey: ['escalations', company],
+    queryFn: () => getEscalations(company),
     refetchInterval: 30000,
   })
   const { data: recentTickets } = useQuery({
-    queryKey: ['recent-tickets'],
-    queryFn: () => getTickets({ limit: 8 }),
+    queryKey: ['recent-tickets', company],
+    queryFn: () => getTickets({ limit: 8, company }),
     refetchInterval: 30000,
   })
   const { data: healthData } = useQuery({

@@ -74,7 +74,13 @@ export async function POST(request) {
     )
     const ticket = result.rows[0]
 
-    // 2. Push to ClickUp (non-blocking — skip if push_to_clickup is false, e.g. FCR tickets)
+    // 2. Push to ClickUp (non-blocking)
+    // FCR gate: callers must set push_to_clickup=false for FCR call tickets.
+    //   FCR call (First-Contact Resolution) → no ClickUp task (ticket closed immediately, no follow-up needed).
+    //   Non-FCR call or any other channel → push_to_clickup defaults to true → task created in ClickUp.
+    // Example agent usage:
+    //   FCR:     POST /api/tickets { channel:'call', push_to_clickup: false }
+    //   Non-FCR: POST /api/tickets { channel:'call', push_to_clickup: true  }  ← default
     if (push_to_clickup) {
       const cu = await createClickUpTask(ticket)
       if (cu?.clickup_task_id) {
@@ -108,11 +114,14 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    const company_code = searchParams.get('company') || 'medgulf'
     const params = []
-    const conditions = [
-      "t.company_id = (SELECT id FROM main.companies WHERE company_code = 'medgulf' LIMIT 1)",
-      "(t.is_deleted = false OR t.is_deleted IS NULL)",
-    ]
+    const conditions = ["(t.is_deleted = false OR t.is_deleted IS NULL)"]
+
+    if (company_code !== 'all') {
+      params.push(company_code)
+      conditions.push(`t.company_id = (SELECT id FROM main.companies WHERE company_code = $${params.length} LIMIT 1)`)
+    }
 
     if (status) {
       params.push(status)

@@ -6,15 +6,15 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -3424,
-        80
+        -8288,
+        8080
       ],
-      "id": "b38adc64-d533-4f38-a622-0bc0852c2e39",
+      "id": "d63b6e50-fb4c-411e-ad63-e69e9cb3221f",
       "name": "Manual Trigger"
     },
     {
       "parameters": {
-        "url": "=https://api.clickup.com/api/v2/list/901215777514/task",
+        "url": "=https://api.clickup.com/api/v2/list/{{ $('Fetch Solution Config').first().json.clickup_list_id }}/task",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -50,26 +50,26 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -1584,
-        208
+        -6448,
+        8208
       ],
-      "id": "07588763-b4e5-4fe1-a2be-7385fea57e18",
+      "id": "8dfada1b-7b1e-48a4-8ac8-c139210b7e2a",
       "name": "Fetch ClickUp Tasks",
       "notes": "GET all tasks from MedGulf Customer Feedback list. Replace CLICKUP_LIST_ID with actual list ID."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  t.id AS ticket_id, \n  t.clickup_task_id, \n  t.status, \n  t.priority, \n  t.title,\n  t.updated_at, \n  (SELECT COUNT(*) FROM main.threads th_count WHERE th_count.ticket_id = t.id) AS thread_count,\n  t.sla_consumption_pct, \n  t.escalation_level,\n  t.sla_status, \n  t.sla_paused_at, \n  t.sla_paused_duration,\n  t.sla_response_due, \n  t.sla_resolution_due,\n  t.created_at, \n  t.is_deleted,\n  COALESCE(t.clickup_thread_count, 0) AS clickup_thread_count,\n  COALESCE(\n    (SELECT json_agg(th.clickup_history_id) \n     FROM main.threads th \n     WHERE th.ticket_id = t.id AND th.clickup_history_id IS NOT NULL),\n    '[]'::json\n  ) AS existing_thread_ids\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE c.company_code = 'medgulf'\n  AND (t.is_deleted = false OR t.is_deleted IS NULL);",
+        "query": "SELECT \n  t.id AS ticket_id, \n  t.clickup_task_id, \n  t.status, \n  t.priority, \n  t.title,\n  t.updated_at, \n  (SELECT COUNT(*) FROM main.threads th_count WHERE th_count.ticket_id = t.id) AS thread_count,\n  t.sla_consumption_pct, \n  t.escalation_level,\n  t.sla_status, \n  t.sla_paused_at, \n  t.sla_paused_duration,\n  t.sla_response_due, \n  t.sla_resolution_due,\n  t.created_at, \n  t.is_deleted,\n  COALESCE(\n    (SELECT json_agg(th.clickup_history_id) \n     FROM main.threads th \n     WHERE th.ticket_id = t.id AND th.clickup_history_id IS NOT NULL),\n    '[]'::json\n  ) AS existing_thread_ids\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE c.company_code = 'medgulf'\n  AND (t.is_deleted = false OR t.is_deleted IS NULL);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2704,
-        208
+        -7568,
+        8208
       ],
-      "id": "c28120b8-3c9d-4690-b8ff-29fac68efb7b",
+      "id": "7c69bf6a-d788-4f4a-9e5f-70622dd81903",
       "name": "Fetch DB Tickets",
       "alwaysOutputData": true,
       "credentials": {
@@ -88,10 +88,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2256,
-        208
+        -7120,
+        8208
       ],
-      "id": "629fb14e-82a7-44d3-a58e-3fce584e4ef3",
+      "id": "ca915b95-91d9-47f7-82ab-7e1c8cd5302a",
       "name": "Fetch Solution Config",
       "alwaysOutputData": true,
       "credentials": {
@@ -110,10 +110,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2032,
-        208
+        -6896,
+        8208
       ],
-      "id": "f435ccbc-5b30-42b7-bbcf-7cd46c2e89aa",
+      "id": "91bfbeec-008b-46b6-852e-4aa4f2a6d967",
       "name": "Fetch SLA Configs",
       "alwaysOutputData": true,
       "credentials": {
@@ -125,15 +125,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const clickupRaw = $('Fetch ClickUp Tasks').first().json;\nconst clickupTasks = clickupRaw.tasks || [];\nconst dbTickets = $('Merge DB Tickets').first().json._db_tickets;\nconst merged = $('Merge Configs').first().json;\nconst solutionConfig = merged._solution_config;\nconst slaConfigs = merged._sla_configs;\n\nconst dbMap = {};\nfor (const t of dbTickets) {\n  if (t.clickup_task_id) dbMap[t.clickup_task_id] = t;\n}\nconst clickupIds = new Set(clickupTasks.map(t => t.id));\nconst results = [];\n\n// Status groups\nconst CLOSED_STATUSES = ['closed', 'resolved', 'complete', 'rejected', 'done'];\nconst PAUSED_STATUSES = ['on hold', 'blocked', 'on_hold'];\n\nfor (const task of clickupTasks) {\n  const existing = dbMap[task.id];\n\n  // Extract custom fields as name→value map\n  const customFields = {};\n  if (task.custom_fields) {\n    for (const cf of task.custom_fields) {\n      const fieldName = cf.name?.toLowerCase()?.replace(/\\s+/g, '_');\n      let fieldValue = null;\n      if (cf.type === 'drop_down' && cf.type_config?.options && cf.value !== undefined && cf.value !== null) {\n        const option = cf.type_config.options.find(o => o.orderindex === cf.value);\n        fieldValue = option?.name || null;\n      } else if (cf.type === 'number') {\n        fieldValue = cf.value != null ? String(cf.value) : null;\n      } else {\n        fieldValue = cf.value || null;\n      }\n      if (fieldName) customFields[fieldName] = fieldValue;\n    }\n  }\n\n  // Priority mapping: ClickUp → P1-P5\n  let priority = 'P3';\n  if (task.priority) {\n    const pMap = { 'urgent': 'P1', 'high': 'P2', 'normal': 'P3', 'low': 'P4' };\n    priority = pMap[task.priority?.priority?.toLowerCase()] || 'P3';\n  } else {\n    priority = 'P5'; // No priority = Very Low\n  }\n\n  const statusRaw = task.status?.status || 'open';\n  const statusLower = statusRaw.toLowerCase();\n\n  const taskData = {\n    clickup_task_id: task.id,\n    clickup_url: task.url,\n    title: task.name || 'Untitled',\n    description: (task.description || '').substring(0, 5000),\n    status: statusRaw,\n    status_type: task.status?.type || null,\n    priority: priority,\n    _is_closed_status: CLOSED_STATUSES.includes(statusLower),\n    _is_paused_status: PAUSED_STATUSES.includes(statusLower),\n    module: customFields.module || null,\n    operating_system: customFields.operating_system || null,\n    mobile_or_national_id: customFields.patient_identifier || null,\n    request_type_clickup: customFields.request_type || null,\n    case_type_clickup: customFields.case_type || null,\n    created_at: task.date_created ? new Date(parseInt(task.date_created)).toISOString() : new Date().toISOString(),\n    updated_at: task.date_updated ? new Date(parseInt(task.date_updated)).toISOString() : new Date().toISOString(),\n    closed_at: task.date_closed ? new Date(parseInt(task.date_closed)).toISOString() : null,\n    created_by_email: task.creator?.email || null,\n    created_by_name: task.creator?.username || null,\n    comment_count: parseInt(task.comment_count) || 0,\n    assignees: task.assignees || [],\n    tags: task.tags?.map(tg => tg.name) || [],\n    custom_fields: customFields,\n    _solution_id: solutionConfig.solution_id,\n    _company_id: solutionConfig.company_id,\n    _company_domain: solutionConfig.domain,\n    _sla_configs: slaConfigs,\n    _solution_config: solutionConfig\n  };\n\n  if (!existing) {\n    results.push({ json: { ...taskData, _sync_action: 'NEW' } });\n  } else {\n    // Thread count optimization: skip ClickUp comment fetch if nothing changed\n    const cuCommentCount = parseInt(task.comment_count) || 0;\n    const dbThreadCount = parseInt(existing.clickup_thread_count) || 0;\n    const skipThreads = cuCommentCount === dbThreadCount && !(cuUp > exUp);\n\n    const changes = [];\n    if (existing.status?.toLowerCase() !== statusLower) changes.push('status');\n    if (existing.priority !== taskData.priority) changes.push('priority');\n    if (existing.title !== taskData.title) changes.push('title');\n    const exUp = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;\n    const cuUp = new Date(taskData.updated_at).getTime();\n    if (cuUp > exUp) changes.push('updated_at');\n\n    results.push({\n      json: {\n        ...taskData,\n        _sync_action: 'EXISTS',\n        _db_ticket_id: existing.ticket_id,\n        _has_changes: changes.length > 0,\n        _changed_fields: changes,\n        _existing_thread_ids: existing.existing_thread_ids || [],\n        _existing_priority: existing.priority,\n        _existing_sla_status: existing.sla_status,\n        _existing_escalation_level: existing.escalation_level,\n        _existing_sla_consumption_pct: existing.sla_consumption_pct,\n        _existing_sla_response_due: existing.sla_response_due,\n        _existing_sla_resolution_due: existing.sla_resolution_due,\n        _existing_sla_paused_at: existing.sla_paused_at,\n        _existing_sla_paused_duration: existing.sla_paused_duration,\n        _skip_threads: skipThreads,\n        _db_comment_count: dbThreadCount,\n        _cu_comment_count: cuCommentCount\n      }\n    });\n  }\n}\n\n// Deleted tickets\nfor (const db of dbTickets) {\n  if (db.clickup_task_id && !clickupIds.has(db.clickup_task_id)) {\n    results.push({\n      json: {\n        _sync_action: 'DELETED',\n        _db_ticket_id: db.ticket_id,\n        clickup_task_id: db.clickup_task_id,\n        title: db.title\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { _sync_action: 'NONE', message: 'No tickets to process' } }];\n}\nreturn results;"
+        "jsCode": "const pagedData = $('Paginate All Solutions').first().json;\nconst allTasks = pagedData._all_tasks || [];\nconst listMeta = pagedData._list_meta || {};\n\nconst dbAll = $('Merge DB Tickets').first().json._db_tickets || [];\nconst merged = $('Merge Configs').first().json;\nconst solutionFieldConfigs = merged._solution_field_configs || {};\nconst slaBySolution = merged._sla_by_solution || {};\nconst solutionByListId = merged._solution_by_list_id || {};\nconst solutionById = merged._solution_by_id || {};\n\n// DB lookup maps\nconst dbByClickupId = {};\nconst dbByTicketId = {};\nfor (const t of dbAll) {\n  if (t.clickup_task_id) dbByClickupId[t.clickup_task_id] = t;\n  dbByTicketId[t.ticket_id] = t;\n}\n\nconst clickupIdSet = new Set(allTasks.map(t => t.id));\nconst CLOSED_STATUSES = new Set(['closed','resolved','complete','rejected','done']);\nconst PAUSED_STATUSES = new Set(['on hold','on_hold','pending customer','blocked']);\nconst PMAP = { urgent:'P1', high:'P2', normal:'P3', low:'P4' };\n\nconst results = [];\n\n// \u2500\u2500 PASS 1: ClickUp tasks \u2500\u2500\nfor (const task of allTasks) {\n  const listId = task._source_list_id || task.list?.id;\n  const solution = solutionByListId[listId] || Object.values(solutionById)[0];\n  const fieldConfig = solutionFieldConfigs[solution?.solution_id] || {};\n\n  // Extract custom field values by name\n  const cf = {};\n  for (const f of (task.custom_fields || [])) {\n    let val = null;\n    if (f.type === 'drop_down' && f.value != null && f.type_config?.options) {\n      val = f.type_config.options.find(o => o.orderindex === f.value)?.name || null;\n    } else {\n      val = f.value ?? null;\n    }\n    if (f.name) cf[f.name] = val;\n  }\n\n  const priority = task.priority?.priority\n    ? (PMAP[task.priority.priority.toLowerCase()] || 'P3') : 'P3';\n  const statusRaw = task.status?.status || 'open';\n  const statusLower = statusRaw.toLowerCase();\n\n  const base = {\n    clickup_task_id: task.id,\n    clickup_url: task.url,\n    title: task.name || 'Untitled',\n    description: (task.description || '').substring(0, 5000),\n    status: statusRaw,\n    priority,\n    module: cf['Module'] || cf['module'] || null,\n    request_type: cf['Request Type'] || cf['request_type'] || null,\n    case_type: cf['Case Type'] || cf['case_type'] || null,\n    channel: cf['Source'] || cf['source'] || 'clickup',\n    is_closed: CLOSED_STATUSES.has(statusLower),\n    is_paused: PAUSED_STATUSES.has(statusLower),\n    parent_clickup_task_id: task.parent || null,\n    _solution_id: solution?.solution_id,\n    _list_id: listId,\n    _field_config: fieldConfig,\n    _sla_config: slaBySolution[solution?.solution_id] || {},\n    _business_hours_start: solution?.business_hours_start || '08:00',\n    _business_hours_end: solution?.business_hours_end || '20:00',\n    _timezone: solution?.timezone || 'Asia/Dubai',\n    _working_days: solution?.working_days || [0,1,2,3,4,5,6],\n  };\n\n  const existing = dbByClickupId[task.id];\n  if (!existing) {\n    results.push({ json: { ...base, _action: 'NEW', _db_ticket_id: null } });\n  } else {\n    const changed = [];\n    if ((existing.status||'').toLowerCase() !== statusLower) changed.push('status');\n    if (existing.priority !== priority) changed.push('priority');\n    if ((existing.title||'') !== (task.name||'')) changed.push('title');\n    if (existing.module !== base.module) changed.push('module');\n    if (existing.request_type !== base.request_type) changed.push('request_type');\n    if (existing.case_type !== base.case_type) changed.push('case_type');\n\n    results.push({ json: {\n      ...base,\n      _action: changed.length > 0 ? 'EXISTS' : 'SKIP',\n      _db_ticket_id: existing.ticket_id,\n      _changed_fields: changed,\n      _poc_id: existing.poc_id,\n      _sla_response_due: existing.sla_response_due,\n      _sla_resolution_due: existing.sla_resolution_due,\n      _sla_paused_at: existing.sla_paused_at,\n      _sla_paused_duration: existing.sla_paused_duration || 0,\n      _existing_escalation_level: existing.escalation_level || 0,\n      _response_hours: existing.response_hours,\n      _resolution_hours: existing.resolution_hours,\n    }});\n  }\n}\n\n// \u2500\u2500 PASS 2: DB-only tickets (no clickup_task_id, or task vanished from ClickUp) \u2500\u2500\nfor (const t of dbAll) {\n  if (t.is_deleted) continue;\n  if (t.clickup_task_id && clickupIdSet.has(t.clickup_task_id)) continue; // handled above\n\n  if (t.clickup_task_id && !clickupIdSet.has(t.clickup_task_id)) {\n    // Task deleted in ClickUp\n    results.push({ json: { ...t, _action: 'DELETED', _db_ticket_id: t.ticket_id } });\n    continue;\n  }\n\n  // No clickup_task_id \u2192 push to ClickUp\n  const solution = solutionById[t.solution_id];\n  if (!solution) continue;\n  const fieldConfig = solutionFieldConfigs[t.solution_id] || {};\n  const slaConfig = slaBySolution[t.solution_id]?.[t.priority] || {};\n  results.push({ json: {\n    ...t,\n    _action: 'DB_ONLY',\n    _db_ticket_id: t.ticket_id,\n    _solution_id: t.solution_id,\n    _list_id: solution.clickup_list_id,\n    _field_config: fieldConfig,\n    _business_hours_start: solution.business_hours_start || '08:00',\n    _business_hours_end: solution.business_hours_end || '20:00',\n    _timezone: solution.timezone || 'Asia/Dubai',\n    _response_hours: slaConfig.response_hours || 8,\n    _resolution_hours: slaConfig.resolution_hours || 24,\n  }});\n}\n\nreturn results.length > 0 ? results : [{ json: { _action: 'NOOP' } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1360,
-        208
+        -6224,
+        8208
       ],
-      "id": "1a7d58ae-3095-41f2-961c-dd400030281c",
+      "id": "65c81a1f-6e1b-4f1b-a0ac-e169eef807b0",
       "name": "Compare & Classify"
     },
     {
@@ -143,10 +143,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -1136,
-        208
+        -6000,
+        8208
       ],
-      "id": "b3893b12-4868-4a91-b45e-1aecbfac81c0",
+      "id": "6b0b1530-4303-47d7-b381-6ba44f1fd19e",
       "name": "Loop Each Ticket"
     },
     {
@@ -226,6 +226,30 @@
               },
               "renameOutput": true,
               "outputKey": "Deleted Ticket"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d100e3d6-5a02-4628-a90d-76d2c626af05",
+                    "leftValue": "={{ $json._action }}",
+                    "rightValue": "DB_ONLY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DB_ONLY"
             }
           ]
         },
@@ -236,10 +260,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -912,
-        176
+        -5776,
+        8176
       ],
-      "id": "7c3f2d07-c942-48cf-b62d-cad09387af9d",
+      "id": "a3a45e4d-df4e-4ff8-9f5b-8d2185ff77fd",
       "name": "Route by Action"
     },
     {
@@ -251,10 +275,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -224,
-        96
+        -5088,
+        8096
       ],
-      "id": "b94ab404-8480-4b24-8191-f58cf89dee3d",
+      "id": "6bbb6e10-ef46-4269-b08d-b871bdb35823",
       "name": "Check POC Exists",
       "alwaysOutputData": true,
       "credentials": {
@@ -271,10 +295,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        96
+        -4864,
+        8096
       ],
-      "id": "4c0efff1-7481-4a23-a635-a0dea8027c6a",
+      "id": "4138ad19-7764-4dfd-888a-2a434ad03a46",
       "name": "Evaluate POC"
     },
     {
@@ -304,10 +328,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        432,
-        96
+        -4432,
+        8096
       ],
-      "id": "1bfa1210-6d48-48bc-b0ce-e49033770804",
+      "id": "6e769520-a3eb-431d-916e-c17dd125f3d3",
       "name": "POC Needs Create?"
     },
     {
@@ -319,10 +343,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        656,
-        16
+        -4208,
+        8016
       ],
-      "id": "e7f17664-c118-4417-a1d8-9fcc76d730bf",
+      "id": "17aa0b24-a721-479d-aaa2-001553682a48",
       "name": "Create POC",
       "credentials": {
         "postgres": {
@@ -338,10 +362,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        96
+        -3984,
+        8096
       ],
-      "id": "45fbf0d9-a892-405a-88a4-2248bdbd2752",
+      "id": "fca17cf5-5f08-4ee6-b801-e5fa54614cd3",
       "name": "Merge POC ID"
     },
     {
@@ -351,10 +375,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1104,
-        96
+        -3760,
+        8096
       ],
-      "id": "739d83ff-cb49-49fb-930d-e3ad472dd539",
+      "id": "b32a2737-4287-42b2-b588-05e6a70ecd8a",
       "name": "Build LLM Profile Request"
     },
     {
@@ -382,38 +406,38 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1328,
-        96
+        -3536,
+        8096
       ],
-      "id": "62d07bd0-3d2a-46ff-8a1f-292ba4782216",
+      "id": "1146a43b-5382-48dc-b04c-ebcc198ffc1f",
       "name": "LLM Call - Profile"
     },
     {
       "parameters": {
-        "jsCode": "const llmResponse = $input.first().json;\nconst ticket = $('Build LLM Profile Request').first().json._ticket;\n\nlet profile;\ntry {\n  const content = llmResponse.choices?.[0]?.message?.content || '{}';\n  const cleaned = content.replace(/```json|```/g, '').trim();\n  profile = JSON.parse(cleaned);\n} catch (e) {\n  profile = {\n    request_type: ticket.request_type_clickup || 'Incident',\n    case_type: 'Uncategorized',\n    priority: ticket.priority || 'P3',\n    sentiment: 'neutral',\n    summary: ticket.title,\n    module: ticket.module || 'Unknown'\n  };\n}\n\nconst finalPriority = profile.priority || ticket.priority || 'P3';\n\n// SLA applicability: only Incidents and Problems\nconst requestType = profile.request_type || ticket.request_type_clickup || 'Incident';\nconst isSlaApplicable = ['Incident', 'Problem'].includes(requestType);\n\nconst slaConfigs = ticket._sla_configs || [];\nconst slaConfig = isSlaApplicable ? slaConfigs.find(s => s.priority === finalPriority) : null;\nconst hasHourSla = slaConfig && slaConfig.resolution_type === 'hours' && slaConfig.resolution_hours;\n\nconst cfg = ticket._solution_config || {};\nconst bhS = parseInt((cfg.business_hours_start || '08:00').split(':')[0]);\nconst bhE = parseInt((cfg.business_hours_end || '20:00').split(':')[0]);\n\nfunction addBH(startDate, hours) {\n  if (!hours || hours <= 0) return null;\n  let cur = new Date(startDate);\n  let rem = hours;\n  for (let i = 0; i < 500 && rem > 0; i++) {\n    const dh = cur.getUTCHours() + 4;\n    const ah = dh >= 24 ? dh - 24 : dh;\n    if (ah >= bhS && ah < bhE) {\n      const left = bhE - ah;\n      const c = Math.min(rem, left);\n      rem -= c;\n      cur = new Date(cur.getTime() + c * 3600000);\n    } else if (ah < bhS) {\n      cur = new Date(cur.getTime() + (bhS - ah) * 3600000);\n    } else {\n      cur = new Date(cur.getTime() + ((24 - ah) + bhS) * 3600000);\n    }\n  }\n  return cur.toISOString();\n}\n\nconst now = new Date();\nconst slaRespDue = isSlaApplicable && slaConfig?.response_hours ? addBH(now, slaConfig.response_hours) : null;\nconst slaResDue = hasHourSla ? addBH(now, slaConfig.resolution_hours) : null;\n\nreturn [{\n  json: {\n    ...ticket,\n    request_type: requestType,\n    case_type: profile.case_type,\n    priority: finalPriority,\n    ai_sentiment: profile.sentiment,\n    ai_summary: profile.summary,\n    module: profile.module !== 'Unknown' ? profile.module : ticket.module,\n    sla_applicable: isSlaApplicable,\n    sla_response_due: slaRespDue,\n    sla_resolution_due: slaResDue,\n    sla_status: isSlaApplicable ? 'healthy' : 'not_applicable',\n    sla_consumption_pct: 0,\n    escalation_level: 0\n  }\n}];"
+        "jsCode": "const llmResp = $input.first().json;\nconst prev = $('Build LLM Profile Request').first().json;\nconst ticket = prev._ticket;\n\n// Parse LLM profile\nlet profile;\ntry {\n  const content = llmResp.choices?.[0]?.message?.content || '{}';\n  profile = JSON.parse(content.replace(/```json|```/g, '').trim());\n} catch(e) {\n  profile = { request_type: 'Incident', case_type: 'Support', priority: ticket.priority || 'P3',\n              sentiment: 'neutral', summary: ticket.title, module: ticket.module || 'General' };\n}\n\nconst priority = profile.priority || ticket.priority || 'P3';\n\n// SLA hours from DB (not hardcoded)\nconst slaConfig = ticket._sla_config?.[priority] || {};\nconst responseHours = ticket._response_hours || slaConfig.response_hours || 8;\nconst resolutionHours = ticket._resolution_hours || slaConfig.resolution_hours || 24;\n\nconst businessStart = parseInt((ticket._business_hours_start || '08:00').split(':')[0]);\nconst businessEnd   = parseInt((ticket._business_hours_end   || '20:00').split(':')[0]);\nconst workingHoursPerDay = businessEnd - businessStart;\n\nfunction addBusinessHours(startDate, hoursToAdd, bizStart, bizEnd) {\n  let current = new Date(startDate);\n  let remaining = hoursToAdd;\n  const whpd = bizEnd - bizStart;\n  while (remaining > 0) {\n    const h = current.getHours();\n    if (h < bizStart) { current.setHours(bizStart, 0, 0, 0); continue; }\n    if (h >= bizEnd) { current.setDate(current.getDate()+1); current.setHours(bizStart, 0, 0, 0); continue; }\n    const availableToday = bizEnd - h - (current.getMinutes()/60);\n    if (remaining <= availableToday) { current.setTime(current.getTime() + remaining*3600*1000); remaining = 0; }\n    else { remaining -= availableToday; current.setDate(current.getDate()+1); current.setHours(bizStart, 0, 0, 0); }\n  }\n  return current;\n}\n\nconst now = new Date();\nconst slaResponseDue   = addBusinessHours(now, responseHours,   businessStart, businessEnd);\nconst slaResolutionDue = addBusinessHours(now, resolutionHours, businessStart, businessEnd);\n\nreturn [{\n  json: {\n    ...prev,\n    _parsed_priority: priority,\n    _parsed_request_type: profile.request_type || ticket.request_type,\n    _parsed_case_type: profile.case_type || ticket.case_type,\n    _parsed_module: profile.module || ticket.module,\n    _parsed_sentiment: profile.sentiment || 'neutral',\n    _parsed_summary: profile.summary || ticket.title,\n    _sla_response_due: slaResponseDue.toISOString(),\n    _sla_resolution_due: slaResolutionDue.toISOString(),\n    _response_hours: responseHours,\n    _resolution_hours: resolutionHours,\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1552,
-        96
+        -3312,
+        8096
       ],
-      "id": "7447d532-aa17-4038-abcf-2c458ee96ebf",
+      "id": "bb8d4755-0342-4bca-8fd5-e56a0d553bca",
       "name": "Parse LLM + Calculate SLA"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO main.tickets (\n  company_id, solution_id, poc_id, clickup_task_id, clickup_url, channel,\n  title, description, module, operating_system, mobile_or_national_id,\n  request_type, case_type, priority, status,\n  sla_response_due, sla_resolution_due, sla_consumption_pct, sla_status,\n  escalation_level, ai_summary, ai_sentiment,\n  created_at, updated_at, created_by_email, created_by_name\n) VALUES (\n  (SELECT c.id FROM main.companies c WHERE c.company_code = 'medgulf' LIMIT 1),\n  (SELECT s.id FROM main.solutions s JOIN main.companies c ON s.company_id = c.id WHERE c.company_code = 'medgulf' AND s.solution_code = 'app' LIMIT 1),\n  {{ $json._poc_id ? $json._poc_id : 'NULL' }},\n  '{{ $json.clickup_task_id }}',\n  '{{ $json.clickup_url }}',\n  'clickup',\n  '{{ $json.title.replace(/'/g, \"''\") }}',\n  {{ $json.description ? \"'\" + $json.description.replace(/'/g, \"''\").replace(/\\n/g, ' ') + \"'\" : 'NULL' }},\n  {{ $json.module ? \"'\" + $json.module.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.operating_system ? \"'\" + $json.operating_system + \"'\" : 'NULL' }},\n  {{ $json.mobile_or_national_id ? \"'\" + $json.mobile_or_national_id + \"'\" : 'NULL' }},\n  {{ $json.request_type ? \"'\" + $json.request_type + \"'\" : 'NULL' }},\n  {{ $json.case_type ? \"'\" + $json.case_type.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  '{{ $json.priority }}',\n  '{{ $json.status }}',\n  {{ $json.sla_response_due ? \"'\" + $json.sla_response_due + \"'\" : 'NULL' }},\n  {{ $json.sla_resolution_due ? \"'\" + $json.sla_resolution_due + \"'\" : 'NULL' }},\n  0,\n  'healthy',\n  0,\n  {{ $json.ai_summary ? \"'\" + $json.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.ai_sentiment ? \"'\" + $json.ai_sentiment + \"'\" : 'NULL' }},\n  '{{ $json.created_at }}',\n  NOW(),\n  {{ $json.created_by_email ? \"'\" + $json.created_by_email + \"'\" : 'NULL' }},\n  {{ $json.created_by_name ? \"'\" + $json.created_by_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }}\n)\nON CONFLICT (clickup_task_id) DO UPDATE SET\n  status = EXCLUDED.status,\n  channel = COALESCE(main.tickets.channel, EXCLUDED.channel),\n  priority = EXCLUDED.priority,\n  request_type = EXCLUDED.request_type,\n  case_type = EXCLUDED.case_type,\n  ai_summary = EXCLUDED.ai_summary,\n  ai_sentiment = EXCLUDED.ai_sentiment,\n  sla_response_due = EXCLUDED.sla_response_due,\n  sla_resolution_due = EXCLUDED.sla_resolution_due,\n  updated_at = NOW()\nRETURNING id AS ticket_id, clickup_task_id;",
+        "query": "INSERT INTO main.tickets (\n  company_id, solution_id, poc_id, clickup_task_id, clickup_url,\n  title, description, module, operating_system, mobile_or_national_id,\n  request_type, case_type, priority, status,\n  sla_response_due, sla_resolution_due, sla_consumption_pct, sla_status,\n  escalation_level, ai_summary, ai_sentiment,\n  created_at, updated_at, created_by_email, created_by_name\n) VALUES (\n  (SELECT c.id FROM main.companies c WHERE c.company_code = 'medgulf' LIMIT 1),\n  (SELECT s.id FROM main.solutions s JOIN main.companies c ON s.company_id = c.id WHERE c.company_code = 'medgulf' AND s.solution_code = 'app' LIMIT 1),\n  {{ $json._poc_id ? $json._poc_id : 'NULL' }},\n  '{{ $json.clickup_task_id }}',\n  '{{ $json.clickup_url }}',\n  '{{ $json.title.replace(/'/g, \"''\") }}',\n  {{ $json.description ? \"'\" + $json.description.replace(/'/g, \"''\").replace(/\\n/g, ' ') + \"'\" : 'NULL' }},\n  {{ $json.module ? \"'\" + $json.module.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.operating_system ? \"'\" + $json.operating_system + \"'\" : 'NULL' }},\n  {{ $json.mobile_or_national_id ? \"'\" + $json.mobile_or_national_id + \"'\" : 'NULL' }},\n  {{ $json.request_type ? \"'\" + $json.request_type + \"'\" : 'NULL' }},\n  {{ $json.case_type ? \"'\" + $json.case_type.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  '{{ $json.priority }}',\n  '{{ $json.status }}',\n  {{ $json.sla_response_due ? \"'\" + $json.sla_response_due + \"'\" : 'NULL' }},\n  {{ $json.sla_resolution_due ? \"'\" + $json.sla_resolution_due + \"'\" : 'NULL' }},\n  0,\n  'healthy',\n  0,\n  {{ $json.ai_summary ? \"'\" + $json.ai_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  {{ $json.ai_sentiment ? \"'\" + $json.ai_sentiment + \"'\" : 'NULL' }},\n  '{{ $json.created_at }}',\n  NOW(),\n  {{ $json.created_by_email ? \"'\" + $json.created_by_email + \"'\" : 'NULL' }},\n  {{ $json.created_by_name ? \"'\" + $json.created_by_name.replace(/'/g, \"''\") + \"'\" : 'NULL' }}\n)\nON CONFLICT (clickup_task_id) DO UPDATE SET\n  status = EXCLUDED.status,\n  priority = EXCLUDED.priority,\n  request_type = EXCLUDED.request_type,\n  case_type = EXCLUDED.case_type,\n  ai_summary = EXCLUDED.ai_summary,\n  ai_sentiment = EXCLUDED.ai_sentiment,\n  sla_response_due = EXCLUDED.sla_response_due,\n  sla_resolution_due = EXCLUDED.sla_resolution_due,\n  updated_at = NOW()\nRETURNING id AS ticket_id, clickup_task_id;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1776,
-        96
+        -3088,
+        8096
       ],
-      "id": "e8036bdd-2ba8-4ece-8fe7-3e0fefe023ed",
+      "id": "3827606f-f10d-40ea-aa7a-aa930d55120c",
       "name": "Insert New Ticket",
       "credentials": {
         "postgres": {
@@ -429,10 +453,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
-        96
+        -2864,
+        8096
       ],
-      "id": "822ad64d-ae5f-450f-b553-a6f7ff80a09b",
+      "id": "06bd2155-2f28-42dc-b91d-c860ecb95dc2",
       "name": "Build Initial Thread"
     },
     {
@@ -444,10 +468,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2224,
-        96
+        -2640,
+        8096
       ],
-      "id": "067c5dad-2402-4174-b2db-39690fe5f0ec",
+      "id": "c2695aaf-5dd8-468d-accf-65dd0cd22e80",
       "name": "Insert Initial Thread",
       "credentials": {
         "postgres": {
@@ -463,10 +487,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2448,
-        96
+        -2416,
+        8096
       ],
-      "id": "03febcbb-16c4-4513-844b-0911b9f881d2",
+      "id": "b0dcb4cb-0a5a-4ce6-9003-c7f74607c5d0",
       "name": "New Ticket Done"
     },
     {
@@ -486,10 +510,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -256,
-        576
+        -5120,
+        8576
       ],
-      "id": "47e0244f-08e7-4ba8-94cf-6a8866c1f0cf",
+      "id": "043da09d-7218-41e7-bdb9-3ffdfd0ca806",
       "name": "Fetch ClickUp Comments"
     },
     {
@@ -499,10 +523,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -32,
-        576
+        -4896,
+        8576
       ],
-      "id": "1587a03e-e704-4b3a-861f-f30df74f48a5",
+      "id": "174d7d1d-5f56-47d1-a639-cf5510975c74",
       "name": "Detect Changes"
     },
     {
@@ -533,23 +557,23 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        192,
-        576
+        -4672,
+        8576
       ],
-      "id": "4caf5619-c6c7-4327-ba29-800d5c34e033",
+      "id": "312d7997-a49e-49f0-a6f0-ece5323145b2",
       "name": "Has Changes?"
     },
     {
       "parameters": {
-        "jsCode": "// ─── THREAD COMPACTION (run-length encoding for consecutive duplicates) ───────\n\nfunction getSignature(t) {\n  return `${t.action_type}|${String(t.raw_content).trim()}|${String(t.new_value).trim()}`;\n}\n\nfunction compactThreads(threads) {\n  const compacted = [];\n  let i = 0;\n\n  while (i < threads.length) {\n    const current = threads[i];\n    const sig = getSignature(current);\n    let count = 1;\n    let j = i + 1;\n\n    while (j < threads.length && getSignature(threads[j]) === sig) {\n      count++;\n      j++;\n    }\n\n    if (count > 1) {\n      const last = threads[j - 1];\n      const firstTime = new Date(current.created_at).toISOString().replace('T', ' ').substring(0, 16);\n      const lastTime  = new Date(last.created_at).toISOString().replace('T', ' ').substring(0, 16);\n\n      compacted.push({\n        id: current.id,\n        action_type: current.action_type,\n        actor_name: current.actor_name,\n        actor_email: current.actor_email,\n        old_value: current.old_value,\n        new_value: current.new_value,\n        raw_content: current.raw_content,\n        ai_summary: current.ai_summary || current.raw_content,\n        created_at: current.created_at,\n        thread_source: current.thread_source,\n        metadata: current.metadata,\n        _collapsed: true,\n        _count: count,\n        _first_at: current.created_at,\n        _last_at: last.created_at,\n        _collapse_note: `↻ Repeated ×${count} (${firstTime} → ${lastTime})`\n      });\n    } else {\n      compacted.push({ ...current, _collapsed: false, _count: 1 });\n    }\n\n    i = j;\n  }\n\n  return compacted;\n}\n\nfunction deduplicateSlaComments(threads) {\n  const toRemove = new Set();\n\n  threads.forEach((t, idx) => {\n    if (t.action_type !== 'comment') return;\n    if (!t.raw_content || !t.raw_content.includes('SLA ESCALATION')) return;\n\n    const tTime = new Date(t.created_at).getTime();\n    const window = threads.slice(Math.max(0, idx - 3), Math.min(threads.length, idx + 4));\n    const hasPair = window.some(w =>\n      w.id !== t.id &&\n      w.action_type === 'sla_escalation' &&\n      Math.abs(new Date(w.created_at).getTime() - tTime) <= 5000\n    );\n\n    if (hasPair) toRemove.add(t.id);\n  });\n\n  return threads.filter(t => !toRemove.has(t.id));\n}\n\nfunction buildEntry(t) {\n  const time = new Date(t.created_at).toISOString().replace('T', ' ').substring(0, 16) + 'Z';\n  const actor = t.actor_name || t.actor_email || 'system';\n  const collapseNote = t._collapsed ? `  ${t._collapse_note}` : '';\n\n  switch (t.action_type) {\n    case 'ticket_created':\n      return `[${time}] CREATED by ${actor}\\n  ${(t.ai_summary || t.raw_content || '').substring(0, 600)}`;\n\n    case 'field_change': {\n      let details = t.raw_content || '';\n      try {\n        const nv = typeof t.new_value === 'string' ? JSON.parse(t.new_value) : t.new_value;\n        if (nv && typeof nv === 'object') {\n          details = 'Changed: ' + Object.entries(nv).map(([k, v]) => `${k}=${v}`).join(', ')\n                  + (t.raw_content ? ` | ${t.raw_content}` : '');\n        }\n      } catch (_) {}\n      return `[${time}] FIELD CHANGE by ${actor}: ${details.substring(0, 200)}${collapseNote}`;\n    }\n\n    case 'comment':\n      return `[${time}] COMMENT by ${actor}:\\n  ${(t.raw_content || '').substring(0, 400)}`;\n\n    case 'sla_escalation': {\n      const pct = t.metadata?.pct ?? 'N/A';\n      const lvl = t.metadata?.level ?? '?';\n      return `[${time}] SLA ESCALATION E${lvl} at ${pct}% by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}`;\n    }\n\n    case 'status_change':\n      return `[${time}] STATUS CHANGE by ${actor}: ${t.old_value || '?'} → ${t.new_value || '?'}${collapseNote}`;\n\n    case 'assignment':\n      return `[${time}] ASSIGNED by ${actor}: ${(t.raw_content || '').substring(0, 200)}`;\n\n    case 'priority_change':\n      return `[${time}] PRIORITY CHANGE by ${actor}: ${t.old_value || '?'} → ${t.new_value || '?'}`;\n\n    case 'resolution':\n      return `[${time}] RESOLVED by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 300)}`;\n\n    default:\n      return `[${time}] ${t.action_type.toUpperCase()} by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}${collapseNote}`;\n  }\n}\n\n// ─── MAIN ─────────────────────────────────────────────────────────────────────\nconst ticket = $('Detect Changes').first().json;  // ← original ticket with all fields\nconst rawThreads = $input.all().map(i => i.json); // ← thread rows from Fetch All Threads\n\nconst ticketData = ticket;\nconst slaData    = {};\nconst escalations = [];\n\n// ─── RUN COMPACTION ───────────────────────────────────────────────────────────\nconst dedupedThreads   = deduplicateSlaComments(rawThreads);\nconst compactedThreads = compactThreads(dedupedThreads);\nconst timelineLines    = compactedThreads.map(buildEntry).filter(Boolean);\n\n// ─── Stats ────────────────────────────────────────────────────────────────────\nconst originalCount  = rawThreads.length;\nconst compactedCount = compactedThreads.length;\nconst reductionPct   = originalCount > 0\n  ? Math.round((1 - compactedCount / originalCount) * 100)\n  : 0;\n\nconst slaEscalations = compactedThreads.filter(t => t.action_type === 'sla_escalation');\nconst escalationSummary = slaEscalations.length > 0\n  ? slaEscalations.map(e => `E${e.metadata?.level} @ ${e.metadata?.pct}%`).join(' → ')\n  : 'None';\n\n// ─── Prompts ──────────────────────────────────────────────────────────────────\nconst systemPrompt = `You are a technical support analyst summarizing ticket activity for MedGulf healthcare app support.\n\nThread history has been compacted using run-length encoding — consecutive identical events are shown as a single entry with a repeat count (↻ Repeated ×N).\n\nRespond ONLY with valid JSON, no markdown, no code blocks:\n{\n  \"action_summary\": \"<detailed summary of the ticket issue, key actions taken, and current state>\",\n  \"sla_note\": \"<SLA escalation progression and breach status, or 'none' if no SLA concerns>\",\n  \"sentiment_shift\": \"positive|neutral|negative|none\"\n}`;\n\nconst userPrompt = `TICKET #${ticketData.ticket_number || ticketData.id || 'N/A'}\nTitle: ${ticketData.title || 'N/A'}\nStatus: ${ticketData.status || 'N/A'} | Priority: ${ticketData.priority || 'N/A'}\nCreated: ${ticketData.created_at || 'N/A'}\nSLA Consumption: ${slaData.consumption_pct ?? 'N/A'}% | Breach: ${slaData.is_breached ? 'YES' : 'No'}\nEscalation Progression: ${escalationSummary}\n\n--- THREAD HISTORY (${compactedCount} entries, compacted from ${originalCount}, −${reductionPct}%) ---\n${timelineLines.join('\\n\\n')}\n--- END THREAD HISTORY ---\n\nPlease summarize this ticket.`;\n\nconst requestBody = {\n  model: 'gpt-4o',\n  temperature: 0.1,\n  max_tokens: 1000,\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user',   content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    requestBody: JSON.stringify(requestBody),\n    _ticket: ticket,  // ← full ticket directly, no spreading needed\n    _original_thread_count:  originalCount,\n    _compacted_thread_count: compactedCount,\n    _reduction_pct:          reductionPct,\n    _sla_escalation_count:   slaEscalations.length\n  }\n}];"
+        "jsCode": "// \u2500\u2500\u2500 THREAD COMPACTION (run-length encoding for consecutive duplicates) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nfunction getSignature(t) {\n  return `${t.action_type}|${String(t.raw_content).trim()}|${String(t.new_value).trim()}`;\n}\n\nfunction compactThreads(threads) {\n  const compacted = [];\n  let i = 0;\n\n  while (i < threads.length) {\n    const current = threads[i];\n    const sig = getSignature(current);\n    let count = 1;\n    let j = i + 1;\n\n    while (j < threads.length && getSignature(threads[j]) === sig) {\n      count++;\n      j++;\n    }\n\n    if (count > 1) {\n      const last = threads[j - 1];\n      const firstTime = new Date(current.created_at).toISOString().replace('T', ' ').substring(0, 16);\n      const lastTime  = new Date(last.created_at).toISOString().replace('T', ' ').substring(0, 16);\n\n      compacted.push({\n        id: current.id,\n        action_type: current.action_type,\n        actor_name: current.actor_name,\n        actor_email: current.actor_email,\n        old_value: current.old_value,\n        new_value: current.new_value,\n        raw_content: current.raw_content,\n        ai_summary: current.ai_summary || current.raw_content,\n        created_at: current.created_at,\n        thread_source: current.thread_source,\n        metadata: current.metadata,\n        _collapsed: true,\n        _count: count,\n        _first_at: current.created_at,\n        _last_at: last.created_at,\n        _collapse_note: `\u21bb Repeated \u00d7${count} (${firstTime} \u2192 ${lastTime})`\n      });\n    } else {\n      compacted.push({ ...current, _collapsed: false, _count: 1 });\n    }\n\n    i = j;\n  }\n\n  return compacted;\n}\n\nfunction deduplicateSlaComments(threads) {\n  const toRemove = new Set();\n\n  threads.forEach((t, idx) => {\n    if (t.action_type !== 'comment') return;\n    if (!t.raw_content || !t.raw_content.includes('SLA ESCALATION')) return;\n\n    const tTime = new Date(t.created_at).getTime();\n    const window = threads.slice(Math.max(0, idx - 3), Math.min(threads.length, idx + 4));\n    const hasPair = window.some(w =>\n      w.id !== t.id &&\n      w.action_type === 'sla_escalation' &&\n      Math.abs(new Date(w.created_at).getTime() - tTime) <= 5000\n    );\n\n    if (hasPair) toRemove.add(t.id);\n  });\n\n  return threads.filter(t => !toRemove.has(t.id));\n}\n\nfunction buildEntry(t) {\n  const time = new Date(t.created_at).toISOString().replace('T', ' ').substring(0, 16) + 'Z';\n  const actor = t.actor_name || t.actor_email || 'system';\n  const collapseNote = t._collapsed ? `  ${t._collapse_note}` : '';\n\n  switch (t.action_type) {\n    case 'ticket_created':\n      return `[${time}] CREATED by ${actor}\\n  ${(t.ai_summary || t.raw_content || '').substring(0, 600)}`;\n\n    case 'field_change': {\n      let details = t.raw_content || '';\n      try {\n        const nv = typeof t.new_value === 'string' ? JSON.parse(t.new_value) : t.new_value;\n        if (nv && typeof nv === 'object') {\n          details = 'Changed: ' + Object.entries(nv).map(([k, v]) => `${k}=${v}`).join(', ')\n                  + (t.raw_content ? ` | ${t.raw_content}` : '');\n        }\n      } catch (_) {}\n      return `[${time}] FIELD CHANGE by ${actor}: ${details.substring(0, 200)}${collapseNote}`;\n    }\n\n    case 'comment':\n      return `[${time}] COMMENT by ${actor}:\\n  ${(t.raw_content || '').substring(0, 400)}`;\n\n    case 'sla_escalation': {\n      const pct = t.metadata?.pct ?? 'N/A';\n      const lvl = t.metadata?.level ?? '?';\n      return `[${time}] SLA ESCALATION E${lvl} at ${pct}% by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}`;\n    }\n\n    case 'status_change':\n      return `[${time}] STATUS CHANGE by ${actor}: ${t.old_value || '?'} \u2192 ${t.new_value || '?'}${collapseNote}`;\n\n    case 'assignment':\n      return `[${time}] ASSIGNED by ${actor}: ${(t.raw_content || '').substring(0, 200)}`;\n\n    case 'priority_change':\n      return `[${time}] PRIORITY CHANGE by ${actor}: ${t.old_value || '?'} \u2192 ${t.new_value || '?'}`;\n\n    case 'resolution':\n      return `[${time}] RESOLVED by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 300)}`;\n\n    default:\n      return `[${time}] ${t.action_type.toUpperCase()} by ${actor}: ${(t.ai_summary || t.raw_content || '').substring(0, 200)}${collapseNote}`;\n  }\n}\n\n// \u2500\u2500\u2500 MAIN \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst ticket = $('Detect Changes').first().json;  // \u2190 original ticket with all fields\nconst rawThreads = $input.all().map(i => i.json); // \u2190 thread rows from Fetch All Threads\n\nconst ticketData = ticket;\nconst slaData    = {};\nconst escalations = [];\n\n// \u2500\u2500\u2500 RUN COMPACTION \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst dedupedThreads   = deduplicateSlaComments(rawThreads);\nconst compactedThreads = compactThreads(dedupedThreads);\nconst timelineLines    = compactedThreads.map(buildEntry).filter(Boolean);\n\n// \u2500\u2500\u2500 Stats \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst originalCount  = rawThreads.length;\nconst compactedCount = compactedThreads.length;\nconst reductionPct   = originalCount > 0\n  ? Math.round((1 - compactedCount / originalCount) * 100)\n  : 0;\n\nconst slaEscalations = compactedThreads.filter(t => t.action_type === 'sla_escalation');\nconst escalationSummary = slaEscalations.length > 0\n  ? slaEscalations.map(e => `E${e.metadata?.level} @ ${e.metadata?.pct}%`).join(' \u2192 ')\n  : 'None';\n\n// \u2500\u2500\u2500 Prompts \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst systemPrompt = `You are a technical support analyst summarizing ticket activity for MedGulf healthcare app support.\n\nThread history has been compacted using run-length encoding \u2014 consecutive identical events are shown as a single entry with a repeat count (\u21bb Repeated \u00d7N).\n\nRespond ONLY with valid JSON, no markdown, no code blocks:\n{\n  \"action_summary\": \"<detailed summary of the ticket issue, key actions taken, and current state>\",\n  \"sla_note\": \"<SLA escalation progression and breach status, or 'none' if no SLA concerns>\",\n  \"sentiment_shift\": \"positive|neutral|negative|none\"\n}`;\n\nconst userPrompt = `TICKET #${ticketData.ticket_number || ticketData.id || 'N/A'}\nTitle: ${ticketData.title || 'N/A'}\nStatus: ${ticketData.status || 'N/A'} | Priority: ${ticketData.priority || 'N/A'}\nCreated: ${ticketData.created_at || 'N/A'}\nSLA Consumption: ${slaData.consumption_pct ?? 'N/A'}% | Breach: ${slaData.is_breached ? 'YES' : 'No'}\nEscalation Progression: ${escalationSummary}\n\n--- THREAD HISTORY (${compactedCount} entries, compacted from ${originalCount}, \u2212${reductionPct}%) ---\n${timelineLines.join('\\n\\n')}\n--- END THREAD HISTORY ---\n\nPlease summarize this ticket.`;\n\nconst requestBody = {\n  model: 'gpt-4o',\n  temperature: 0.1,\n  max_tokens: 1000,\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user',   content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    requestBody: JSON.stringify(requestBody),\n    _ticket: ticket,  // \u2190 full ticket directly, no spreading needed\n    _original_thread_count:  originalCount,\n    _compacted_thread_count: compactedCount,\n    _reduction_pct:          reductionPct,\n    _sla_escalation_count:   slaEscalations.length\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        624,
-        480
+        -4240,
+        8480
       ],
-      "id": "16ca8a00-c46f-41a9-a833-b88108c2c83c",
+      "id": "f5cfee1e-c0d0-491c-8f29-a0fb6cb3645b",
       "name": "Build LLM Summary Request"
     },
     {
@@ -577,10 +601,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        848,
-        480
+        -4016,
+        8480
       ],
-      "id": "e0491e21-d4e7-42de-92ce-af5b40bd6045",
+      "id": "5936159f-e40b-4284-a28e-f217c8b10d99",
       "name": "LLM Call - Summarize",
       "retryOnFail": true
     },
@@ -591,25 +615,25 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1072,
-        480
+        -3792,
+        8480
       ],
-      "id": "6f485e20-6845-4af4-890d-137cd35bb480",
+      "id": "c4fd8c37-513d-40d7-b364-fca55a4be57d",
       "name": "Parse Summary + SLA Impact"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE main.tickets SET\n  status = '{{ $json.status }}',\n  priority = '{{ $json.priority }}',\n  ai_summary = {{ $json._action_summary ? \"'\" + $json._action_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  ai_sentiment = {{ $json._sentiment_shift && $json._sentiment_shift !== 'none' ? \"'\" + $json._sentiment_shift + \"'\" : 'ai_sentiment' }},\n  closed_at = {{ $json.closed_at ? \"'\" + $json.closed_at + \"'\" : 'closed_at' }},\n  resolved_at = {{ $json._sla_update?.sla_status === 'resolved' ? 'NOW()' : 'resolved_at' }},\n  sla_status = {{ $json._sla_update?.sla_status ? \"'\" + $json._sla_update.sla_status + \"'\" : 'sla_status' }},\n  sla_paused_at = {{ $json._sla_update?.sla_paused_at === null ? 'NULL' : ($json._sla_update?.sla_paused_at ? \"'\" + $json._sla_update.sla_paused_at + \"'\" : 'sla_paused_at') }},\n  sla_response_due = {{ $json._sla_update?.sla_response_due ? \"'\" + $json._sla_update.sla_response_due + \"'\" : 'sla_response_due' }},\n  sla_resolution_due = {{ $json._sla_update?.sla_resolution_due ? \"'\" + $json._sla_update.sla_resolution_due + \"'\" : 'sla_resolution_due' }},\n  sla_consumption_pct = {{ $json._sla_update?.sla_consumption_pct !== undefined ? $json._sla_update.sla_consumption_pct : 'sla_consumption_pct' }},\n  clickup_thread_count = {{ $json._cu_comment_count || 0 }},\n  updated_at = NOW()\nWHERE id = {{ $json._db_ticket_id }}\nRETURNING id AS ticket_id;",
+        "query": "UPDATE main.tickets SET\n  status = '{{ $json.status }}',\n  priority = '{{ $json.priority }}',\n  ai_summary = {{ $json._action_summary ? \"'\" + $json._action_summary.replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  ai_sentiment = {{ $json._sentiment_shift && $json._sentiment_shift !== 'none' ? \"'\" + $json._sentiment_shift + \"'\" : 'ai_sentiment' }},\n  closed_at = {{ $json.closed_at ? \"'\" + $json.closed_at + \"'\" : 'closed_at' }},\n  resolved_at = {{ $json._sla_update?.sla_status === 'resolved' ? 'NOW()' : 'resolved_at' }},\n  sla_status = {{ $json._sla_update?.sla_status ? \"'\" + $json._sla_update.sla_status + \"'\" : 'sla_status' }},\n  sla_paused_at = {{ $json._sla_update?.sla_paused_at === null ? 'NULL' : ($json._sla_update?.sla_paused_at ? \"'\" + $json._sla_update.sla_paused_at + \"'\" : 'sla_paused_at') }},\n  sla_response_due = {{ $json._sla_update?.sla_response_due ? \"'\" + $json._sla_update.sla_response_due + \"'\" : 'sla_response_due' }},\n  sla_resolution_due = {{ $json._sla_update?.sla_resolution_due ? \"'\" + $json._sla_update.sla_resolution_due + \"'\" : 'sla_resolution_due' }},\n  sla_consumption_pct = {{ $json._sla_update?.sla_consumption_pct !== undefined ? $json._sla_update.sla_consumption_pct : 'sla_consumption_pct' }},\n  updated_at = NOW()\nWHERE id = {{ $json._db_ticket_id }}\nRETURNING id AS ticket_id;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1296,
-        480
+        -3568,
+        8480
       ],
-      "id": "4813fef1-a186-4ea3-8a70-d394c2d1d308",
+      "id": "d7b0e64f-6897-43c9-ba79-c0dd6e9ec8e7",
       "name": "Update Existing Ticket",
       "credentials": {
         "postgres": {
@@ -625,10 +649,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        480
+        -3344,
+        8480
       ],
-      "id": "a96ee11f-9b4d-423e-a765-b133307f81b9",
+      "id": "735bc820-8dad-451c-9448-59fc2419d2e4",
       "name": "Build Update Threads"
     },
     {
@@ -640,10 +664,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1744,
-        480
+        -3120,
+        8480
       ],
-      "id": "e2d0a5a7-5b30-4b7b-8124-3bcda47945e4",
+      "id": "d2811c5d-e960-419f-8e35-495f3f607f58",
       "name": "Insert Update Threads",
       "credentials": {
         "postgres": {
@@ -659,10 +683,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1968,
-        480
+        -2896,
+        8480
       ],
-      "id": "255c0b52-7be7-4976-b52a-27af5c3c74e9",
+      "id": "3ef12e28-f769-405c-a295-2958592d89de",
       "name": "Existing Ticket Done"
     },
     {
@@ -672,10 +696,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        624,
-        672
+        -4240,
+        8672
       ],
-      "id": "e0026d38-febf-410a-a14c-4fdb96a15f6a",
+      "id": "d0105644-3da3-48d3-b988-176e0e375fd7",
       "name": "Skip No Changes"
     },
     {
@@ -687,10 +711,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -304,
-        1056
+        -5168,
+        9056
       ],
-      "id": "7bbf011e-1212-4530-9935-42d4c577302c",
+      "id": "f84fd4cf-c5d5-4e93-8123-102562605ae1",
       "name": "Soft Delete Ticket",
       "credentials": {
         "postgres": {
@@ -706,10 +730,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -80,
-        1056
+        -4944,
+        9056
       ],
-      "id": "88d497ea-7a8f-4346-aaf8-f9babc571e3e",
+      "id": "b4a3ba3b-b0ce-4379-bbc7-9ee57df899da",
       "name": "Delete Done"
     },
     {
@@ -719,10 +743,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -304,
-        1312
+        -5168,
+        9312
       ],
-      "id": "6aa2ae20-86bf-462e-be01-8bf0c37ca5b8",
+      "id": "7686d527-7fce-4b81-be1f-48ac7fe02bf0",
       "name": "No-Op"
     },
     {
@@ -730,10 +754,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        2976,
-        688
+        -1888,
+        8688
       ],
-      "id": "78b001cc-1c67-4d4a-af53-c67bebb5952b",
+      "id": "e8c25efd-c1be-46df-83be-dde256d516d4",
       "name": "Merge All Paths"
     },
     {
@@ -743,10 +767,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3200,
-        688
+        -1664,
+        8688
       ],
-      "id": "34e871e1-4eed-42c3-9302-6c1d84c11344",
+      "id": "e98e66c1-b0ef-4b5e-9423-6a7cccb7d2ac",
       "name": "Continue Loop"
     },
     {
@@ -758,10 +782,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        640,
-        -816
+        -4224,
+        7184
       ],
-      "id": "755f3fe9-0e9a-4482-a7cc-2d04bdbc9638",
+      "id": "1c733aa1-dfad-46ea-a5b1-d015193d33c7",
       "name": "Fetch Active Tickets for SLA",
       "credentials": {
         "postgres": {
@@ -772,15 +796,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const tickets = $input.all().map(i => i.json);\nconst now = new Date();\nconst BH_START = 8;\nconst BH_END = 20;\n\nfunction getBusinessHoursElapsed(startDate, endDate) {\n  let elapsed = 0;\n  let current = new Date(startDate);\n  const end = new Date(endDate);\n  if (current >= end) return 0;\n  \n  for (let i = 0; i < 5000 && current < end; i++) {\n    const dubaiHour = (current.getUTCHours() + 4) % 24;\n    if (dubaiHour >= BH_START && dubaiHour < BH_END) {\n      const nextHour = new Date(current.getTime() + 3600000);\n      if (nextHour <= end) {\n        elapsed += 1;\n        current = nextHour;\n      } else {\n        elapsed += (end.getTime() - current.getTime()) / 3600000;\n        current = end;\n      }\n    } else {\n      if (dubaiHour >= BH_END) {\n        current = new Date(current.getTime() + ((24 - dubaiHour) + BH_START) * 3600000);\n      } else {\n        current = new Date(current.getTime() + (BH_START - dubaiHour) * 3600000);\n      }\n    }\n  }\n  return Math.round(elapsed * 100) / 100;\n}\n\n// Escalation thresholds from DB (PDF-aligned: 65/78/85/90)\nconst ESC_THRESHOLDS = [\n  { level: 1, pct: 65 },\n  { level: 2, pct: 78 },\n  { level: 3, pct: 85 },\n  { level: 4, pct: 90 }\n];\n\nconst processedTickets = [];\nconst skippedTickets = [];\n\nfor (const t of tickets) {\n  if (!t.sla_resolution_due && !t.sla_response_due) {\n    skippedTickets.push({ ticket_id: t.ticket_id, reason: 'no_sla_config' });\n    continue;\n  }\n  if (t.sla_status === 'not_applicable') {\n    skippedTickets.push({ ticket_id: t.ticket_id, reason: 'sla_not_applicable' });\n    continue;\n  }\n\n  let pausedHours = 0;\n  if (t.sla_paused_duration && typeof t.sla_paused_duration !== 'object') {\n    pausedHours = parseFloat(String(t.sla_paused_duration).replace(/[^0-9.]/g, '')) || 0;\n  }\n\n  const elapsedBH = getBusinessHoursElapsed(t.created_at, now) - pausedHours;\n  const targetHours = parseFloat(t.resolution_hours) || parseFloat(t.response_hours) || 24;\n  const consumptionPct = Math.min(999.99, Math.round((elapsedBH / targetHours) * 10000) / 100);\n\n  let slaStatus = 'healthy';\n  if (consumptionPct >= 100) slaStatus = 'breached';\n  else if (consumptionPct >= 90) slaStatus = 'critical';\n  else if (consumptionPct >= 78) slaStatus = 'at_risk';\n  else if (consumptionPct >= 65) slaStatus = 'warning';\n\n  // Escalation ONLY for P1/P2\n  let escalationLevel = 0;\n  const escApplicable = ['P1', 'P2'].includes(t.priority);\n  if (escApplicable) {\n    for (const esc of [...ESC_THRESHOLDS].reverse()) {\n      if (consumptionPct >= esc.pct) {\n        escalationLevel = esc.level;\n        break;\n      }\n    }\n  }\n\n  const currentEsc = t.escalation_level || 0;\n  const needsEscalation = escalationLevel > currentEsc;\n  const needsBreachRenotify = escalationLevel === 4 && currentEsc === 4;\n\n  processedTickets.push({\n    ticket_id: t.ticket_id,\n    clickup_task_id: t.clickup_task_id,\n    title: t.title,\n    priority: t.priority,\n    elapsed_bh: elapsedBH,\n    target_hours: targetHours,\n    consumption_pct: consumptionPct,\n    sla_status: slaStatus,\n    escalation_level: escalationLevel,\n    previous_escalation_level: currentEsc,\n    needs_escalation: needsEscalation,\n    needs_breach_renotify: needsBreachRenotify,\n    escalation_applicable: escApplicable\n  });\n}\n\nreturn [{\n  json: {\n    processed_tickets: processedTickets,\n    skipped_tickets: skippedTickets,\n    summary: {\n      total: tickets.length,\n      processed: processedTickets.length,\n      skipped: skippedTickets.length,\n      needs_escalation: processedTickets.filter(t => t.needs_escalation).length,\n      breach_renotify: processedTickets.filter(t => t.needs_breach_renotify).length\n    }\n  }\n}];"
+        "jsCode": "const tickets = $input.all().map(i => i.json);\nconst results = [];\n\nfunction calcConsumption(responseDue, resolutionDue, pausedAt, pausedDuration, bizStart, bizEnd) {\n  const now = Date.now();\n  const resDue = new Date(resolutionDue).getTime();\n  const respDue = new Date(responseDue).getTime();\n  const whpd = (bizEnd - bizStart) * 3600 * 1000;\n\n  let elapsed = now - (resDue - whpd * 24); // rough approximation\n  if (pausedAt) elapsed -= pausedDuration || 0;\n\n  const total = resDue - (respDue - (bizStart * 3600 * 1000));\n  const pct = total > 0 ? Math.min(100, Math.round((elapsed / (resDue - now + elapsed)) * 100)) : 0;\n\n  // Simpler: percentage of resolution window consumed\n  const createdApprox = new Date(resolutionDue).getTime() - (24 * 3600000); // fallback\n  const windowMs = resDue - createdApprox;\n  const consumedMs = now - createdApprox - (pausedDuration || 0);\n  const consumption = windowMs > 0 ? Math.min(100, Math.round((consumedMs / windowMs) * 100)) : 0;\n\n  let slaStatus = 'healthy';\n  if (consumption >= 100) slaStatus = 'breached';\n  else if (consumption >= 85) slaStatus = 'critical';\n  else if (consumption >= 65) slaStatus = 'warning';\n\n  return { consumption, slaStatus };\n}\n\nfor (const t of tickets) {\n  if (!t.sla_resolution_due || t.sla_status === 'resolved') {\n    results.push({ json: { ...t, _sla_consumption: 0, _sla_status: t.sla_status || 'healthy', _needs_escalation: false } });\n    continue;\n  }\n\n  const bizStart = parseInt((t.business_hours_start || '08:00').split(':')[0]);\n  const bizEnd   = parseInt((t.business_hours_end   || '20:00').split(':')[0]);\n  const { consumption, slaStatus } = calcConsumption(\n    t.sla_response_due, t.sla_resolution_due,\n    t.sla_paused_at, t.sla_paused_duration,\n    bizStart, bizEnd\n  );\n\n  // Needs escalation if crossing a threshold that hasn't been alerted yet\n  const currentLevel = t.escalation_level || 0;\n  const THRESHOLDS = [\n    { pct: 65, level: 1 }, { pct: 78, level: 2 },\n    { pct: 85, level: 3 }, { pct: 90, level: 4 }\n  ];\n  const nextLevel = THRESHOLDS.find(t => consumption >= t.pct && t.level > currentLevel);\n\n  results.push({ json: {\n    ...t,\n    _sla_consumption: consumption,\n    _sla_status: slaStatus,\n    _needs_escalation: !!nextLevel,\n    _next_escalation_level: nextLevel?.level || currentLevel,\n    _next_escalation_threshold: nextLevel?.pct || null\n  }});\n}\n\nreturn results;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
-        -832
+        -3808,
+        7168
       ],
-      "id": "3e25ca30-34f2-4ab0-865b-4212c286b91b",
+      "id": "7a99336e-f01e-44cd-abc5-097270887ea7",
       "name": "Calculate SLA Consumption"
     },
     {
@@ -792,10 +816,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1504,
-        -752
+        -3360,
+        7248
       ],
-      "id": "974ee41b-f19a-47d6-a80e-e06e2a543367",
+      "id": "eff082aa-24c7-4d3e-840f-c7fb0729e692",
       "name": "Update SLA Status",
       "credentials": {
         "postgres": {
@@ -842,10 +866,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1728,
-        -832
+        -3136,
+        7168
       ],
-      "id": "9d1ce48d-76bf-46af-afec-dc11d0e89634",
+      "id": "0264f014-c869-4f4d-b6d3-6a174c5e6503",
       "name": "Needs Escalation?"
     },
     {
@@ -857,10 +881,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1952,
-        -896
+        -2912,
+        7104
       ],
-      "id": "8a3e4a56-550d-40fe-aa0e-b7f16bfb1390",
+      "id": "04228fd2-ab5b-4d37-8c86-9def3df0d280",
       "name": "Get Escalation Recipients",
       "credentials": {
         "postgres": {
@@ -878,10 +902,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2176,
-        -896
+        -2688,
+        7104
       ],
-      "id": "f88d8221-bff2-4fce-8d50-31acaaf15d2e",
+      "id": "fa835651-5728-4ddd-a718-56cf6e57f665",
       "name": "Insert SLA Alert",
       "credentials": {
         "postgres": {
@@ -899,10 +923,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        3520,
-        -896
+        -1344,
+        7104
       ],
-      "id": "173a9b04-f678-4d73-9d82-1d359e85a175",
+      "id": "5a38eff4-6eca-4d7a-aa4a-e35434f2210a",
       "name": "Log Workflow Run",
       "credentials": {
         "postgres": {
@@ -913,15 +937,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const solutionConfig = $('Fetch Solution Config').first().json;\nconst slaConfigs = $('Fetch SLA Configs').all().map(i => i.json);\n\nreturn [{\n  json: {\n    _solution_config: solutionConfig,\n    _sla_configs: slaConfigs\n  }\n}];"
+        "jsCode": "const solutions = $('Fetch Solution Config').all().map(i => i.json);\nconst slaConfigs = $('Fetch SLA Configs').all().map(i => i.json);\n\n// Build field config map keyed by solution_id\nconst solutionFieldConfigs = {};\nconst solutionByListId = {};\nconst solutionById = {};\nfor (const sol of solutions) {\n  const configs = Array.isArray(sol.custom_field_configs)\n    ? sol.custom_field_configs\n    : (typeof sol.custom_field_configs === 'string' ? JSON.parse(sol.custom_field_configs) : []);\n  const fieldMap = {};\n  for (const cfg of configs) {\n    fieldMap[cfg.field_key] = {\n      clickup_field_id: cfg.clickup_field_id,\n      options: typeof cfg.options === 'string' ? JSON.parse(cfg.options) : (cfg.options || {})\n    };\n  }\n  solutionFieldConfigs[sol.solution_id] = fieldMap;\n  solutionByListId[sol.clickup_list_id] = sol;\n  solutionById[sol.solution_id] = sol;\n}\n\n// Build SLA config map: solution_id -> { priority -> {response_hours, resolution_hours} }\nconst slaBySolution = {};\nfor (const sla of slaConfigs) {\n  if (!slaBySolution[sla.solution_id]) slaBySolution[sla.solution_id] = {};\n  slaBySolution[sla.solution_id][sla.priority] = sla;\n}\n\nreturn [{\n  json: {\n    _solutions: solutions,\n    _sla_configs: slaConfigs,\n    _sla_by_solution: slaBySolution,\n    _solution_field_configs: solutionFieldConfigs,\n    _solution_by_list_id: solutionByListId,\n    _solution_by_id: solutionById\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1808,
-        208
+        -6672,
+        8208
       ],
-      "id": "ac033f6d-84bb-40a7-802f-ef0e4bdd21ff",
+      "id": "7522fe4c-5cb7-4656-9774-1a501cdbdc98",
       "name": "Merge Configs"
     },
     {
@@ -931,10 +955,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2480,
-        208
+        -7344,
+        8208
       ],
-      "id": "8a33c574-5e3b-4b1b-8b48-9957a2608655",
+      "id": "f0bee05e-74c6-40ff-a9fa-5d8a894f3639",
       "name": "Merge DB Tickets"
     },
     {
@@ -944,10 +968,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        864,
-        -816
+        -4000,
+        7184
       ],
-      "id": "b5056d2a-b616-4965-828a-ab36d6e3ee9c",
+      "id": "4417eecd-bef4-4c89-a762-0a132f79af52",
       "name": "For each Ticket"
     },
     {
@@ -957,10 +981,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
-        -816
+        -4448,
+        7184
       ],
-      "id": "2cffc36d-1c40-4554-99b0-c656392b8449",
+      "id": "a47114e4-5c6b-4d3b-b381-ed012094e4ff",
       "name": "Merge all in 1 item"
     },
     {
@@ -970,10 +994,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3744,
-        -896
+        -1120,
+        7104
       ],
-      "id": "e450f152-0242-44ec-864e-0dcf50168bea",
+      "id": "d5d085f1-92cb-4ed2-9381-5fed88a468a0",
       "name": "Code in JavaScript"
     },
     {
@@ -1004,10 +1028,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1280,
-        -832
+        -3584,
+        7168
       ],
-      "id": "9db26fb7-5fd2-4f88-a858-6eb2aa41d188",
+      "id": "3f4b7403-add7-454e-92ed-4bd0ca819499",
       "name": "processed_tickets is empty?"
     },
     {
@@ -1019,11 +1043,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -288,
-        -1136
+        -5152,
+        6864
       ],
       "typeVersion": 1,
-      "id": "54d08226-cbf4-47a3-ba15-96e4e734f138",
+      "id": "f9e23d69-1085-4724-bc3d-6de70715c5c2",
       "name": "Sticky Note"
     },
     {
@@ -1035,11 +1059,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        -176
+        -5200,
+        7824
       ],
       "typeVersion": 1,
-      "id": "2d868b90-0fed-46ad-9626-54015eaebe29",
+      "id": "54447370-2a52-466e-bbd8-b965a0f0a8aa",
       "name": "Sticky Note1"
     },
     {
@@ -1051,11 +1075,11 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        384
+        -5200,
+        8384
       ],
       "typeVersion": 1,
-      "id": "9f73f2c6-935a-4172-8a6d-eddba3e04d5b",
+      "id": "e64913c1-97dd-409c-b571-88d17c3f4f07",
       "name": "Sticky Note2"
     },
     {
@@ -1067,24 +1091,24 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -336,
-        960
+        -5200,
+        8960
       ],
       "typeVersion": 1,
-      "id": "9fcb1679-2a8f-4ca5-99ae-190e416170bd",
+      "id": "fd662af3-736d-4930-ab81-ba7b3b9e0ffa",
       "name": "Sticky Note3"
     },
     {
       "parameters": {
-        "jsCode": "const alertResult = $input.first().json;\nconst recipients = $('Get Escalation Recipients').all().map(i => i.json);\nconst ticketData = $('Calculate SLA Consumption').first().json.processed_tickets[0];\n\nif (!alertResult || !alertResult.id) {\n  return [{ json: { _skip_notification: true } }];\n}\n\nconst seenEmails = new Set();\nconst uniqueRecipients = recipients.filter(r => {\n  if (seenEmails.has(r.email)) return false;\n  seenEmails.add(r.email);\n  return true;\n});\n\nconst recipientNames = uniqueRecipients.map(r => r.person_name).join(', ');\nconst recipientUserIds = uniqueRecipients\n  .filter(r => r.clickup_user_id)\n  .map(r => parseInt(r.clickup_user_id));\n\nconst levelConfig = recipients[0] || {};\n\n// Build rich text comment with proper @mentions\nconst commentParts = [\n  { text: \"⚠️ SLA ESCALATION — \" + (levelConfig.level_name || 'Escalation Level ' + ticketData.escalation_level) + \"\\n\\n\" },\n  { text: \"Ticket: \" + ticketData.title + \"\\n\" },\n  { text: \"Priority: \" + ticketData.priority + \"\\n\" },\n  { text: \"SLA Consumption: \" + ticketData.consumption_pct + \"%\\n\" },\n  { text: \"Action Required: \" + (levelConfig.action_description || 'Please review') + \"\\n\" },\n  { text: \"Notified: \" }\n];\n\nfor (let i = 0; i < uniqueRecipients.length; i++) {\n  const r = uniqueRecipients[i];\n  if (r.clickup_user_id) {\n    commentParts.push({\n      type: \"tag\",\n      user: { id: parseInt(r.clickup_user_id) }\n    });\n    if (i < uniqueRecipients.length - 1) {\n      commentParts.push({ text: \" \" });\n    }\n  }\n}\n\ncommentParts.push({ text: \"\\n\\n⏰ This ticket requires immediate attention per SLA governance.\\n\\n[🧪 TEST — Please disregard this notification]\" });\n\nconst commentRequestBody = JSON.stringify({\n  comment: commentParts,\n  notify_all: true\n});\n\nreturn [{\n  json: {\n    alert_id: alertResult.id,\n    clickup_task_id: ticketData.clickup_task_id,\n    ticket_id: ticketData.ticket_id,\n    title: ticketData.title,\n    priority: ticketData.priority,\n    consumption_pct: ticketData.consumption_pct,\n    escalation_level: ticketData.escalation_level,\n    level_name: levelConfig.level_name || 'Escalation Level ' + ticketData.escalation_level,\n    action_description: levelConfig.action_description || 'Please review',\n    notified_names: recipientNames,\n    notified_user_ids: recipientUserIds,\n    _comment_request_body: commentRequestBody,\n    _assignee_request_body: JSON.stringify({ add: recipientUserIds }),\n    _skip_notification: false\n  }\n}];"
+        "jsCode": "const t = $input.first().json;\n\nconst levelLabels = { 1: 'Yellow Alert', 2: 'Orange Alert', 3: 'Red Alert', 4: 'Critical Breach' };\nconst level = t._next_escalation_level || 1;\nconst labelText = levelLabels[level] || 'Escalation';\nconst pct = t._sla_consumption || 0;\n\n// Build AI prompt for escalation comment\nconst prompt = `You are a support operations AI writing a concise ClickUp escalation comment.\n\nTicket: ${t.title}\nPriority: ${t.priority}\nCurrent Status: ${t.status}\nSLA Consumed: ${pct}%\nEscalation Level: ${level} (${labelText})\nModule: ${t.module || 'N/A'}\nRequest Type: ${t.request_type || 'N/A'}\n\nWrite a professional 2-3 sentence escalation comment for the support team. \nBe direct about urgency, current SLA position, and what action is needed.\nDo NOT use placeholders or markdown headers. Output plain text only.`;\n\nreturn [{\n  json: {\n    ...t,\n    _escalation_prompt: prompt,\n    _escalation_level: level,\n    _escalation_label: labelText,\n    _escalation_pct: pct\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2400,
-        -896
+        -2464,
+        7104
       ],
-      "id": "010c1c00-d7e6-4462-9270-f33be30f9470",
+      "id": "b8f3c6e3-72ef-4cc4-8a68-535234976a61",
       "name": "Build Escalation Notification"
     },
     {
@@ -1115,10 +1139,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2624,
-        -896
+        -2240,
+        7104
       ],
-      "id": "c5f2812f-277f-49bf-a588-60898a6c033c",
+      "id": "055eecc7-e2df-4b02-864f-0789cb677b93",
       "name": "Skip Check"
     },
     {
@@ -1146,10 +1170,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2848,
-        -896
+        -2016,
+        7104
       ],
-      "id": "4516f450-4507-409f-9048-3cfbb1e971cc",
+      "id": "dd59ed3f-7552-462a-804f-4b69c0ac82b1",
       "name": "Post ClickUp Escalation Comment"
     },
     {
@@ -1177,26 +1201,63 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        3088,
-        -912
+        -1776,
+        7088
       ],
-      "id": "532277e0-089f-4cdb-96a3-7f32bd97207b",
+      "id": "c67f5884-7b77-48d2-81d9-3307202bec2f",
       "name": "Add Escalation Assignees"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO main.threads (\n  ticket_id, action_type, actor_name,\n  raw_content, ai_summary, thread_source, metadata, created_at\n) VALUES (\n  {{ $('Build Escalation Notification').first().json.ticket_id }},\n  'sla_escalation',\n  'system',\n  'SLA Escalation {{ $('Build Escalation Notification').first().json.level_name }} triggered at {{ $('Build Escalation Notification').first().json.consumption_pct }}% consumption. Priority: {{ $('Build Escalation Notification').first().json.priority }}. Notified: {{ $('Build Escalation Notification').first().json.notified_names }}. Action: {{ $('Build Escalation Notification').first().json.action_description }}',\n  'Escalated to {{ $('Build Escalation Notification').first().json.level_name }} at {{ $('Build Escalation Notification').first().json.consumption_pct }}%',\n  'system_escalation',\n  '{\"level\": {{ $('Build Escalation Notification').first().json.escalation_level }}, \"pct\": {{ $('Build Escalation Notification').first().json.consumption_pct }}, \"priority\": \"{{ $('Build Escalation Notification').first().json.priority }}\"}'::jsonb,\n  NOW()\n) RETURNING id;",
+        "query": "INSERT INTO main.threads (\n  ticket_id, action_type, actor_email, actor_name, raw_content, thread_source, created_at\n) VALUES (\n  {{ $json._db_ticket_id || $json.ticket_id }},\n  'escalation',\n  'system',\n  'System',\n  '{{ ($json._escalation_comment || $json._escalation_label || \"Escalation triggered\").replace(/'/g,\"''\") }} \u2014 SLA {{ $json._escalation_pct }}% consumed',\n  'clickup',\n  NOW()\n);\n\nUPDATE main.tickets\nSET\n  escalation_level = {{ $json._escalation_level }},\n  last_escalation_at = NOW(),\n  sla_consumption_pct = {{ $json._sla_consumption || $json._escalation_pct }},\n  sla_status = '{{ $json._sla_status || \"warning\" }}'\nWHERE id = {{ $json._db_ticket_id || $json.ticket_id }};",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3296,
-        -896
+        -1568,
+        7104
       ],
-      "id": "80e2070f-e4ec-42d9-b0fd-7e0d04f71479",
+      "id": "3c143780-a023-409e-8b2b-ef08bdd825aa",
       "name": "Insert Escalation Thread",
+      "credentials": {
+        "postgres": {
+          "id": "Ue6BsbBhIWJaDVXC",
+          "name": "Omer - Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "updateDB",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -7824,
+        8320
+      ],
+      "id": "bcddedbb-1cd4-4b32-83bf-f492c9c53a5f",
+      "name": "Webhook",
+      "webhookId": "b266d8ec-93fd-45d8-b9a8-8004d888d438"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  id, action_type, actor_name, actor_email,\n  old_value, new_value, raw_content, ai_summary,\n  created_at, thread_source, metadata\nFROM main.threads\nWHERE ticket_id = {{ $json._db_ticket_id }}\nORDER BY created_at ASC",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4464,
+        8480
+      ],
+      "id": "18e79b1e-c809-454d-83b2-97d4473c7cc3",
+      "name": "Fetch All Threads",
       "credentials": {
         "postgres": {
           "id": "Ue6BsbBhIWJaDVXC",
@@ -1209,8 +1270,8 @@
         "rule": {
           "interval": [
             {
-              "field": "minutes",
-              "minutesInterval": 1
+              "field": "hours",
+              "hoursInterval": 6
             }
           ]
         }
@@ -1218,152 +1279,50 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -2896,
-        -48
+        -7760,
+        7952
       ],
-      "id": "58d39121-0728-46aa-b7cb-829424a36b0d",
-      "name": "Every 1 Minute"
+      "id": "a179b1e3-a852-4861-bed7-14f4effb9732",
+      "name": "Every 6 hours"
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT\n  id, action_type, actor_name, actor_email,\n  old_value, new_value, raw_content, ai_summary,\n  created_at, thread_source, metadata\nFROM main.threads\nWHERE ticket_id = {{ $json._db_ticket_id }}\nORDER BY created_at ASC",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        400,
-        480
-      ],
-      "id": "707d404b-486b-40d0-9d28-8e15d474dd63",
-      "name": "Fetch All Threads",
-      "credentials": {
-        "postgres": {
-          "id": "Ue6BsbBhIWJaDVXC",
-          "name": "Omer - Supabase"
-        }
-      }
-    },
-    {
-      "id": "dac69ac2-0665-4a66-9507-21ff56e3c103",
-      "name": "Skip Threads?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -480,
-        576
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "824700b7-65a3-407b-a91b-5ae18675cb93",
-              "leftValue": "={{ $json._skip_threads }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true"
-              }
-            }
-          ],
-          "combinator": "and"
-        }
-      }
-    },
-    {
-      "id": "f20e6de2-f843-46f4-aacd-e9c0444456f6",
-      "name": "Fetch Orphan Tickets",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        -2704,
-        400
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "Ue6BsbBhIWJaDVXC",
-          "name": "Omer - Supabase"
-        }
-      },
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT\n  t.id AS ticket_id, t.title, t.description, t.priority, t.status,\n  t.module, t.request_type, t.case_type, t.channel,\n  t.created_by_email, t.created_by_name, t.created_at,\n  t.poc_id, c.company_code\nFROM main.tickets t\nJOIN main.solutions s ON t.solution_id = s.id\nJOIN main.companies c ON s.company_id = c.id\nWHERE t.clickup_task_id IS NULL\n  AND (t.is_deleted = false OR t.is_deleted IS NULL)\n  AND c.company_code = 'medgulf'\n  AND t.channel IN ('call', 'apex', 'email')\n  AND t.created_at > NOW() - INTERVAL '7 days'",
-        "options": {}
-      }
-    },
-    {
-      "id": "bb801ade-4dd7-4a64-ae16-c22a5d7e4ff7",
-      "name": "Build Orphan Task",
+      "id": "b0324943-3c6f-40f2-9def-8140ba7a7b92",
+      "name": "Paginate All Solutions",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2480,
-        400
+        820,
+        300
       ],
       "parameters": {
-        "jsCode": "// Build ClickUp task body for each orphan ticket\nconst d = $input.first().json;\nconst priorityMap = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 4 };\nconst channelLabel = { call: '📞 Call', apex: '🖥 Dashboard', email: '✉ Email' }[d.channel] || d.channel;\n\nconst description = [\n  `**Channel:** ${channelLabel}`,\n  d.module ? `**Module:** ${d.module}` : null,\n  d.request_type ? `**Request Type:** ${d.request_type}` : null,\n  d.case_type ? `**Case Type:** ${d.case_type}` : null,\n  d.created_by_email ? `**Raised by:** ${d.created_by_name || d.created_by_email}` : null,\n  '',\n  d.description || ''\n].filter(x => x !== null).join('\\n');\n\nreturn [{\n  json: {\n    ...d,\n    _task_name: `${d.title?.substring(0, 120) || 'Ticket'}`,\n    _task_body: {\n      name: `${d.title?.substring(0, 120) || 'Ticket'}`,\n      description: description.substring(0, 3000),\n      priority: priorityMap[d.priority] || 3,\n      status: 'Open'\n    }\n  }\n}];"
+        "jsCode": "// Fetch tasks from ALL solution lists with full pagination\nconst solutions = $('Fetch Solution Config').all().map(i => i.json);\nconst TOKEN = 'pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT';\nconst BASE = 'https://api.clickup.com/api/v2';\n\nconst allTasks = [];\nconst listMeta = {};\n\nfor (const sol of solutions) {\n  const listId = sol.clickup_list_id;\n  if (!listId) continue;\n  listMeta[listId] = sol;\n\n  let page = 0;\n  let lastPage = false;\n\n  while (!lastPage) {\n    const url = `${BASE}/list/${listId}/task?archived=false&include_closed=true&subtasks=true&page=${page}`;\n    const resp = await $helpers.httpRequest({\n      method: 'GET',\n      url,\n      headers: { Authorization: TOKEN }\n    });\n\n    const tasks = resp.tasks || [];\n    // Tag each task with its list_id so Compare & Classify can resolve solution\n    for (const t of tasks) {\n      t._source_list_id = listId;\n      t._solution_id = sol.solution_id;\n    }\n    allTasks.push(...tasks);\n\n    lastPage = resp.last_page !== false ? true : false;\n    if (tasks.length < 100) lastPage = true; // ClickUp returns max 100/page\n    page++;\n    if (page > 20) break; // safety cap \u2014 2000 tasks max\n  }\n}\n\nreturn [{ json: { _all_tasks: allTasks, _list_meta: listMeta } }];\n"
       }
     },
     {
-      "id": "50d04852-82f3-4311-b98d-d784e7bb30f9",
-      "name": "Create ClickUp Orphan Task",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "8d193b22-e353-4e3b-8cc4-b8988c0e75f2",
+      "name": "Push DB Ticket to ClickUp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        -2256,
-        400
+        1800,
+        700
       ],
       "parameters": {
-        "method": "POST",
-        "url": "https://api.clickup.com/api/v2/list/901215777514/task",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json._task_body) }}",
-        "options": {}
+        "jsCode": "const ticket = $input.first().json;\nconst TOKEN = 'pk_93735320_XU6SZJQGN677F46481KDAUGANNZU1GOT';\nconst listId = ticket._list_id;\nif (!listId) return [{ json: { ...ticket, _push_result: 'no_list_id' } }];\n\nconst fieldConfig = ticket._field_config || {};\n\n// Build custom fields array from fieldConfig\nfunction resolveOption(fieldKey, optionName) {\n  const cfg = fieldConfig[fieldKey];\n  if (!cfg) return null;\n  return cfg.options?.[optionName] || null;\n}\n\nconst customFields = [];\nconst rtId = fieldConfig['request_type']?.clickup_field_id;\nconst rtOpt = resolveOption('request_type', ticket.request_type);\nif (rtId && rtOpt) customFields.push({ id: rtId, value: rtOpt });\n\nconst ctId = fieldConfig['case_type']?.clickup_field_id;\nconst ctOpt = resolveOption('case_type', ticket.case_type);\nif (ctId && ctOpt) customFields.push({ id: ctId, value: ctOpt });\n\nconst srcId = fieldConfig['source']?.clickup_field_id;\nconst srcOpt = resolveOption('source', ticket.channel || 'apex');\nif (srcId && srcOpt) customFields.push({ id: srcId, value: srcOpt });\n\nconst PMAP = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 4 };\nconst SMAP = { 'open':'open','in progress':'in progress','on hold':'on hold','resolved':'complete','closed':'complete' };\n\nconst body = {\n  name: `ticketNo-${ticket.ticket_id} | ${(ticket.title||'').substring(0,80)}`,\n  description: ticket.description || '',\n  priority: PMAP[ticket.priority] || 3,\n  status: SMAP[ticket.status?.toLowerCase()] || 'open',\n  assignees: [87796566],\n  ...(customFields.length > 0 ? { custom_fields: customFields } : {})\n};\n\ntry {\n  const resp = await $helpers.httpRequest({\n    method: 'POST',\n    url: `https://api.clickup.com/api/v2/list/${listId}/task`,\n    headers: { Authorization: TOKEN, 'Content-Type': 'application/json' },\n    body\n  });\n  return [{ json: { ...ticket, _new_clickup_task_id: resp.id, _new_clickup_url: resp.url, _push_result: 'ok' } }];\n} catch(e) {\n  return [{ json: { ...ticket, _push_result: 'error', _push_error: e.message } }];\n}\n"
       }
     },
     {
-      "id": "5b2d02e8-7f0f-4c52-a414-eb215ab532fa",
-      "name": "Update Orphan clickup_id",
+      "id": "0ec68dc3-cfb9-4243-a9a1-8fc4acb4a486",
+      "name": "Update Ticket ClickUp ID",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -2032,
-        400
+        2020,
+        700
       ],
-      "credentials": {
-        "postgres": {
-          "id": "Ue6BsbBhIWJaDVXC",
-          "name": "Omer - Supabase"
-        }
-      },
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE main.tickets\nSET clickup_task_id = $1,\n    clickup_url = $2,\n    updated_at = NOW()\nWHERE id = $3",
-        "options": {},
-        "additionalFields": {
-          "queryParameters": "={{ JSON.stringify([$json.id, $json.url, $('Build Orphan Task').first().json.ticket_id]) }}"
-        }
+        "query": "UPDATE main.tickets\nSET clickup_task_id = '{{ $json._new_clickup_task_id }}',\n    clickup_url     = '{{ $json._new_clickup_url }}',\n    updated_at      = NOW()\nWHERE id = {{ $json._db_ticket_id }}\n  AND '{{ $json._push_result }}' = 'ok'"
       }
     }
   ],
@@ -1376,11 +1335,6 @@
             "node": "Fetch DB Tickets",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Fetch Orphan Tickets",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1389,7 +1343,7 @@
       "main": [
         [
           {
-            "node": "Compare & Classify",
+            "node": "Paginate All Solutions",
             "type": "main",
             "index": 0
           }
@@ -1469,7 +1423,7 @@
         ],
         [
           {
-            "node": "Skip Threads?",
+            "node": "Fetch ClickUp Comments",
             "type": "main",
             "index": 0
           }
@@ -1483,7 +1437,7 @@
         ],
         [
           {
-            "node": "No-Op",
+            "node": "Push DB Ticket to ClickUp",
             "type": "main",
             "index": 0
           }
@@ -1885,6 +1839,17 @@
         ]
       ]
     },
+    "Log Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Merge Configs": {
       "main": [
         [
@@ -1924,17 +1889,6 @@
         [
           {
             "node": "Fetch Active Tickets for SLA",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Log Workflow Run": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
@@ -2032,16 +1986,11 @@
         ]
       ]
     },
-    "Every 1 Minute": {
+    "Webhook": {
       "main": [
         [
           {
             "node": "Fetch DB Tickets",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Fetch Orphan Tickets",
             "type": "main",
             "index": 0
           }
@@ -2059,51 +2008,33 @@
         ]
       ]
     },
-    "Fetch Orphan Tickets": {
+    "Every 6 hours": {
       "main": [
         [
           {
-            "node": "Build Orphan Task",
+            "node": "Fetch DB Tickets",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Build Orphan Task": {
+    "Push DB Ticket to ClickUp": {
       "main": [
         [
           {
-            "node": "Create ClickUp Orphan Task",
+            "node": "Update Ticket ClickUp ID",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create ClickUp Orphan Task": {
+    "Paginate All Solutions": {
       "main": [
         [
           {
-            "node": "Update Orphan clickup_id",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Skip Threads?": {
-      "main": [
-        [
-          {
-            "node": "Skip No Changes",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Fetch ClickUp Comments",
+            "node": "Compare & Classify",
             "type": "main",
             "index": 0
           }
@@ -2111,11 +2042,11 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "41cb8c26-38ed-49a6-b076-376e61927a86",
+  "versionId": "f3dcfab9-905e-4c00-9482-39f26dd0b4af",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "e55337cd04f1eaeb9d80b3109da0b9a0ef8db1dfc622debb9291d0d8019d0fb5"
