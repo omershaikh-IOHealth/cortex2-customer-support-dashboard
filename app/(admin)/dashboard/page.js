@@ -1,13 +1,110 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getOverviewMetrics, getCriticalSLA, getEscalations, getTickets, getAHTMetrics, getFCRMetrics, getQueueStats } from '@/lib/api'
 import { useCompany } from '@/context/CompanyContext'
 import MetricCard from '@/components/ui/MetricCard'
-import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target, Phone, Users, Timer, PhoneMissed } from 'lucide-react'
+import { Ticket, AlertTriangle, Clock, TrendingUp, AlertOctagon, CheckCircle, Activity, Target, Phone, Users, Timer, PhoneMissed, Layers, List, ChevronDown, ChevronRight } from 'lucide-react'
 import NewBadge from '@/components/ui/NewBadge'
 import Link from 'next/link'
 import { getSLAStatusColor, getPriorityColor, formatRelativeTime } from '@/lib/utils'
+
+function ClickUpSpacesPanel() {
+  const [openSpaces, setOpenSpaces] = useState({})
+
+  const { data: teams, isLoading, error } = useQuery({
+    queryKey: ['clickup-spaces'],
+    queryFn: () => fetch('/api/clickup/spaces').then(r => r.json()),
+    refetchInterval: 300000,
+    retry: 1,
+  })
+
+  const toggleSpace = (spaceId) =>
+    setOpenSpaces(prev => ({ ...prev, [spaceId]: !prev[spaceId] }))
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Layers className="w-4 h-4 text-cortex-accent" />
+          <h2 className="font-display font-bold text-cortex-text">ClickUp Workspaces</h2>
+        </div>
+        <span className="text-[10px] font-mono text-cortex-muted">refreshes every 5 min</span>
+      </div>
+
+      {isLoading && (
+        <div className="space-y-2">
+          {[1, 2].map(i => <div key={i} className="h-10 bg-cortex-bg animate-pulse rounded-lg" />)}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-cortex-danger font-mono">Failed to load: {teams?.error || error.message}</p>
+      )}
+
+      {!isLoading && teams && !teams.error && teams.map(team => (
+        <div key={team.id} className="mb-4 last:mb-0">
+          {/* Workspace */}
+          <p className="text-[10px] font-semibold text-cortex-muted uppercase tracking-widest mb-2">
+            {team.name}
+          </p>
+
+          <div className="space-y-1">
+            {team.spaces.map(space => (
+              <div key={space.id}>
+                {/* Space row — clickable to expand */}
+                <button
+                  onClick={() => toggleSpace(space.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-cortex-bg border border-cortex-border hover:border-cortex-accent/40 transition-colors text-left"
+                >
+                  {openSpaces[space.id]
+                    ? <ChevronDown className="w-3.5 h-3.5 text-cortex-muted flex-shrink-0" />
+                    : <ChevronRight className="w-3.5 h-3.5 text-cortex-muted flex-shrink-0" />
+                  }
+                  <Layers className="w-3.5 h-3.5 text-cortex-accent flex-shrink-0" />
+                  <span className="text-sm font-medium text-cortex-text flex-1">{space.name}</span>
+                  <span className="text-[10px] font-mono text-cortex-muted">{space.lists.length} list{space.lists.length !== 1 ? 's' : ''}</span>
+                </button>
+
+                {/* Lists — shown when space is expanded */}
+                {openSpaces[space.id] && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {space.lists.length === 0 && (
+                      <p className="text-xs text-cortex-muted px-3 py-1">No lists</p>
+                    )}
+                    {space.lists.map(list => (
+                      <div
+                        key={list.id}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${
+                          list.is_configured
+                            ? 'bg-cortex-accent/5 border-cortex-accent/30'
+                            : 'bg-cortex-bg border-cortex-border'
+                        }`}
+                      >
+                        <List className={`w-3 h-3 flex-shrink-0 ${list.is_configured ? 'text-cortex-accent' : 'text-cortex-muted'}`} />
+                        <span className={`text-xs flex-1 ${list.is_configured ? 'text-cortex-accent font-medium' : 'text-cortex-text'}`}>
+                          {list.name}
+                        </span>
+                        {list.folder && (
+                          <span className="text-[10px] font-mono text-cortex-muted">{list.folder}</span>
+                        )}
+                        <span className="text-[10px] font-mono text-cortex-muted">{list.task_count} tasks</span>
+                        {list.is_configured && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-cortex-accent/15 text-cortex-accent font-semibold">active</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function SLABar({ pct, status }) {
   const color =
@@ -304,6 +401,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ClickUp Spaces */}
+      <ClickUpSpacesPanel />
 
       {/* Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
