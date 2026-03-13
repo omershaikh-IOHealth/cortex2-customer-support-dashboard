@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { auth } from '@/auth'
-import { createClickUpTask } from '@/lib/clickup'
+import { createClickUpTask, buildFieldConfig } from '@/lib/clickup'
 
 // Compute AI similar tickets once after creation (non-blocking)
 async function computeSimilarTickets(ticketId, title, description) {
@@ -81,15 +81,32 @@ export async function POST(request) {
     // Example agent usage:
     //   FCR:     POST /api/tickets { channel:'call', push_to_clickup: false }
     //   Non-FCR: POST /api/tickets { channel:'call', push_to_clickup: true  }  ← default
-    if (push_to_clickup) {
-      const cu = await createClickUpTask(ticket)
-      if (cu?.clickup_task_id) {
-        await pool.query(
-          `UPDATE main.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
-          [cu.clickup_task_id, cu.clickup_url, ticket.id]
-        )
-        ticket.clickup_task_id = cu.clickup_task_id
-        ticket.clickup_url = cu.clickup_url
+    if (push_to_clickup && ticket.solution_id) {
+      // Resolve the ClickUp list ID and custom field config from the solution
+      const solRes = await pool.query(
+        `SELECT s.clickup_list_id,
+                COALESCE(
+                  json_agg(scf.*) FILTER (WHERE scf.id IS NOT NULL),
+                  '[]'
+                ) AS custom_fields
+         FROM main.solutions s
+         LEFT JOIN main.solution_custom_fields scf ON scf.solution_id = s.id
+         WHERE s.id = $1
+         GROUP BY s.clickup_list_id`,
+        [ticket.solution_id]
+      )
+      const sol = solRes.rows[0]
+      if (sol?.clickup_list_id) {
+        const fieldConfig = buildFieldConfig(sol.custom_fields || [])
+        const cu = await createClickUpTask(ticket, sol.clickup_list_id, fieldConfig)
+        if (cu?.clickup_task_id) {
+          await pool.query(
+            `UPDATE main.tickets SET clickup_task_id = $1, clickup_url = $2 WHERE id = $3`,
+            [cu.clickup_task_id, cu.clickup_url, ticket.id]
+          )
+          ticket.clickup_task_id = cu.clickup_task_id
+          ticket.clickup_url = cu.clickup_url
+        }
       }
     }
 
@@ -114,7 +131,7 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    const company_code = searchParams.get('company') || 'medgulf'
+    const company_code = searchParams.get('company') || 'all'
     const params = []
     const conditions = ["(t.is_deleted = false OR t.is_deleted IS NULL)"]
 

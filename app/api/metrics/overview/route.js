@@ -4,7 +4,7 @@ import pool from '@/lib/db'
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const company_code = searchParams.get('company') || 'medgulf'
+    const company_code = searchParams.get('company') || 'all'
     const companyFilter = company_code === 'all'
       ? ''
       : `AND company_id = (SELECT id FROM main.companies WHERE company_code = $1 LIMIT 1)`

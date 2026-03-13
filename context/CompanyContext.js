@@ -3,14 +3,16 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-const CompanyContext = createContext({ company: 'medgulf', setCompany: () => {}, companies: [] })
+const CompanyContext = createContext({ company: 'all', setCompany: () => {}, companies: [] })
 
 export function CompanyProvider({ children }) {
-  const [company, setCompanyState] = useState('medgulf')
+  const [company, setCompanyState] = useState('')
+  const [initialised, setInitialised] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('apex_company_filter')
     if (saved) setCompanyState(saved)
+    setInitialised(true)
   }, [])
 
   const setCompany = (code) => {
@@ -27,8 +29,15 @@ export function CompanyProvider({ children }) {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Once companies load, auto-select the first one if nothing is saved in localStorage
+  useEffect(() => {
+    if (initialised && companies.length > 0 && !company) {
+      setCompanyState(companies[0].company_code)
+    }
+  }, [initialised, companies, company])
+
   return (
-    <CompanyContext.Provider value={{ company, setCompany, companies }}>
+    <CompanyContext.Provider value={{ company: company || 'all', setCompany, companies }}>
       {children}
     </CompanyContext.Provider>
   )

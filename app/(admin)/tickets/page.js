@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote, getUsers, getTicketTags, addTagToTicket, updateTicket } from '@/lib/api'
+import { getTickets, holdTicket, getAdminCompanies, getPOCs, getModules, getRequestTypes, getCaseTypes, createTicket, addTicketNote, getUsers, getTicketTags, addTagToTicket, updateTicket, getSolutions } from '@/lib/api'
 import { useCompany } from '@/context/CompanyContext'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -18,7 +18,7 @@ function loadPresets() {
 }
 function savePresets(p) { localStorage.setItem(PRESETS_KEY, JSON.stringify(p)) }
 
-const BLANK_TICKET = { title: '', description: '', priority: 'P3', status: 'Open', module: '', request_type: '', case_type: '', poc_id: '', company_id: '' }
+const BLANK_TICKET = { title: '', description: '', priority: 'P3', status: 'Open', module: '', request_type: '', case_type: '', poc_id: '', company_id: '', solution_id: '' }
 
 export default function TicketsPage() {
   const queryClient = useQueryClient()
@@ -71,6 +71,7 @@ export default function TicketsPage() {
 
   const { data: companies = [] }    = useQuery({ queryKey: ['companies'],     queryFn: getAdminCompanies, staleTime: 300000 })
   const { data: pocs = [] }         = useQuery({ queryKey: ['pocs', createForm.company_id], queryFn: () => getPOCs(createForm.company_id || undefined), enabled: showCreate, staleTime: 60000 })
+  const { data: solutions = [] }    = useQuery({ queryKey: ['solutions', createForm.company_id], queryFn: () => getSolutions(createForm.company_id || undefined), enabled: showCreate, staleTime: 300000 })
   const { data: modules = [] }      = useQuery({ queryKey: ['modules'],       queryFn: () => getModules(),       staleTime: 300000 })
   const { data: requestTypes = [] } = useQuery({ queryKey: ['request-types'], queryFn: () => getRequestTypes(),  staleTime: 300000 })
   const { data: caseTypes = [] }    = useQuery({ queryKey: ['case-types'],    queryFn: () => getCaseTypes(),     staleTime: 300000 })
@@ -513,18 +514,25 @@ export default function TicketsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Company</label>
-                  <select value={createForm.company_id} onChange={e => setCreateForm(f => ({ ...f, company_id: e.target.value, poc_id: '' }))} className="input">
+                  <select value={createForm.company_id} onChange={e => setCreateForm(f => ({ ...f, company_id: e.target.value, poc_id: '', solution_id: '' }))} className="input">
                     <option value="">Select company…</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Reporter (POC)</label>
-                  <select value={createForm.poc_id} onChange={e => setCreateForm(f => ({ ...f, poc_id: e.target.value }))} className="input">
-                    <option value="">Select POC…</option>
-                    {pocs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Solution <span className="text-cortex-danger">*</span></label>
+                  <select value={createForm.solution_id} onChange={e => setCreateForm(f => ({ ...f, solution_id: e.target.value }))} className="input" required>
+                    <option value="">Select solution…</option>
+                    {solutions.map(s => <option key={s.id} value={s.id}>{s.solution_name}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1.5">Reporter (POC)</label>
+                <select value={createForm.poc_id} onChange={e => setCreateForm(f => ({ ...f, poc_id: e.target.value }))} className="input">
+                  <option value="">Select POC…</option>
+                  {pocs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
